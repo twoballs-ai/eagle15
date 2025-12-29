@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>eagle15</title>
+  <style>
+    html, body { margin:0; height:100%; background:#05070c; color:#e6e6e6; font-family:system-ui, Arial; }
+    canvas { display:block; width:100vw; height:100vh; }
+    .hud {
+      position:fixed; left:12px; bottom:12px;
+      font-size:13px; opacity:.85;
+      background:rgba(0,0,0,.35);
+      padding:8px 10px;
+      border:1px solid rgba(255,255,255,.1);
+      border-radius:10px;
+      backdrop-filter: blur(6px);
+      user-select:none;
+      pointer-events:none;
+    }
+    .top {
+      position:fixed; left:12px; top:12px;
+      font-size:13px; opacity:.9;
+      background:rgba(0,0,0,.35);
+      padding:8px 10px;
+      border:1px solid rgba(255,255,255,.1);
+      border-radius:10px;
+      backdrop-filter: blur(6px);
+      user-select:none;
+      white-space:nowrap;
+      pointer-events:none;
+    }
+  </style>
+</head>
+<body>
+<canvas id="game"></canvas>
+  <div class="top" id="stats">...</div>
+
+  <!-- START SCREEN UI -->
+  <div id="startUI" style="
+    position:fixed; inset:0; z-index:2000;
+    display:flex; align-items:center; justify-content:center;
+    background: radial-gradient(1000px 600px at 50% 30%, rgba(30,60,120,.35), rgba(0,0,0,.85));
+  ">
+    <div style="
+      width:min(720px, calc(100vw - 24px));
+      background: rgba(10,12,18,0.92);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 18px 55px rgba(0,0,0,.55);
+      backdrop-filter: blur(10px);
+      color:#e6e6e6;
+      font-family:system-ui, Arial;
+    ">
+      <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px;">
+        <div style="font-size:18px; font-weight:700;">Новая игра</div>
+        <div style="opacity:.7; font-size:13px;">Создание персонажа</div>
+      </div>
+
+      <div style="height:12px;"></div>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+        <div>
+          <div style="font-size:12px; opacity:.8; margin-bottom:6px;">Выбор расы</div>
+          <select id="raceSelect" style="width:100%; padding:10px; border-radius:10px; background:#0b0f1a; color:#e6e6e6; border:1px solid rgba(255,255,255,.12);"></select>
+        </div>
+        <div>
+          <div style="font-size:12px; opacity:.8; margin-bottom:6px;">Выбор класса</div>
+          <select id="classSelect" style="width:100%; padding:10px; border-radius:10px; background:#0b0f1a; color:#e6e6e6; border:1px solid rgba(255,255,255,.12);"></select>
+        </div>
+        <div>
+        <div style="font-size:12px; opacity:.8; margin-bottom:6px;">Имя</div>
+
+        <div style="display:flex; gap:8px;">
+            <input
+            id="nameInput"
+            value="Commander"
+            style="flex:1; padding:10px; border-radius:10px; background:#0b0f1a; color:#e6e6e6; border:1px solid rgba(255,255,255,.12);"
+            />
+            <button
+            id="randomNameBtn"
+            title="Случайное имя"
+            style="
+                padding:10px 12px;
+                border-radius:10px;
+                background:rgba(255,255,255,.08);
+                color:#e6e6e6;
+                border:1px solid rgba(255,255,255,.14);
+                cursor:pointer;
+                font-size:16px;
+            "
+            >🎲</button>
+        </div>
+        </div>
+
+      </div>
+
+      <div style="height:12px;"></div>
+
+      <div id="summary" style="
+        padding:12px; border-radius:12px;
+        border:1px solid rgba(255,255,255,.10);
+        background: rgba(0,0,0,.22);
+        font-size:13px; opacity:.95;
+        line-height:1.35;
+        white-space:pre-line;
+      ">...</div>
+
+      <div style="height:14px;"></div>
+
+      <div style="display:flex; gap:10px; justify-content:flex-end;">
+        <button id="startDefaultBtn" style="padding:10px 12px; border-radius:10px; background:transparent; color:#e6e6e6; border:1px solid rgba(255,255,255,.14); cursor:pointer;">
+          По умолчанию
+        </button>
+        <button id="startBtn" style="padding:10px 12px; border-radius:10px; background:#2b6cff; color:white; border:0; cursor:pointer;">
+          Играть
+        </button>
+      </div>
+    </div>
+  </div>
+  <!-- /START SCREEN UI -->
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

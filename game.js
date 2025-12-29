@@ -1,0 +1,131 @@
+import { createState } from "./data/state.js";
+import { createGalaxy } from "./data/galaxy.js";
+import { GalaxyMapScene } from "./scenes/galaxyMapScene.js";
+import { StarSystemScene } from "./scenes/starSystemScene.js";
+import { ContextMenu } from "./ui/contextMenu.js";
+import { Input } from "./engine/input.js";
+import { getFactionName, getRankName } from "./data/factionsUtil.js";
+import { StartScreen } from "./ui/startScreen.js";
+import { createCharacter } from "./data/сharacter/character.js";
+import { createShip } from "./data/ship/ship.js";
+export class Game {
+  constructor({ canvas, gl, r2d, r3d, statsEl, getView }) {
+    this.canvas = canvas;
+    this.gl = gl;
+    this.r2d = r2d;
+    this.r3d = r3d;
+    this.statsEl = statsEl;
+    this.getView = getView;
+
+    this.state = createState();
+    this.galaxy = createGalaxy(777);
+
+    this.menu = new ContextMenu();
+    this.menu.onClose = () => {
+      this.state.ui.menuOpen = false;
+      this.state.selectedSystemId = null;
+    };
+
+    // Scenes
+    this.scenes = {
+      galaxyMap: new GalaxyMapScene(this),
+      starSystem: new StarSystemScene(this),
+    };
+    this.currentScene = this.scenes.galaxyMap;
+
+
+
+    // Input (единый)
+    this.input = new Input({ canvas, getView });
+// --- Start screen ---
+this.startScreen = new StartScreen();
+this.startScreen.show();
+
+this.startScreen.onStart = ({ name, raceId, classId, specializationId }) => {
+  const player = createCharacter({
+    id: "player",
+    name,
+    raceId,
+    classId,
+    factionId: "union",
+    factionRankId: "recruit",
+    reputation: 0,
+  });
+
+  const ship = createShip({
+    id: "player_ship",
+    name: "ISS Pioneer",
+    raceId,
+    classId: "scout",
+    factionId: player.factionId,
+  });
+  ship.ownerId = player.id;
+
+  this.state.player = player;
+  this.state.playerShip = ship;
+
+  this.startScreen.hide();
+
+  // ✅ стартуем сразу в звездной системе
+  this.openStarSystem(0);
+};
+
+    // ESC — закрыть меню/модалки
+    window.addEventListener("keydown", (e) => {
+      if (e.code === "Escape") {
+        this.menu.close();
+        this.state.ui.modalOpen = false;
+      }
+    });
+  }
+
+  update(dt, time) {
+
+if (!this.state.player) {
+  this.statsEl.textContent = "Create your character...";
+  this.input.beginFrame();
+  return;
+}
+    if (this.currentScene.update) {
+      this.currentScene.update(dt);
+    }
+
+    // Stats
+    const cam = this.state.camera;
+    const sceneName = this.currentScene.name || "Unknown";
+    const p = this.state.player;
+    this.statsEl.textContent =
+    `FPS: ${time.fps} | Scene: ${sceneName} | Cam: (${cam.x.toFixed(0)},${cam.y.toFixed(0)}) z=${cam.zoom.toFixed(2)}` +
+    (this.state.currentSystemId != null ? ` | Current system: ${this.state.currentSystemId}` : "") +
+    (p
+        ? ` | ${getFactionName(p.factionId)} / ${getRankName(p.factionRankId)}`
+        : "");
+    this.input.beginFrame();
+  }
+
+  render(time) {
+    const view = this.getView();
+    this.gl.viewport(0, 0, view.w, view.h);
+
+    if (this.currentScene.render) {
+      this.currentScene.render();
+    }
+  }
+
+  // ---------- Core game actions ----------
+  openStarSystem(systemId) {
+    this.state.currentSystemId = systemId;
+    this.state.ui.modalOpen = false;
+    this.menu.close();
+
+    this.currentScene = this.scenes.starSystem;
+    if (this.currentScene.enter) this.currentScene.enter(systemId);
+  }
+
+  openGalaxyMap() {
+    this.menu.close();
+
+    this.currentScene = this.scenes.galaxyMap;
+    if (this.currentScene.enter) this.currentScene.enter();
+  }
+}
