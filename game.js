@@ -8,6 +8,8 @@ import { getFactionName, getRankName } from "./data/factionsUtil.js";
 import { StartScreen } from "./ui/startScreen.js";
 import { createCharacter } from "./data/сharacter/character.js";
 import { createShip } from "./data/ship/ship.js";
+import { MinimapSolarSystem } from "./ui/minimapSolarSystem.js";
+import { MinimapGalaxy } from "./ui/minimapGalaxy.js";
 export class Game {
   constructor({ canvas, gl, r2d, r3d, statsEl, getView }) {
     this.canvas = canvas;
@@ -60,10 +62,14 @@ this.startScreen.onStart = ({ name, raceId, classId, specializationId }) => {
     factionId: player.factionId,
   });
   ship.ownerId = player.id;
+  this.assets = { models: {} };
 
+  this.r3d.loadGLB("./assets/models/Sun.glb")
+    .then(m => this.assets.models.sun = m)
+    .catch(console.error);
   this.state.player = player;
   this.state.playerShip = ship;
-
+  this.state.ships = [ship];
   this.startScreen.hide();
 
   // ✅ стартуем сразу в звездной системе
@@ -77,6 +83,9 @@ this.startScreen.onStart = ({ name, raceId, classId, specializationId }) => {
         this.state.ui.modalOpen = false;
       }
     });
+
+this.minimapSolar = new MinimapSolarSystem({ size: 200, fit: 0.94, maxBodyPx: 14, maxStarPx: 22 });
+this.minimapGalaxy = new MinimapGalaxy(); // пока не используется
   }
 
   update(dt, time) {
@@ -110,6 +119,10 @@ if (!this.state.player) {
     if (this.currentScene.render) {
       this.currentScene.render();
     }
+      // ✅ UI-оверлей (миникарта)
+if (this.currentScene === this.scenes.starSystem) {
+  this.minimapSolar.draw(this, this.currentScene);
+}
   }
 
   // ---------- Core game actions ----------

@@ -1,5 +1,7 @@
 // engine/renderer3d.js
 import { mat4, vec3 } from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index.js";
+import { loadGLBModel } from "../assets/glbLoader.js";
+import { ModelRenderer } from "./renderer/modelRenderer.js";
 
 function compile(gl, type, src) {
   const s = gl.createShader(type);
@@ -143,6 +145,9 @@ export class Renderer3D {
     this._right = vec3.create();
     this._up = vec3.create();
     this._forward = vec3.create();
+    this.models = new ModelRenderer(gl);
+    this._modelCache = new Map();
+    this._m = mat4.create();
   }
 
   begin(view, camera) {
@@ -198,7 +203,22 @@ export class Renderer3D {
 
     gl.bindVertexArray(null);
   }
+async loadGLB(url) {
+  if (this._modelCache.has(url)) return this._modelCache.get(url);
+  const model = await loadGLBModel(this.gl, url);
+  this._modelCache.set(url, model);
+  return model;
+}
 
+drawModel(model, { position=[0,0,0], scale=[1,1,1], rotationY=0 } = {}) {
+  // M = T * RY * S (на gl-matrix)
+  mat4.identity(this._m);
+  mat4.translate(this._m, this._m, position);
+  mat4.rotateY(this._m, this._m, rotationY);
+  mat4.scale(this._m, this._m, scale);
+
+  this.models.draw(model, this._vp, this._m);
+}
   drawOrbit(radius, segments = 160, colorRGBA = [0.3, 0.3, 0.35, 0.25]) {
     const gl = this.gl;
     if (segments > 256) segments = 256;
@@ -227,4 +247,82 @@ export class Renderer3D {
 
     gl.bindVertexArray(null);
   }
+  // Включаем ортографию для рисования в экранных пикселях (HUD)
+beginOverlay(view) {
+  const gl = this.gl;
+
+  // ortho: (0..W, 0..H) с началом в левом верхнем углу
+  mat4.ortho(this._vp, 0, view.w, view.h, 0, -1, 1);
+
+  // Для drawDisc: right/up должны соответствовать экранным осям
+  this._right[0] = 1; this._right[1] = 0; this._right[2] = 0;
+  this._up[0] = 0; this._up[1] = 1; this._up[2] = 0;
+
+  // HUD поверх сцены
+  gl.disable(gl.DEPTH_TEST);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+}
+beginOverlayRect(view, x, y, w, h) {
+  const gl = this.gl;
+
+  // сохраняем текущий viewport (чтобы потом вернуть)
+  this._savedViewport = gl.getParameter(gl.VIEWPORT);
+
+  // Важно: WebGL viewport/scissor в координатах от НИЗА
+  // x,y здесь ожидаются в "верх-лево" экранных пикселях
+  const yBottom = view.h - (y + h);
+
+  gl.enable(gl.SCISSOR_TEST);
+  gl.viewport(x, yBottom, w, h);
+  gl.scissor(x, yBottom, w, h);
+
+  // ortho в локальных координатах миникарты: (0..w, 0..h), y вниз
+  mat4.ortho(this._vp, 0, w, h, 0, -1, 1);
+
+  // экранные оси для drawDisc
+  this._right[0] = 1; this._right[1] = 0; this._right[2] = 0;
+  this._up[0] = 0; this._up[1] = 1; this._up[2] = 0;
+
+  gl.disable(gl.DEPTH_TEST);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+}
+
+endOverlayRect() {
+  const gl = this.gl;
+  if (this._savedViewport) {
+    gl.viewport(this._savedViewport[0], this._savedViewport[1], this._savedViewport[2], this._savedViewport[3]);
+  }
+  gl.disable(gl.SCISSOR_TEST);
+}
+// Рисует окружность линией в экранных координатах
+drawCircle2D(cx, cy, radiusPx, segments = 64, colorRGBA = [1,1,1,0.25]) {
+  const gl = this.gl;
+  if (segments > 256) segments = 256;
+
+  const arr = this._orbit; // переиспользуем буфер
+  for (let i = 0; i < segments; i++) {
+    const a = (i / segments) * Math.PI * 2;
+    const x = cx + Math.cos(a) * radiusPx;
+    const y = cy + Math.sin(a) * radiusPx;
+    const o = i * 3;
+    arr[o + 0] = x;
+    arr[o + 1] = y;
+    arr[o + 2] = 0;
+  }
+
+  gl.useProgram(this.progLine);
+  gl.bindVertexArray(this.vaoLine);
+
+  gl.uniformMatrix4fv(this.uLine.vp, false, this._vp);
+  gl.uniform4fv(this.uLine.color, colorRGBA);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, this.vboLine);
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, arr.subarray(0, segments * 3));
+
+  gl.drawArrays(gl.LINE_LOOP, 0, segments);
+
+  gl.bindVertexArray(null);
+}
 }

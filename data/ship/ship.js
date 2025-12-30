@@ -8,7 +8,7 @@ export function createShip({
   raceId,
   classId,
   specializationId = null,
-factionId = "neutral",
+  factionId = "neutral",
 }) {
   const race = SHIP_RACES[raceId];
   const cls = SHIP_CLASSES[classId];
@@ -54,5 +54,22 @@ factionId = "neutral",
     faction: "neutral",
 
     alive: true,
+
+    // ✅ runtime: положение/движение корабля в звёздной системе
+    runtime: {
+      x: 0,
+      z: 0,
+      vx: 0,
+      vz: 0,
+      yaw: 0,
+
+      radius: 6,
+  targetX: null,
+  targetZ: null,
+      maxSpeed: 260,
+      accel: 420,
+      turnSpeed: 2.6, // рад/сек
+      drag: 1.8,      // 1/сек
+    },
   };
 }
