@@ -67,6 +67,13 @@ this.startScreen.onStart = ({ name, raceId, classId, specializationId }) => {
   this.r3d.loadGLB("./assets/models/Sun.glb")
     .then(m => this.assets.models.sun = m)
     .catch(console.error);
+  
+    this.r3d.loadGLB("./assets/models/spaceship.glb")
+  .then(m => this.assets.models.ship = m)
+  .catch(console.error);
+      this.r3d.loadGLB("./assets/models/planet.glb")
+  .then(m => this.assets.models.planet = m)
+  .catch(console.error);
   this.state.player = player;
   this.state.playerShip = ship;
   this.state.ships = [ship];
