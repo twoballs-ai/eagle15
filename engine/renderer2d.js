@@ -50,18 +50,82 @@ export class Renderer2D {
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
     this.whiteTex = createWhiteTexture(gl);
-
+    this.currentTex = this.whiteTex;
     gl.disable(gl.DEPTH_TEST);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
   }
 
   begin(viewW, viewH, camX, camY, zoom) {
+    this.currentTex = this.whiteTex;
     this.countFloats = 0;
     this.viewW = viewW;
     this.viewH = viewH;
     this.mat = mat3WorldToClip(viewW, viewH, camX, camY, zoom);
   }
+
+async loadTexture(url) {
+  const gl = this.gl;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to load texture: ${url}`);
+  const blob = await res.blob();
+  const img = await createImageBitmap(blob);
+
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+
+  return tex;
+}
+
+useTexture(tex) {
+  if (!tex) tex = this.whiteTex;
+  if (this.currentTex === tex) return;
+  this.flush();            // ⚠️ один батч = одна текстура
+  this.currentTex = tex;
+}
+
+// Поворотный квад (центр x,y), в тех же "world coords", что и begin(camX/camY/zoom)
+quadRot(x, y, w, h, rotRad, r = 1, g = 1, b = 1, a = 1) {
+  const need = this.vertsPerQuad * this.floatsPerVertex;
+  if (this.countFloats + need > this.vdata.length) this.flush();
+
+  const hw = w * 0.5;
+  const hh = h * 0.5;
+
+  // локальные углы + UV
+  const corners = [
+    [-hw, -hh, 0, 1],
+    [ hw, -hh, 1, 1],
+    [ hw,  hh, 1, 0],
+    [-hw,  hh, 0, 0],
+  ];
+
+  const c = Math.cos(rotRad);
+  const s = Math.sin(rotRad);
+
+  const rot = (px, py) => [px * c - py * s, px * s + py * c];
+
+  const p0 = rot(corners[0][0], corners[0][1]);
+  const p1 = rot(corners[1][0], corners[1][1]);
+  const p2 = rot(corners[2][0], corners[2][1]);
+  const p3 = rot(corners[3][0], corners[3][1]);
+
+  // два треугольника
+  this._v(x + p0[0], y + p0[1], corners[0][2], corners[0][3], r, g, b, a);
+  this._v(x + p1[0], y + p1[1], corners[1][2], corners[1][3], r, g, b, a);
+  this._v(x + p2[0], y + p2[1], corners[2][2], corners[2][3], r, g, b, a);
+
+  this._v(x + p0[0], y + p0[1], corners[0][2], corners[0][3], r, g, b, a);
+  this._v(x + p2[0], y + p2[1], corners[2][2], corners[2][3], r, g, b, a);
+  this._v(x + p3[0], y + p3[1], corners[3][2], corners[3][3], r, g, b, a);
+}
 
   // Draw a colored quad centered at (x,y) in world coords
   quad(x, y, w, h, r = 1, g = 1, b = 1, a = 1) {
@@ -127,7 +191,7 @@ export class Renderer2D {
     gl.bindVertexArray(this.vao);
 
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.whiteTex);
+gl.bindTexture(gl.TEXTURE_2D, this.currentTex);
     gl.uniform1i(this.u_tex, 0);
     gl.uniformMatrix3fv(this.u_mat, false, this.mat);
 

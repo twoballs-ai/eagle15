@@ -44,7 +44,7 @@ export function getAutopilotControls(runtime) {
     return { throttle: 0, turn: 0, boost: false, manual: false };
   }
 
-  const desiredYaw = Math.atan2(dz, dx);
+const desiredYaw = Math.atan2(dx, -dz);
   const err = wrapPi(desiredYaw - runtime.yaw);
 
   // turn: -1..1

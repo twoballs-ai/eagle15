@@ -2,6 +2,7 @@
 import { mat4 } from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index.js";
 import { loadGLBModel } from "../assets/glbLoader.js";
 import { ModelRenderer } from "./renderer/modelRenderer.js";
+import { Starfield } from "./renderer/starfield.js";
 
 function compile(gl, type, src) {
   const s = gl.createShader(type);
@@ -80,27 +81,42 @@ export class Renderer3D {
 
     // viewport restore
     this._savedViewport = null;
+    this._starfield = new Starfield(gl, {
+  starCount: 3500,
+  radius: 12000,
+  seed: 1337,
+});
   }
 
   // ---- scene begin: computes VP and sets common GL state ----
-  begin(view, camera) {
-    const gl = this.gl;
-    const aspect = view.w / view.h;
+ begin(view, camera) {
+  const gl = this.gl;
+  const aspect = view.w / view.h;
 
-    const proj = mat4.create();
+  const proj = mat4.create();
+
+  // ✅ ORTHO для миникарты (если camera.ortho === true)
+  if (camera.ortho) {
+    const halfH = camera.orthoSize ?? 1000; // world units: половина высоты видимого квадрата
+    const halfW = halfH * aspect;
+    mat4.ortho(proj, -halfW, halfW, -halfH, halfH, camera.near, camera.far);
+  } else {
     mat4.perspective(proj, camera.fovRad, aspect, camera.near, camera.far);
-
-    const viewM = mat4.create();
-    mat4.lookAt(viewM, camera.eye, camera.target, camera.up);
-
-    mat4.multiply(this._vp, proj, viewM);
-
-    gl.enable(gl.DEPTH_TEST);
-    gl.depthFunc(gl.LEQUAL);
-
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
   }
+
+  const viewM = mat4.create();
+  mat4.lookAt(viewM, camera.eye, camera.target, camera.up);
+
+  mat4.multiply(this._vp, proj, viewM);
+
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthFunc(gl.LEQUAL);
+
+  gl.enable(gl.CULL_FACE);
+  gl.cullFace(gl.BACK);
+  gl.frontFace(gl.CCW);
+}
+
 
   // ---- minimap / second pass: render into a screen-rect ----
   // x,y,w,h in screen pixels with origin at TOP-LEFT (like UI)
@@ -146,6 +162,8 @@ export class Renderer3D {
       rotationY = 0,
       rotationX = 0,
       rotationZ = 0,
+      ambient = 0.85,     
+      emissive = 0.0,     
     } = {}
   ) {
     mat4.identity(this._m);
@@ -155,36 +173,51 @@ export class Renderer3D {
     if (rotationZ) mat4.rotateZ(this._m, this._m, rotationZ);
     mat4.scale(this._m, this._m, scale);
 
-    this.models.draw(model, this._vp, this._m);
+    this.models.draw(model, this._vp, this._m, { ambient, emissive });
   }
 
   // ---- orbits ----
-  drawOrbit(radius, segments = 160, colorRGBA = [0.3, 0.3, 0.35, 0.25]) {
-    const gl = this.gl;
-    if (segments > 256) segments = 256;
+drawOrbit(radius, segments = 160, colorRGBA = [0.3, 0.3, 0.35, 0.25]) {
+  const gl = this.gl;
+  if (segments > 256) segments = 256;
 
-    const arr = this._orbit;
-    for (let i = 0; i < segments; i++) {
-      const a = (i / segments) * Math.PI * 2;
-      const x = Math.cos(a) * radius;
-      const z = Math.sin(a) * radius;
-      const o = i * 3;
-      arr[o + 0] = x;
-      arr[o + 1] = 0;
-      arr[o + 2] = z;
-    }
-
-    gl.useProgram(this.progLine);
-    gl.bindVertexArray(this.vaoLine);
-
-    gl.uniformMatrix4fv(this.uLine.vp, false, this._vp);
-    gl.uniform4fv(this.uLine.color, colorRGBA);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.vboLine);
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, arr.subarray(0, segments * 3));
-
-    gl.drawArrays(gl.LINE_LOOP, 0, segments);
-
-    gl.bindVertexArray(null);
+  const arr = this._orbit;
+  for (let i = 0; i < segments; i++) {
+    const a = (i / segments) * Math.PI * 2;
+    const x = Math.cos(a) * radius;
+    const z = Math.sin(a) * radius;
+    const o = i * 3;
+    arr[o + 0] = x;
+    arr[o + 1] = 0.12; // ✅ чуть выше плоскости (убирает “кружок”/z-fighting)
+    arr[o + 2] = z;
   }
+
+  gl.useProgram(this.progLine);
+  gl.bindVertexArray(this.vaoLine);
+
+  gl.uniformMatrix4fv(this.uLine.vp, false, this._vp);
+  gl.uniform4fv(this.uLine.color, colorRGBA);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, this.vboLine);
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, arr.subarray(0, segments * 3));
+
+  // ✅ blending только для орбит
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+  // ✅ чтобы линии не “портили” depth (обычно выглядит лучше)
+  gl.depthMask(false);
+
+  gl.drawArrays(gl.LINE_LOOP, 0, segments);
+
+  gl.depthMask(true);
+  gl.disable(gl.BLEND);
+
+  gl.bindVertexArray(null);
+}
+drawBackground(view, camera, dpr = 1) {
+  this._starfield.draw(view, camera, dpr);
+}
+
+
 }

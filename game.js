@@ -36,79 +36,90 @@ export class Game {
     };
     this.currentScene = this.scenes.galaxyMap;
 
-
-
     // Input (единый)
     this.input = new Input({ canvas, getView });
-// --- Start screen ---
-this.startScreen = new StartScreen();
-this.startScreen.show();
+    // --- Start screen ---
+    this.startScreen = new StartScreen();
+    this.startScreen.show();
 
-this.startScreen.onStart = ({ name, raceId, classId, specializationId }) => {
-  const player = createCharacter({
-    id: "player",
-    name,
-    raceId,
-    classId,
-    factionId: "union",
-    factionRankId: "recruit",
-    reputation: 0,
-  });
+    this.startScreen.onStart = ({
+      name,
+      raceId,
+      classId,
+      specializationId,
+    }) => {
+      const player = createCharacter({
+        id: "player",
+        name,
+        raceId,
+        classId,
+        factionId: "union",
+        factionRankId: "recruit",
+        reputation: 0,
+      });
 
-  const ship = createShip({
-    id: "player_ship",
-    name: "ISS Pioneer",
-    raceId,
-    classId: "scout",
-    factionId: player.factionId,
-  });
+      const ship = createShip({
+        id: "player_ship",
+        name: "ISS Pioneer",
+        raceId,
+        classId: "scout",
+        factionId: player.factionId,
+      });
 
-  ship.ownerId = player.id;
+      ship.ownerId = player.id;
 
-  // ✅ ассеты
-  this.assets = { models: {} };
+      // ✅ ассеты
+      this.assets = { models: {} };
+      this.assets.textures = {};
+this.r2d.loadTexture("./assets/2d/raketa_minify.png")
+  .then((t) => {
+    this.assets.textures.shipIcon = t;
+    console.log("[shipIcon] loaded", t);
+  })
+  .catch((e) => console.error("[shipIcon] failed", e));
+      // ---- SUN ----
+      this.r3d
+        .loadGLB("./assets/models/Sun.glb")
+        .then((m) => (this.assets.models.sun = m))
+        .catch(console.error);
 
-  // ---- SUN ----
-  this.r3d.loadGLB("./assets/models/Sun.glb")
-    .then((m) => (this.assets.models.sun = m))
-    .catch(console.error);
+      // ---- SHIP ----
+      this.r3d
+        .loadGLB("./assets/models/spaceship.glb")
+        .then((m) => (this.assets.models.ship = m))
+        .catch(console.error);
 
-  // ---- SHIP ----
-  this.r3d.loadGLB("./assets/models/spaceship.glb")
-    .then((m) => (this.assets.models.ship = m))
-    .catch(console.error);
+      // ✅ ---- PLANETS PACK ----
+      // models.planets будет словарь: { [url]: model }
+      this.assets.models.planets = {};
+      this.assets.models.planetsReady = false;
 
-  // ✅ ---- PLANETS PACK ----
-  // models.planets будет словарь: { [url]: model }
-  this.assets.models.planets = {};
-  this.assets.models.planetsReady = false;
+      Promise.all(
+        PLANET_MODELS.map((url) =>
+          this.r3d
+            .loadGLB(url)
+            .then((m) => {
+              this.assets.models.planets[url] = m;
+            })
+            .catch((e) => {
+              console.error("Failed to load planet model:", url, e);
+            })
+        )
+      ).then(() => {
+        this.assets.models.planetsReady = true;
+        // console.log("Planets pack loaded:", Object.keys(this.assets.models.planets).length);
+      });
 
-  Promise.all(
-    PLANET_MODELS.map((url) =>
-      this.r3d.loadGLB(url)
-        .then((m) => {
-          this.assets.models.planets[url] = m;
-        })
-        .catch((e) => {
-          console.error("Failed to load planet model:", url, e);
-        })
-    )
-  ).then(() => {
-    this.assets.models.planetsReady = true;
-    // console.log("Planets pack loaded:", Object.keys(this.assets.models.planets).length);
-  });
+      // ---- state ----
+      this.state.player = player;
+      this.state.playerShip = ship;
+      this.state.ships = [ship];
 
-  // ---- state ----
-  this.state.player = player;
-  this.state.playerShip = ship;
-  this.state.ships = [ship];
+      this.startScreen.hide();
 
-  this.startScreen.hide();
-
-  // ✅ стартуем сразу в звездной системе
-  this.openStarSystem(0);
-};
-
+      // ✅ стартуем сразу в звездной системе
+      this.openStarSystem(0);
+    };
 
     // ESC — закрыть меню/модалки
     window.addEventListener("keydown", (e) => {
@@ -118,17 +129,21 @@ this.startScreen.onStart = ({ name, raceId, classId, specializationId }) => {
       }
     });
 
-this.minimapSolar = new MinimapSolarSystem({ size: 200, fit: 0.94, maxBodyPx: 14, maxStarPx: 22 });
-this.minimapGalaxy = new MinimapGalaxy(); // пока не используется
+    this.minimapSolar = new MinimapSolarSystem({
+      size: 200,
+      fit: 0.94,
+      maxBodyPx: 14,
+      maxStarPx: 22,
+    });
+    this.minimapGalaxy = new MinimapGalaxy(); // пока не используется
   }
 
   update(dt, time) {
-
-if (!this.state.player) {
-  this.statsEl.textContent = "Create your character...";
-  this.input.beginFrame();
-  return;
-}
+    if (!this.state.player) {
+      this.statsEl.textContent = "Create your character...";
+      this.input.beginFrame();
+      return;
+    }
     if (this.currentScene.update) {
       this.currentScene.update(dt);
     }
@@ -138,9 +153,13 @@ if (!this.state.player) {
     const sceneName = this.currentScene.name || "Unknown";
     const p = this.state.player;
     this.statsEl.textContent =
-    `FPS: ${time.fps} | Scene: ${sceneName} | Cam: (${cam.x.toFixed(0)},${cam.y.toFixed(0)}) z=${cam.zoom.toFixed(2)}` +
-    (this.state.currentSystemId != null ? ` | Current system: ${this.state.currentSystemId}` : "") +
-    (p
+      `FPS: ${time.fps} | Scene: ${sceneName} | Cam: (${cam.x.toFixed(
+        0
+      )},${cam.y.toFixed(0)}) z=${cam.zoom.toFixed(2)}` +
+      (this.state.currentSystemId != null
+        ? ` | Current system: ${this.state.currentSystemId}`
+        : "") +
+      (p
         ? ` | ${getFactionName(p.factionId)} / ${getRankName(p.factionRankId)}`
         : "");
     this.input.beginFrame();
@@ -153,10 +172,10 @@ if (!this.state.player) {
     if (this.currentScene.render) {
       this.currentScene.render();
     }
-      // ✅ UI-оверлей (миникарта)
-if (this.currentScene === this.scenes.starSystem) {
-  this.minimapSolar.draw(this, this.currentScene);
-}
+    // ✅ UI-оверлей (миникарта)
+    if (this.currentScene === this.scenes.starSystem) {
+      this.minimapSolar.draw(this, this.currentScene);
+    }
   }
 
   // ---------- Core game actions ----------

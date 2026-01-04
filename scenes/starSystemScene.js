@@ -2,7 +2,6 @@ import { createStarSystem } from "../data/starSystem.js";
 import { stepShipMovement } from "../gameplay/shipMovement.js";
 import { raycastToGround } from "../gameplay/cameraRay.js";
 import { getShipControls, getAutopilotControls } from "../gameplay/shipController.js";
-
 export class StarSystemScene {
   constructor(game) {
     this.game = game;
@@ -18,17 +17,18 @@ export class StarSystemScene {
       up: [0, 1, 0],
       fovRad: Math.PI / 3,
       near: 0.1,
-      far: 5000,
+      far: 5000, // базовое, переопределим в enter()
     };
 
+    // базовое, переопределим в enter()
     this.boundsRadius = 1200;
 
     // minimap settings
     this.minimap = {
       sizeCSS: 200,
       padCSS: 12,
-      height: 900,   // высота камеры сверху (тюнится)
-      radius: 1200,  // сколько мира показывать на миникарте (тюнится)
+      height: 900, // высота камеры сверху
+      radius: 1200, // можешь удалить позже, если не используешь
     };
   }
 
@@ -39,9 +39,22 @@ export class StarSystemScene {
     this.system = createStarSystem(galaxy.seed, sys.id);
     this.time = 0;
 
+    // ✅ boundsRadius по размеру системы
+    const planets = this.system?.planets || [];
+    let maxOrbit = 0;
+    for (const p of planets) maxOrbit = Math.max(maxOrbit, p.orbitRadius || 0);
+
+    // запас: 25% за последней планетой
+    this.boundsRadius = Math.max(1200, maxOrbit * 1.25);
+
+    // ✅ чтобы дальние объекты не резались камерой
+    this.cam3d.far = Math.max(5000, this.boundsRadius * 2.5);
+
+    // reset camera
     this.cam3d.eye = [0, 220, 340];
     this.cam3d.target = [0, 0, 0];
 
+    // reset ship
     const ship = this.game.state.playerShip;
     if (ship?.runtime) {
       ship.runtime.x = 0;
@@ -67,7 +80,7 @@ export class StarSystemScene {
     const r = ship.runtime;
     const view = getView();
 
-    // ЛКМ ставит цель (логика остаётся, но маркер цели мы не рисуем пока)
+    // ЛКМ ставит цель
     if (input.isMousePressed("left")) {
       const m = input.getMouse();
       const hit = raycastToGround(m.x, m.y, view.w, view.h, this.cam3d);
@@ -81,7 +94,9 @@ export class StarSystemScene {
     const autoControls = manualControls.manual ? null : getAutopilotControls(r);
     const controls = autoControls ?? manualControls;
 
-    const { fx, fz } = stepShipMovement(r, controls, dt, { boundsRadius: this.boundsRadius });
+    const { fx, fz } = stepShipMovement(r, controls, dt, {
+      boundsRadius: this.boundsRadius,
+    });
 
     // камера за кораблём
     this.cam3d.target[0] = r.x + fx * 40;
@@ -102,11 +117,15 @@ export class StarSystemScene {
     gl.clearColor(0.02, 0.02, 0.04, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+// ⭐ фон из Renderer3D (звёзды внутри r3d)
+const dpr = this.game.runtime?.dpr ?? 1;
+r3d.drawBackground(view, this.cam3d, dpr);
+
     r3d.begin(view, this.cam3d);
     this.drawSystem3D(r3d);
     this.drawPlayerShip3D(r3d);
 
-    // ---- MINIMAP PASS (TOP-DOWN) ----
+    // ---- MINIMAP PASS ----
     this.renderMinimap(r3d, gl, view);
   }
 
@@ -120,10 +139,8 @@ export class StarSystemScene {
     const x = view.w - pad - size;
     const y = pad;
 
-    // Рендерим во второй viewport
     r3d.beginViewportRect(view, x, y, size, size);
 
-    // чистим только мини-окно
     gl.clearColor(0.01, 0.02, 0.04, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
@@ -131,21 +148,17 @@ export class StarSystemScene {
     const cx = ship?.x ?? 0;
     const cz = ship?.z ?? 0;
 
-    // Камера строго сверху (top-down)
-    // up = [0,0,-1] чтобы "вверх миникарты" был -Z (как на 2D карте)
     const miniCam = {
       eye: [cx, this.minimap.height, cz],
       target: [cx, 0, cz],
       up: [0, 0, -1],
       fovRad: Math.PI / 3,
       near: 0.1,
-      far: 8000,
+      far: 20000,
     };
 
-    // квадратный view для корректного aspect
     r3d.begin({ w: size, h: size }, miniCam);
 
-    // Рисуем ТО ЖЕ САМОЕ что и в мире: модели + орбиты
     this.drawSystem3D(r3d);
     this.drawPlayerShip3D(r3d);
 
@@ -160,52 +173,58 @@ export class StarSystemScene {
     const r = ship.runtime;
 
     const shipModel = assets?.models?.ship;
-    if (!shipModel) return; // без дисков — нет fallback
+    if (!shipModel) return;
 
-    // Часто модели из Blender смотрят не туда и/или "вверх".
-    // Здесь добавлен rotationX = -90° как самый частый фикс (Z-up -> Y-up).
-    // Если станет хуже — поставь 0 или +Math.PI/2.
     r3d.drawModel(shipModel, {
       position: [r.x, 0, r.z],
-      scale: [1, 1, 1],     // подберёшь позже
+      scale: [1, 1, 1],
       rotationY: r.yaw,
       rotationX: -Math.PI / 2,
     });
   }
 
-drawSystem3D(r3d) {
-  if (!this.system) return;
+  drawSystem3D(r3d, { scaleMul = 1.0 } = {}) {
+    if (!this.system) return;
 
-  const { star, planets } = this.system;
+    const { star, planets } = this.system;
 
-  const sunModel = this.game.assets?.models?.sun;
-  const planetPack = this.game.assets?.models?.planets; // ✅
+    const sunModel = this.game.assets?.models?.sun;
+    const planetPack = this.game.assets?.models?.planets;
 
-  // ---- SUN ----
-  if (sunModel) {
-    r3d.drawModel(sunModel, {
-      position: [0, 0, 0],
-      scale: [star.radius * 10, star.radius * 10, star.radius * 10],
-      rotationY: this.time * 0.05,
-    });
+    // ---- SUN ----
+    if (sunModel) {
+      const s = star.radius * 10 * scaleMul;
+      r3d.drawModel(sunModel, {
+        position: [0, 0, 0],
+        scale: [s, s, s],
+        rotationY: this.time * 0.05,
+        emissive: 2.5,
+        ambient: 0.95,
+      });
+    }
+
+    for (const p of planets) {
+      r3d.drawOrbit(p.orbitRadius, 160, [0.3, 0.3, 0.35, 0.25]);
+
+      const a = this.time * p.speed + p.phase;
+      const x = Math.cos(a) * p.orbitRadius;
+      const z = Math.sin(a) * p.orbitRadius;
+
+      const model = planetPack?.[p.modelUrl];
+      if (!model) continue;
+
+      const s = p.size * scaleMul;
+
+      r3d.drawModel(model, {
+        position: [x, 0, z],
+        scale: [s, s, s],
+        rotationY: this.time * 0.2,
+        ambient: 0.85,
+        emissive: 0.0,
+      });
+    }
+
+    // ✅ ВИЗУАЛЬНАЯ ГРАНИЦА ПОЛЁТА
+    r3d.drawOrbit(this.boundsRadius, 260, [0.95, 0.25, 0.25, 0.45]);
   }
-
-  // ---- PLANETS + ORBITS ----
-  for (const p of planets) {
-    r3d.drawOrbit(p.orbitRadius, 160, [0.3, 0.3, 0.35, 0.25]);
-
-    const a = this.time * p.speed + p.phase;
-    const x = Math.cos(a) * p.orbitRadius;
-    const z = Math.sin(a) * p.orbitRadius;
-
-    const model = planetPack?.[p.modelUrl];
-    if (!model) continue; // модель ещё не догрузилась
-
-    r3d.drawModel(model, {
-      position: [x, 0, z],
-      scale: [p.size, p.size, p.size],
-      rotationY: this.time * 0.2,
-    });
-  }
-}
 }

@@ -42,8 +42,9 @@ export function stepShipMovement(runtime, controls, dt, opts = {}) {
   runtime.yaw += runtime.turnValue * runtime.turnSpeed * turnScale * dt;
 
   // forward vector
-  const fx = Math.cos(runtime.yaw);
-  const fz = Math.sin(runtime.yaw);
+const fx = Math.sin(runtime.yaw);
+const fz = -Math.cos(runtime.yaw);
+
 
   // --- 3) тяга вперёд ---
   runtime.vx += fx * (runtime.throttleValue * accel) * dt;

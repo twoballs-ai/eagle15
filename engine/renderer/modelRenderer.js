@@ -45,32 +45,42 @@ export class ModelRenderer {
       }
     `);
 
-    const fs = compile(gl, gl.FRAGMENT_SHADER, `#version 300 es
-      precision highp float;
+   const fs = compile(gl, gl.FRAGMENT_SHADER, `#version 300 es
+  precision highp float;
 
-      in vec3 vN;
-      in vec2 vUV;
+  in vec3 vN;
+  in vec2 vUV;
 
-      uniform vec4 uBaseColor;
-      uniform sampler2D uBaseTex;
-      uniform int uHasTex;
+  uniform vec4 uBaseColor;
+  uniform sampler2D uBaseTex;
+  uniform int uHasTex;
 
-      out vec4 outColor;
+  uniform float uAmbient;   // ✅ базовый рассеянный свет (0..1+)
+  uniform float uEmissive;  // ✅ самосвечение (0..N)
 
-      void main() {
-        vec4 c = uBaseColor;
-        if (uHasTex == 1) c *= texture(uBaseTex, vUV);
+  out vec4 outColor;
 
-        // простой свет чтобы объём читался
-        vec3 n = normalize(vN);
-        float lit = 1.0;
-        if (length(n) > 0.0001) {
-          vec3 L = normalize(vec3(0.4, 0.9, 0.2));
-          lit = 0.35 + 0.65 * max(dot(n, L), 0.0);
-        }
-        outColor = vec4(c.rgb * lit, c.a);
-      }
-    `);
+  void main() {
+    vec4 c = uBaseColor;
+    if (uHasTex == 1) c *= texture(uBaseTex, vUV);
+
+    // Дефолт для top-down: много ambient, слабый направленный свет
+    vec3 n = normalize(vN);
+    float diff = 0.0;
+
+    if (length(n) > 0.0001) {
+      vec3 L = normalize(vec3(0.4, 0.9, 0.2));
+      diff = max(dot(n, L), 0.0);
+    }
+
+    // ✅ итог: ambient + немного объёма + emissive
+    vec3 lit = c.rgb * (uAmbient + (1.0 - uAmbient) * diff);
+    vec3 emi = c.rgb * uEmissive;
+
+    outColor = vec4(lit + emi, c.a);
+  }
+`);
+
 
     this.prog = link(gl, vs, fs);
     this.uVP = gl.getUniformLocation(this.prog, "uVP");
@@ -78,9 +88,11 @@ export class ModelRenderer {
     this.uBaseColor = gl.getUniformLocation(this.prog, "uBaseColor");
     this.uBaseTex = gl.getUniformLocation(this.prog, "uBaseTex");
     this.uHasTex = gl.getUniformLocation(this.prog, "uHasTex");
+    this.uAmbient = gl.getUniformLocation(this.prog, "uAmbient");
+this.uEmissive = gl.getUniformLocation(this.prog, "uEmissive");
   }
 
-  draw(model, vpMat, modelMat) {
+  draw(model, vpMat, modelMat, { ambient = 0.85, emissive = 0.0 } = {}) {
     const gl = this.gl;
     gl.useProgram(this.prog);
 
@@ -89,7 +101,8 @@ export class ModelRenderer {
 
     gl.activeTexture(gl.TEXTURE0);
     gl.uniform1i(this.uBaseTex, 0);
-
+    gl.uniform1f(this.uAmbient, ambient);
+    gl.uniform1f(this.uEmissive, emissive);
     for (const prim of model.primitives) {
       gl.uniform4fv(this.uBaseColor, prim.material.baseColorFactor);
       gl.uniform1i(this.uHasTex, prim.material.baseColorTex ? 1 : 0);

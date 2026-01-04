@@ -16,10 +16,11 @@ export function createStarSystem(seed, systemId) {
   const planetCount = 4 + Math.floor(rand() * 4); // 4,5,6,7
 
   const planets = [];
-  let orbit = star.radius + 120 * SCALE;
+  let orbit = star.radius + 220 * SCALE;
 
   for (let i = 0; i < planetCount; i++) {
-    const size = (6 + rand() * 12) * SCALE * 0.75;
+    const PLANET_SIZE_SCALE = 2; // ✅ планеты крупнее
+    const size = (6 + rand() * 12) * SCALE * 0.75 * PLANET_SIZE_SCALE;
 
     const base = 0.2 + rand() * 0.6;
     const distFactor = Math.sqrt(orbit / (160 * SCALE));
@@ -41,7 +42,8 @@ export function createStarSystem(seed, systemId) {
       modelUrl,
     });
 
-    orbit += (90 + rand() * 110) * SCALE;
+   const ORBIT_GAP_SCALE = 1.8; // ✅ межпланетные расстояния
+    orbit += (140 + rand() * 180) * SCALE * ORBIT_GAP_SCALE;
   }
 
   return { star, planets };
