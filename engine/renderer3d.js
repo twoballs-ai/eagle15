@@ -215,9 +215,102 @@ drawOrbit(radius, segments = 160, colorRGBA = [0.3, 0.3, 0.35, 0.25]) {
 
   gl.bindVertexArray(null);
 }
-drawBackground(view, camera, dpr = 1) {
-  this._starfield.draw(view, camera, dpr);
+drawBackground(view, camera, dpr = 1, parallaxX = 0, parallaxZ = 0) {
+  this._starfield.draw(view, camera, dpr, parallaxX, parallaxZ);
 }
 
+  drawLineStrip(pointsXYZ, colorRGBA = [1, 1, 1, 1]) {
+    const gl = this.gl;
+    const n = (pointsXYZ.length / 3) | 0;
+    if (n < 2) return;
 
+    gl.useProgram(this.progLine);
+    gl.bindVertexArray(this.vaoLine);
+
+    gl.uniformMatrix4fv(this.uLine.vp, false, this._vp);
+    gl.uniform4fv(this.uLine.color, colorRGBA);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vboLine);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, pointsXYZ);
+
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+
+    gl.drawArrays(gl.LINE_STRIP, 0, n);
+
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+    gl.bindVertexArray(null);
+  }
+
+  drawLines(pointsXYZ, colorRGBA = [1, 1, 1, 1]) {
+    const gl = this.gl;
+    const n = (pointsXYZ.length / 3) | 0;
+    if (n < 2) return;
+
+    gl.useProgram(this.progLine);
+    gl.bindVertexArray(this.vaoLine);
+
+    gl.uniformMatrix4fv(this.uLine.vp, false, this._vp);
+    gl.uniform4fv(this.uLine.color, colorRGBA);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vboLine);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, pointsXYZ);
+
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+
+    gl.drawArrays(gl.LINES, 0, n);
+
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+    gl.bindVertexArray(null);
+  }
+
+  drawCircleAt(x, y, z, radius, segments = 48, colorRGBA = [0.2, 0.9, 1.0, 0.45]) {
+    const gl = this.gl;
+    if (segments > 256) segments = 256;
+
+    const arr = this._orbit;
+    for (let i = 0; i < segments; i++) {
+      const a = (i / segments) * Math.PI * 2;
+      const o = i * 3;
+      arr[o + 0] = x + Math.cos(a) * radius;
+      arr[o + 1] = y;
+      arr[o + 2] = z + Math.sin(a) * radius;
+    }
+
+    gl.useProgram(this.progLine);
+    gl.bindVertexArray(this.vaoLine);
+
+    gl.uniformMatrix4fv(this.uLine.vp, false, this._vp);
+    gl.uniform4fv(this.uLine.color, colorRGBA);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vboLine);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, arr.subarray(0, segments * 3));
+
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+
+    gl.drawArrays(gl.LINE_LOOP, 0, segments);
+
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+    gl.bindVertexArray(null);
+  }
+
+  drawCrossAt(x, y, z, size = 10, colorRGBA = [0.2, 0.9, 1.0, 1.0]) {
+    // 4 линии = 8 вершин => 24 float'а
+    const pts = new Float32Array([
+      x - size, y, z,   x + size, y, z,
+      x, y, z - size,   x, y, z + size,
+    ]);
+    this.drawLines(pts, colorRGBA);
+  }
+getVP() {
+  return this._vp;
+}
 }

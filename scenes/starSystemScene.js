@@ -2,11 +2,12 @@ import { createStarSystem } from "../data/starSystem.js";
 import { stepShipMovement } from "../gameplay/shipMovement.js";
 import { raycastToGround } from "../gameplay/cameraRay.js";
 import { getShipControls, getAutopilotControls } from "../gameplay/shipController.js";
+import { EngineFlame } from "../engine/renderer/engineFlame.js";
 export class StarSystemScene {
   constructor(game) {
     this.game = game;
     this.name = "Star System";
-
+    this.flame = new EngineFlame(game.gl, { max: 2000 });
     this.system = null;
     this.time = 0;
 
@@ -97,7 +98,16 @@ export class StarSystemScene {
     const { fx, fz } = stepShipMovement(r, controls, dt, {
       boundsRadius: this.boundsRadius,
     });
+// --- Engine flame ---
+const pos = [r.x, 0, r.z];
 
+// forward dir из ship movement (у тебя уже есть!)
+const dir = [fx, 0, fz];
+
+// throttle 0..1 (берём из runtime если есть, иначе 1)
+const throttle = Math.max(0, Math.min(1, r.throttleValue ?? 1.0));
+
+this.flame.update(dt, pos, dir, throttle);
     // камера за кораблём
     this.cam3d.target[0] = r.x + fx * 40;
     this.cam3d.target[1] = 0;
@@ -117,14 +127,20 @@ export class StarSystemScene {
     gl.clearColor(0.02, 0.02, 0.04, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-// ⭐ фон из Renderer3D (звёзды внутри r3d)
 const dpr = this.game.runtime?.dpr ?? 1;
-r3d.drawBackground(view, this.cam3d, dpr);
+
+const ship = this.game.state.playerShip?.runtime;
+const k = 0.002; // сила параллакса (тюнится)
+const px = ship ? -ship.x * k : 0;
+const pz = ship ? -ship.z * k : 0;
+
+r3d.drawBackground(view, this.cam3d, dpr, px, pz);
 
     r3d.begin(view, this.cam3d);
     this.drawSystem3D(r3d);
     this.drawPlayerShip3D(r3d);
-
+    this.flame.draw(r3d.getVP(), dpr);
+this.drawAutopilotDebug3D(r3d);
     // ---- MINIMAP PASS ----
     this.renderMinimap(r3d, gl, view);
   }
@@ -161,7 +177,7 @@ r3d.drawBackground(view, this.cam3d, dpr);
 
     this.drawSystem3D(r3d);
     this.drawPlayerShip3D(r3d);
-
+this.drawAutopilotDebug3D(r3d);
     r3d.endViewportRect();
   }
 
@@ -226,5 +242,53 @@ r3d.drawBackground(view, this.cam3d, dpr);
 
     // ✅ ВИЗУАЛЬНАЯ ГРАНИЦА ПОЛЁТА
     r3d.drawOrbit(this.boundsRadius, 260, [0.95, 0.25, 0.25, 0.45]);
+  }
+  drawAutopilotDebug3D(r3d) {
+    const ship = this.game.state.playerShip;
+    const r = ship?.runtime;
+    if (!r) return;
+    if (r.targetX == null || r.targetZ == null) return;
+
+    const tx = r.targetX;
+    const tz = r.targetZ;
+
+    // --- 1) маркер цели ---
+    r3d.drawCrossAt(tx, 0.65, tz, 12, [0.2, 0.9, 1.0, 1.0]);
+    r3d.drawCircleAt(tx, 0.65, tz, 16, 48, [0.2, 0.9, 1.0, 0.45]);
+
+    // --- 2) траектория: простой прогноз вперед ---
+    // копия runtime чтобы не портить реальный
+    const rr = {
+      ...r,
+      vx: r.vx || 0,
+      vz: r.vz || 0,
+      yaw: r.yaw || 0,
+      throttleValue: r.throttleValue ?? 0,
+      turnValue: r.turnValue ?? 0,
+      // target оставляем
+      targetX: tx,
+      targetZ: tz,
+    };
+
+    const dt = 0.10;
+    const steps = 48; // ~4.8 сек
+    const pts = new Float32Array((steps + 1) * 3);
+
+    let k = 0;
+    pts[k++] = rr.x; pts[k++] = 0.55; pts[k++] = rr.z;
+
+    for (let i = 0; i < steps; i++) {
+      const c = getAutopilotControls(rr); // или getAutopilotControls(rr, apOpts) если добавишь opts
+      if (!c) break;
+
+      stepShipMovement(rr, c, dt, { boundsRadius: this.boundsRadius });
+
+      pts[k++] = rr.x; pts[k++] = 0.55; pts[k++] = rr.z;
+
+      if (rr.targetX == null) break;
+    }
+
+    // k = количество float’ов
+    r3d.drawLineStrip(pts.subarray(0, k), [1.0, 1.0, 1.0, 0.35]);
   }
 }
