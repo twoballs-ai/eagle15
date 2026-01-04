@@ -10,6 +10,7 @@ import { createCharacter } from "./data/сharacter/character.js";
 import { createShip } from "./data/ship/ship.js";
 import { MinimapSolarSystem } from "./ui/minimapSolarSystem.js";
 import { MinimapGalaxy } from "./ui/minimapGalaxy.js";
+import { PLANET_MODELS } from "./data/models/planetModels.js";
 export class Game {
   constructor({ canvas, gl, r2d, r3d, statsEl, getView }) {
     this.canvas = canvas;
@@ -61,27 +62,53 @@ this.startScreen.onStart = ({ name, raceId, classId, specializationId }) => {
     classId: "scout",
     factionId: player.factionId,
   });
+
   ship.ownerId = player.id;
+
+  // ✅ ассеты
   this.assets = { models: {} };
 
+  // ---- SUN ----
   this.r3d.loadGLB("./assets/models/Sun.glb")
-    .then(m => this.assets.models.sun = m)
+    .then((m) => (this.assets.models.sun = m))
     .catch(console.error);
-  
-    this.r3d.loadGLB("./assets/models/spaceship.glb")
-  .then(m => this.assets.models.ship = m)
-  .catch(console.error);
-      this.r3d.loadGLB("./assets/models/planet.glb")
-  .then(m => this.assets.models.planet = m)
-  .catch(console.error);
+
+  // ---- SHIP ----
+  this.r3d.loadGLB("./assets/models/spaceship.glb")
+    .then((m) => (this.assets.models.ship = m))
+    .catch(console.error);
+
+  // ✅ ---- PLANETS PACK ----
+  // models.planets будет словарь: { [url]: model }
+  this.assets.models.planets = {};
+  this.assets.models.planetsReady = false;
+
+  Promise.all(
+    PLANET_MODELS.map((url) =>
+      this.r3d.loadGLB(url)
+        .then((m) => {
+          this.assets.models.planets[url] = m;
+        })
+        .catch((e) => {
+          console.error("Failed to load planet model:", url, e);
+        })
+    )
+  ).then(() => {
+    this.assets.models.planetsReady = true;
+    // console.log("Planets pack loaded:", Object.keys(this.assets.models.planets).length);
+  });
+
+  // ---- state ----
   this.state.player = player;
   this.state.playerShip = ship;
   this.state.ships = [ship];
+
   this.startScreen.hide();
 
   // ✅ стартуем сразу в звездной системе
   this.openStarSystem(0);
 };
+
 
     // ESC — закрыть меню/модалки
     window.addEventListener("keydown", (e) => {

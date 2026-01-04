@@ -173,38 +173,39 @@ export class StarSystemScene {
     });
   }
 
-  drawSystem3D(r3d) {
-    if (!this.system) return;
+drawSystem3D(r3d) {
+  if (!this.system) return;
 
-    const { star, planets } = this.system;
+  const { star, planets } = this.system;
 
-    const sunModel = this.game.assets?.models?.sun;
-    const planetModel = this.game.assets?.models?.planet;
+  const sunModel = this.game.assets?.models?.sun;
+  const planetPack = this.game.assets?.models?.planets; // ✅
 
-    // ---- SUN ----
-    if (sunModel) {
-      r3d.drawModel(sunModel, {
-        position: [0, 0, 0],
-        scale: [star.radius * 10, star.radius * 10, star.radius * 10],
-        rotationY: this.time * 0.05,
-      });
-    }
-
-    // ---- PLANETS + ORBITS ----
-    for (const p of planets) {
-      r3d.drawOrbit(p.orbitRadius, 160, [0.3, 0.3, 0.35, 0.25]);
-
-      if (!planetModel) continue; // без дисков — нет fallback
-
-      const a = this.time * p.speed + p.phase;
-      const x = Math.cos(a) * p.orbitRadius;
-      const z = Math.sin(a) * p.orbitRadius;
-
-      r3d.drawModel(planetModel, {
-        position: [x, 0, z],
-        scale: [p.size, p.size, p.size],
-        rotationY: this.time * 0.2,
-      });
-    }
+  // ---- SUN ----
+  if (sunModel) {
+    r3d.drawModel(sunModel, {
+      position: [0, 0, 0],
+      scale: [star.radius * 10, star.radius * 10, star.radius * 10],
+      rotationY: this.time * 0.05,
+    });
   }
+
+  // ---- PLANETS + ORBITS ----
+  for (const p of planets) {
+    r3d.drawOrbit(p.orbitRadius, 160, [0.3, 0.3, 0.35, 0.25]);
+
+    const a = this.time * p.speed + p.phase;
+    const x = Math.cos(a) * p.orbitRadius;
+    const z = Math.sin(a) * p.orbitRadius;
+
+    const model = planetPack?.[p.modelUrl];
+    if (!model) continue; // модель ещё не догрузилась
+
+    r3d.drawModel(model, {
+      position: [x, 0, z],
+      scale: [p.size, p.size, p.size],
+      rotationY: this.time * 0.2,
+    });
+  }
+}
 }

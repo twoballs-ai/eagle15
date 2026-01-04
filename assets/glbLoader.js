@@ -13,6 +13,7 @@
 //     material: { baseColorFactor:[r,g,b,a], baseColorTex: WebGLTexture|null }
 //   }]
 // }
+import { decodeDracoPrimitive } from "../engine/draco_decompress/dracoDecoder.js";
 
 function readU32(dv, o) { return dv.getUint32(o, true); }
 
@@ -79,8 +80,37 @@ function typeToNumComponents(type) {
 }
 
 function getAccessorTypedView(gltf, bin, accessorIndex) {
-  const acc = gltf.accessors[accessorIndex];
-  const bv = gltf.bufferViews[acc.bufferView];
+  const acc = gltf.accessors?.[accessorIndex];
+  if (!acc) throw new Error(`[glbLoader] Missing accessor ${accessorIndex}`);
+
+  // ✅ если нет bufferView — это sparse или компрессия (draco/meshopt)
+  if (acc.bufferView == null) {
+    const used = gltf.extensionsUsed || [];
+    const req = gltf.extensionsRequired || [];
+
+    // Укажем самые частые причины
+    const hints = [];
+    if (used.includes("KHR_draco_mesh_compression") || req.includes("KHR_draco_mesh_compression")) {
+      hints.push("KHR_draco_mesh_compression (Draco)");
+    }
+    if (used.includes("EXT_meshopt_compression") || req.includes("EXT_meshopt_compression")) {
+      hints.push("EXT_meshopt_compression (meshopt)");
+    }
+    if (acc.sparse) {
+      hints.push("sparse accessor");
+    }
+
+    throw new Error(
+      `[glbLoader] Accessor ${accessorIndex} has no bufferView. ` +
+      `This loader supports only uncompressed, non-sparse accessors. ` +
+      (hints.length ? `Detected: ${hints.join(", ")}. ` : "") +
+      `extensionsUsed=${JSON.stringify(used)} extensionsRequired=${JSON.stringify(req)}`
+    );
+  }
+
+  const bv = gltf.bufferViews?.[acc.bufferView];
+  if (!bv) throw new Error(`[glbLoader] Missing bufferView ${acc.bufferView} for accessor ${accessorIndex}`);
+
   const buffer = bin; // GLB uses BIN chunk as buffer[0] typically
 
   const byteOffset = (bv.byteOffset || 0) + (acc.byteOffset || 0);
@@ -91,15 +121,16 @@ function getAccessorTypedView(gltf, bin, accessorIndex) {
   const numComp = typeToNumComponents(acc.type);
   const compBytes = ArrayCtor.BYTES_PER_ELEMENT;
 
-  // If byteStride is present, data is interleaved; simplest approach: de-interleave into packed array.
   const count = acc.count;
 
   if (byteStride && byteStride !== numComp * compBytes) {
     const packed = new ArrayCtor(count * numComp);
     const src = new Uint8Array(buffer, byteOffset, byteLength);
+
     for (let i = 0; i < count; i++) {
       const srcOff = i * byteStride;
       const view = new DataView(src.buffer, src.byteOffset + srcOff, numComp * compBytes);
+
       for (let c = 0; c < numComp; c++) {
         const o = c * compBytes;
         packed[i * numComp + c] =
@@ -112,10 +143,10 @@ function getAccessorTypedView(gltf, bin, accessorIndex) {
           0;
       }
     }
+
     return { array: packed, numComp, count, normalized: !!acc.normalized, componentType: acc.componentType };
   }
 
-  // Packed (contiguous)
   const lengthElems = count * numComp;
   const arr = new ArrayCtor(buffer, byteOffset, lengthElems);
   return { array: arr, numComp, count, normalized: !!acc.normalized, componentType: acc.componentType };
@@ -215,16 +246,32 @@ export async function loadGLBModel(gl, url) {
   const ab = await res.arrayBuffer();
 
   const { gltf, bin } = decodeGLB(ab);
+// ✅ helpful debug for why some GLBs fail in minimal loaders
+const used = gltf.extensionsUsed || [];
+const req = gltf.extensionsRequired || [];
+if (used.length || req.length) {
+  console.log("[glbLoader] extensionsUsed:", used, "extensionsRequired:", req, "url:", url);
+}
 
+// ✅ optional: fail fast on known unsupported compression extensions
+// if (used.includes("KHR_draco_mesh_compression") || req.includes("KHR_draco_mesh_compression")) {
+//   throw new Error(`[glbLoader] Unsupported: KHR_draco_mesh_compression (Draco). Re-export without Draco: ${url}`);
+// }
+if (used.includes("EXT_meshopt_compression") || req.includes("EXT_meshopt_compression")) {
+  throw new Error(`[glbLoader] Unsupported: EXT_meshopt_compression (meshopt). Re-export without meshopt: ${url}`);
+}
   // pick first scene -> first node -> first mesh, else fallback to mesh[0]
-  let meshIndex = null;
-  const sceneIndex = gltf.scene ?? 0;
-  const scene = gltf.scenes?.[sceneIndex];
-  if (scene?.nodes?.length) {
-    const node = gltf.nodes?.[scene.nodes[0]];
-    if (node?.mesh != null) meshIndex = node.mesh;
+let meshIndex = null;
+const sceneIndex = gltf.scene ?? 0;
+const scene = gltf.scenes?.[sceneIndex];
+
+if (scene?.nodes?.length) {
+  for (const nodeIndex of scene.nodes) {
+    const node = gltf.nodes?.[nodeIndex];
+    if (node?.mesh != null) { meshIndex = node.mesh; break; }
   }
-  if (meshIndex == null) meshIndex = 0;
+}
+if (meshIndex == null) meshIndex = 0;
 
   const mesh = gltf.meshes?.[meshIndex];
   if (!mesh) throw new Error("GLB has no meshes");
@@ -236,10 +283,24 @@ export async function loadGLBModel(gl, url) {
     const posAcc = attrs.POSITION;
     if (posAcc == null) continue;
 
-    const position = getAccessorTypedView(gltf, bin, posAcc);
-    const normal = attrs.NORMAL != null ? getAccessorTypedView(gltf, bin, attrs.NORMAL) : null;
-    const uv = attrs.TEXCOORD_0 != null ? getAccessorTypedView(gltf, bin, attrs.TEXCOORD_0) : null;
-    const indices = prim.indices != null ? getAccessorTypedView(gltf, bin, prim.indices) : null;
+    // ✅ If Draco-compressed primitive, decode first
+    const dracoDecoded = await decodeDracoPrimitive(gltf, bin, prim);
+
+    const position = dracoDecoded
+      ? dracoDecoded.position
+      : getAccessorTypedView(gltf, bin, posAcc);
+
+    const normal = dracoDecoded
+      ? dracoDecoded.normal
+      : (attrs.NORMAL != null ? getAccessorTypedView(gltf, bin, attrs.NORMAL) : null);
+
+    const uv = dracoDecoded
+      ? dracoDecoded.uv
+      : (attrs.TEXCOORD_0 != null ? getAccessorTypedView(gltf, bin, attrs.TEXCOORD_0) : null);
+
+    const indices = dracoDecoded
+      ? dracoDecoded.indices
+      : (prim.indices != null ? getAccessorTypedView(gltf, bin, prim.indices) : null);
 
     // material
     const mat = prim.material != null ? gltf.materials?.[prim.material] : null;
