@@ -17,6 +17,14 @@ import { RelationIconsOverlay } from "../ui/relationIconsOverlay.js";
 import { projectWorldToScreen } from "../gameplay/math/project.js";
 import { getFactionRelation } from "../data/faction/factionRelationsUtil.js";
 import { getBasis } from "../assets/modelBasis.js";
+import { createEnemyFireSystem } from "../gameplay/combat/enemyFire.js";
+import {
+  createColliderSystem,
+  clearColliders,
+  addCollider,
+  circleOverlap,
+  circlePenetration,
+} from "../gameplay/collisions/colliders.js";
 import {
   createProjectileSystem,
   tryFire,
@@ -37,6 +45,13 @@ export class StarSystemScene {
     this.poiFocus = null; // текущий фокус (для UI)
     this.poiHint = "";
     this.relIcons = new RelationIconsOverlay({ canvas: this.game.canvas });
+    this.enemyFire = createEnemyFireSystem({
+  range: 520,
+  fireRate: 1.2,
+  damage: 18,
+  fireArcCos: 0.25, // шире/уже сектор
+  jitter: 0.02,
+});
     // строки для простого UI (пока хоть console.log)
     this.questLine = "";
     this.lastLog = "";
@@ -44,6 +59,8 @@ export class StarSystemScene {
     this._hudTimer = 0;
     this.shipHud = null;
     this._shipHudT = 0;
+    this.colliders = createColliderSystem();
+
     this.projectiles = createProjectileSystem({
   bulletSpeed: 1100,
   bulletLife: 1.1,
@@ -190,11 +207,15 @@ export class StarSystemScene {
     this.time += dt;
     this.updatePlayerShip(dt);
     this.updateEnemies(dt);
+    this.enemyFire.update(dt, this.game.state.ships, this.game.state.playerShip);
+      this.buildColliders();     
     this.debugPoiOncePerSecond(dt);
     this.updatePoiAndQuests(dt);
     this.updateHudText(false, dt);
     this.updateCameraInput(dt);
     // ---- PROJECTILES ----
+      this.stepProjectilesAndHits(dt);
+  this.resolveShipCollisions(dt);
 stepProjectiles(this.projectiles, dt, this.boundsRadius);
 applyProjectileHits(this.projectiles, this.game.state.ships || []);
   }
@@ -237,6 +258,73 @@ applyProjectileHits(this.projectiles, this.game.state.ships || []);
       c.pitch = -0.55;
     }
   }
+  resolveShipCollisions(dt) {
+  const ship = this.game.state.playerShip;
+  if (!ship?.runtime) return;
+  if (ship.alive === false) return;
+
+  const r = ship.runtime;
+  const myR = (r.radius ?? 6);
+
+  // толкаем корабль из пересечений
+  for (const c of this.colliders.list) {
+    if (c.alive === false) continue;
+    if (c.id === ship.id) continue;
+
+    // хочешь — сталкиваться только с obstacles/ships:
+    if (c.kind !== "ship" && c.kind !== "obstacle" && c.kind !== "poi") continue;
+
+    const pen = circlePenetration(r.x, r.z, myR, c.x, c.z, c.r);
+    if (!pen) continue;
+
+    // 1) выталкиваем
+    r.x += pen.nx * pen.pen;
+    r.z += pen.nz * pen.pen;
+
+    // 2) гасим скорость в сторону столкновения (убирает “влипание”)
+    const vn = r.vx * pen.nx + r.vz * pen.nz;
+    if (vn < 0) {
+      r.vx -= pen.nx * vn * 1.2;
+      r.vz -= pen.nz * vn * 1.2;
+    }
+  }
+}
+
+stepProjectilesAndHits(dt) {
+  if (!this.projectiles) return;
+
+  // движение пуль
+  // (если у тебя stepProjectiles(system, dt, boundsRadius) — оставь как есть)
+  // stepProjectiles(this.projectiles, dt, this.boundsRadius);
+
+  // попадания: projectile vs colliders
+  const bullets = this.projectiles.list;
+  const hitR = this.projectiles.hitRadius ?? 6;
+  const dmg = this.projectiles.damage ?? 10;
+
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+
+    for (const c of this.colliders.list) {
+      if (c.alive === false) continue;
+      if (c.kind !== "ship") continue;
+      if (c.id === b.ownerId) continue; // не бить владельца
+
+      if (circleOverlap(b.x, b.z, hitR, c.x, c.z, c.r)) {
+        const ship = c.ref;
+        if (ship?.runtime) {
+          ship.runtime.hp = (ship.runtime.hp ?? 100) - dmg;
+          if (ship.runtime.hp <= 0) {
+            ship.runtime.hp = 0;
+            ship.alive = false;
+          }
+        }
+        bullets.splice(i, 1);
+        break;
+      }
+    }
+  }
+}
 
   updateHudText(force = false, dt = 0) {
     if (!this.hud) return;
@@ -523,6 +611,30 @@ this.cam3d.up[0] = ux0;
 this.cam3d.up[1] = uy0;
 this.cam3d.up[2] = uz0;
   }
+buildColliders() {
+  clearColliders(this.colliders);
+
+  // --- SHIPS ---
+  const ships = this.game.state.ships || [];
+  for (const s of ships) {
+    if (!s?.runtime) continue;
+    if (s.alive === false) continue;
+
+    addCollider(this.colliders, {
+      id: s.id,
+      kind: "ship",
+      x: s.runtime.x,
+      z: s.runtime.z,
+      r: (s.runtime.radius ?? 6), // твой runtime.radius
+      alive: true,
+      ref: s,
+    });
+  }
+
+  // --- POI как препятствия (если хочешь) ---
+  // Например маяк/станция/астероид:
+  // if (this.poiDef) for (const p of this.poiDef) { ... addCollider(...) }
+}
 
   render() {
     const { gl, r3d, getView } = this.game;
@@ -550,6 +662,11 @@ this.cam3d.up[2] = uz0;
     this.drawPlayerShip3D(r3d);
     this.drawOtherShips3D(r3d);
     this.flame.draw(r3d.getVP(), dpr);
+    const lines = this.enemyFire.getTracerLinesY(1.2);
+if (lines.length >= 6) {
+  // красноватый/оранжевый трассер
+  r3d.drawLines(lines, [1.0, 0.35, 0.15, 0.9]);
+}
     this.drawAutopilotDebug3D(r3d);
     this.updateRelationIcons(view, r3d.getVP());
   }
@@ -766,6 +883,9 @@ r3d.drawModel(shipModel, {
   basisX: b.x,
   basisY: b.y,
   basisZ: b.z,
+
+rotationX: r.pitchV ?? 0,
+rotationZ: r.bank ?? 0,
 });
   }
 
