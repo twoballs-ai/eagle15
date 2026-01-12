@@ -247,19 +247,19 @@ export async function loadGLBModel(gl, url) {
 
   const { gltf, bin } = decodeGLB(ab);
 // ✅ helpful debug for why some GLBs fail in minimal loaders
-const used = gltf.extensionsUsed || [];
-const req = gltf.extensionsRequired || [];
-if (used.length || req.length) {
-  console.log("[glbLoader] extensionsUsed:", used, "extensionsRequired:", req, "url:", url);
-}
+// const used = gltf.extensionsUsed || [];
+// const req = gltf.extensionsRequired || [];
+// if (used.length || req.length) {
+//   console.log("[glbLoader] extensionsUsed:", used, "extensionsRequired:", req, "url:", url);
+// }
 
 // ✅ optional: fail fast on known unsupported compression extensions
 // if (used.includes("KHR_draco_mesh_compression") || req.includes("KHR_draco_mesh_compression")) {
 //   throw new Error(`[glbLoader] Unsupported: KHR_draco_mesh_compression (Draco). Re-export without Draco: ${url}`);
 // }
-if (used.includes("EXT_meshopt_compression") || req.includes("EXT_meshopt_compression")) {
-  throw new Error(`[glbLoader] Unsupported: EXT_meshopt_compression (meshopt). Re-export without meshopt: ${url}`);
-}
+// if (used.includes("EXT_meshopt_compression") || req.includes("EXT_meshopt_compression")) {
+//   throw new Error(`[glbLoader] Unsupported: EXT_meshopt_compression (meshopt). Re-export without meshopt: ${url}`);
+// }
   // pick first scene -> first node -> first mesh, else fallback to mesh[0]
 let meshIndex = null;
 const sceneIndex = gltf.scene ?? 0;

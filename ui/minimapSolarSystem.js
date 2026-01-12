@@ -61,6 +61,7 @@ const miniCam = {
 
     // Рисуем то же самое, что в мире: модели + орбиты
     if (scene.drawSystem3D) scene.drawSystem3D(r3d, { scaleMul: 2.2 });;
+    if (scene.drawPoiDebug3D) scene.drawPoiDebug3D(r3d);
     // if (scene.drawPlayerShip3D) scene.drawPlayerShip3D(r3d);
 // --- 2D overlay: ship icon (PNG) ---
 const ship = game.state.playerShip?.runtime;
@@ -68,15 +69,18 @@ const tex = game.assets?.textures?.shipIcon;
 
 if (ship && tex) {
   // world(x,z) -> minimap pixels inside sizePx x sizePx
-const half = orthoSize; // 🔥 ТОТ ЖЕ САМЫЙ half, что и у камеры
-
-
+const half = orthoSize;
 
 let nx = (ship.x - cx) / (2 * half) + 0.5;
-let ny = (-(ship.z - cz)) / (2 * half) + 0.5;
+let ny = (ship.z - cz) / (2 * half) + 0.5;
+
+// по желанию — clamp, чтобы иконка не улетала
+nx = Math.max(0.02, Math.min(0.98, nx));
+ny = Math.max(0.02, Math.min(0.98, ny));
 
 const px = (nx - 0.5) * sizePx;
 const py = (ny - 0.5) * sizePx;
+
 // ✅ 2D поверх 3D миникарты
 gl.disable(gl.DEPTH_TEST);
 gl.depthMask(false);
@@ -90,7 +94,7 @@ gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
   game.r2d.useTexture(tex);
 
   const iconSize = 26 * dpr;      // ✅ тюнится
-  const rot = -ship.yaw;          // если “не туда”, добавим ±Math.PI/2
+const rot = ship.yaw + Math.PI;      // если “не туда”, добавим ±Math.PI/2
 
   game.r2d.quadRot(px, py, iconSize, iconSize, rot, 1, 1, 1, 1);
   game.r2d.end();

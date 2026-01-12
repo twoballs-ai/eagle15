@@ -1,14 +1,10 @@
 // gameplay/quest/questState.js
-// Простая квестовая/актовая система: флаги, прогресс, сохранение.
-
 export class QuestState {
   constructor({ storageKey = "game.questState.v1" } = {}) {
     this.storageKey = storageKey;
 
-    // текущий акт/квест
     this.actId = "act1_lost_jump";
 
-    // флаги прогресса (условия)
     this.flags = {
       nav_restored: false,
       ship_stabilized: false,
@@ -16,12 +12,10 @@ export class QuestState {
       installed_upgrade: false,
       beacon_enabled: false,
       act1_complete: false,
+      _beacon_activated: false,
     };
 
-    // чтобы POI события не спамились
-    this.visitedPoi = {}; // { [poiId]: true }
-
-    // логи (для UI)
+    this.visitedPoi = {}; // на будущее (шаг 3)
     this.log = [];
 
     this.load();
@@ -30,7 +24,6 @@ export class QuestState {
   addLog(text) {
     const entry = { t: Date.now(), text };
     this.log.push(entry);
-    // ограничим размер
     if (this.log.length > 200) this.log.shift();
     this.save();
     return entry;
@@ -39,6 +32,7 @@ export class QuestState {
   setFlag(flag, value = true) {
     if (!(flag in this.flags)) this.flags[flag] = false;
     this.flags[flag] = !!value;
+    this.recompute();
     this.save();
   }
 
@@ -46,41 +40,34 @@ export class QuestState {
     return !!this.flags[flag];
   }
 
-  markVisited(poiId) {
-    this.visitedPoi[poiId] = true;
-    this.save();
-  }
-
-  isVisited(poiId) {
-    return !!this.visitedPoi[poiId];
-  }
-
-  // вычисляем производные состояния (например, маяк доступен)
+  // Производные состояния (маяк и завершение акта)
   recompute() {
     const f = this.flags;
-    // Маяк можно включить, когда корабль стабилизирован, навигация восстановлена,
-    // есть детали и поставлен хотя бы один апгрейд (MVP)
+
     const beaconOk =
       f.ship_stabilized && f.nav_restored && f.got_parts && f.installed_upgrade;
 
-    if (beaconOk && !f.beacon_enabled) {
-      f.beacon_enabled = true;
-      this.addLog("Навигационный маяк может быть активирован.");
-    }
+    if (beaconOk) f.beacon_enabled = true;
 
-    if (f.beacon_enabled && f.act1_complete !== true && f._beacon_activated) {
+    if (f.beacon_enabled && f._beacon_activated) {
       f.act1_complete = true;
-      this.addLog("Акт 1 завершён: переход в следующую систему доступен.");
     }
-
-    this.save();
   }
 
-  // Вызови, когда игрок активировал маяк (кнопкой или автособытием)
   activateBeacon() {
     this.flags._beacon_activated = true;
     this.addLog("Маяк активирован. Подготовка к прыжку…");
     this.recompute();
+    this.save();
+  }
+
+  // (шаг 3) пригодится
+  markVisited(poiId) {
+    this.visitedPoi[poiId] = true;
+    this.save();
+  }
+  isVisited(poiId) {
+    return !!this.visitedPoi[poiId];
   }
 
   save() {
@@ -106,16 +93,18 @@ export class QuestState {
       if (data.flags) this.flags = { ...this.flags, ...data.flags };
       if (data.visitedPoi) this.visitedPoi = data.visitedPoi;
       if (Array.isArray(data.log)) this.log = data.log;
+      this.recompute();
     } catch (_) {}
   }
 
   reset() {
-    localStorage.removeItem(this.storageKey);
-    // перезагрузка в дефолт
+    try {
+      localStorage.removeItem(this.storageKey);
+    } catch (_) {}
     this.actId = "act1_lost_jump";
     this.visitedPoi = {};
     this.log = [];
-    Object.keys(this.flags).forEach((k) => (this.flags[k] = false));
+    for (const k of Object.keys(this.flags)) this.flags[k] = false;
     this.save();
   }
 }

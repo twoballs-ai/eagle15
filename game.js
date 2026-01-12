@@ -152,16 +152,16 @@ this.r2d.loadTexture("./assets/2d/raketa_minify.png")
     const cam = this.state.camera;
     const sceneName = this.currentScene.name || "Unknown";
     const p = this.state.player;
-    this.statsEl.textContent =
-      `FPS: ${time.fps} | Scene: ${sceneName} | Cam: (${cam.x.toFixed(
-        0
-      )},${cam.y.toFixed(0)}) z=${cam.zoom.toFixed(2)}` +
-      (this.state.currentSystemId != null
-        ? ` | Current system: ${this.state.currentSystemId}`
-        : "") +
-      (p
-        ? ` | ${getFactionName(p.factionId)} / ${getRankName(p.factionRankId)}`
-        : "");
+    // this.statsEl.textContent =
+    //   `FPS: ${time.fps} | Scene: ${sceneName} | Cam: (${cam.x.toFixed(
+    //     0
+    //   )},${cam.y.toFixed(0)}) z=${cam.zoom.toFixed(2)}` +
+    //   (this.state.currentSystemId != null
+    //     ? ` | Current system: ${this.state.currentSystemId}`
+    //     : "") +
+    //   (p
+    //     ? ` | ${getFactionName(p.factionId)} / ${getRankName(p.factionRankId)}`
+    //     : "");
     this.input.beginFrame();
   }
 
