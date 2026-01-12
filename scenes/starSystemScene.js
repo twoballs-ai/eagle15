@@ -17,6 +17,13 @@ import { RelationIconsOverlay } from "../ui/relationIconsOverlay.js";
 import { projectWorldToScreen } from "../gameplay/math/project.js";
 import { getFactionRelation } from "../data/faction/factionRelationsUtil.js";
 import { getBasis } from "../assets/modelBasis.js";
+import {
+  createProjectileSystem,
+  tryFire,
+  stepProjectiles,
+  applyProjectileHits,
+  buildTracersXYZ
+} from "../gameplay/weapons/projectiles.js";
 export class StarSystemScene {
   constructor(game) {
     this.game = game;
@@ -37,6 +44,15 @@ export class StarSystemScene {
     this._hudTimer = 0;
     this.shipHud = null;
     this._shipHudT = 0;
+    this.projectiles = createProjectileSystem({
+  bulletSpeed: 1100,
+  bulletLife: 1.1,
+  fireCooldown: 0.09,
+  muzzleAhead: 16,
+  damage: 14,
+  hitRadius: 6,
+  spread: 0.01, // чуть-чуть
+});
     // main 3D camera
     this.cam3d = {
       eye: [0, 220, 340],
@@ -178,6 +194,9 @@ export class StarSystemScene {
     this.updatePoiAndQuests(dt);
     this.updateHudText(false, dt);
     this.updateCameraInput(dt);
+    // ---- PROJECTILES ----
+stepProjectiles(this.projectiles, dt, this.boundsRadius);
+applyProjectileHits(this.projectiles, this.game.state.ships || []);
   }
  updateCameraInput(dt) {
     const input = this.game.input;
@@ -379,7 +398,14 @@ export class StarSystemScene {
 
     const r = ship.runtime;
     const view = getView();
+// ---- FIRE ----
+// ЛКМ или Space
+const wantFire =
 
+  this.game.input.isKeyDown?.("Space")
+  false;
+
+tryFire(this.projectiles, r, ship.id, dt, wantFire);
     // ЛКМ ставит цель
     if (input.isMousePressed("left")) {
       const m = input.getMouse();
@@ -517,6 +543,7 @@ this.cam3d.up[2] = uz0;
     r3d.drawBackground(view, this.cam3d, dpr, px, pz);
 
     r3d.begin(view, this.cam3d);
+    this.drawProjectiles3D(r3d);
     this.drawSystem3D(r3d);
     this.drawPoiDebug3D(r3d);
     this.drawSpawnPointsDebug3D?.(r3d);
@@ -526,6 +553,14 @@ this.cam3d.up[2] = uz0;
     this.drawAutopilotDebug3D(r3d);
     this.updateRelationIcons(view, r3d.getVP());
   }
+  drawProjectiles3D(r3d) {
+  if (!this.projectiles) return;
+  const pts = buildTracersXYZ(this.projectiles, 1.2, 0.03);
+  if (pts.length < 6) return;
+
+  // яркие линии
+  r3d.drawLines(pts, [1.0, 0.35, 0.15, 0.95]);
+}
 drawOtherShips3D(r3d) {
   const ships = this.game.state.ships || [];
   const shipModel = this.game.assets?.models?.ship;
