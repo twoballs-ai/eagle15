@@ -12,6 +12,11 @@ import { PoiRuntimeOrbit } from "../gameplay/poi/poiRuntimeOrbit.js";
 import { runAct1Event } from "../gameplay/quest/eventsAct1.js";
 import { HudOverlay } from "../ui/hudOverlay.js";
 import { ShipStatsHUD } from "../ui/shipStatsHud.js";
+import { spawnSystemActors } from "../gameplay/spawn/spawnSystem.js";
+import { RelationIconsOverlay } from "../ui/relationIconsOverlay.js";
+import { projectWorldToScreen } from "../gameplay/math/project.js";
+import { getFactionRelation } from "../data/faction/factionRelationsUtil.js";
+import { getBasis } from "../assets/modelBasis.js";
 export class StarSystemScene {
   constructor(game) {
     this.game = game;
@@ -24,13 +29,14 @@ export class StarSystemScene {
     this.poi = null; // runtime
     this.poiFocus = null; // текущий фокус (для UI)
     this.poiHint = "";
+    this.relIcons = new RelationIconsOverlay({ canvas: this.game.canvas });
     // строки для простого UI (пока хоть console.log)
     this.questLine = "";
     this.lastLog = "";
     this.hud = null;
-this._hudTimer = 0;
-this.shipHud = null;
-this._shipHudT = 0;
+    this._hudTimer = 0;
+    this.shipHud = null;
+    this._shipHudT = 0;
     // main 3D camera
     this.cam3d = {
       eye: [0, 220, 340],
@@ -40,7 +46,22 @@ this._shipHudT = 0;
       near: 0.1,
       far: 5000, // базовое, переопределим в enter()
     };
-
+    // follow/orbit camera tuning
+    this.followCam = {
+      distance: 340, // расстояние до корабля
+      height: 220, // базовая высота (можно крутить)
+      yawOffset: 0.0, // поворот вокруг корабля (в радианах)
+      pitch: -0.55, // наклон вниз (отрицательный = смотрим вниз)
+      targetAhead: 40, // насколько target уходит вперед по направлению корабля
+      targetLift: 0, // можно приподнять target над плоскостью
+      smooth: 12.0, // сглаживание камеры (больше = быстрее догоняет)
+      minHeight: 40,
+      maxHeight: 900,
+      minDistance: 120,
+      maxDistance: 1200,
+      minPitch: -1.35, // почти сверху
+      maxPitch: -0.15, // почти горизонтально
+    };
     // базовое, переопределим в enter()
     this.boundsRadius = 1200;
 
@@ -96,31 +117,54 @@ this._shipHudT = 0;
       ship.runtime.targetX = null;
       ship.runtime.targetZ = null;
     }
+    // ✅ Спавним NPC/врагов детерминированно
+    const spawned = spawnSystemActors({
+      galaxySeed: this.game.galaxy.seed,
+      systemId,
+      playerFactionId: this.game.state.player?.factionId ?? "union",
+    });
+
+    // сохраняем в state (и/или в сцене)
+    this.game.state.characters = spawned.characters;
+    this.game.state.ships = [this.game.state.playerShip, ...spawned.ships];
+
+    // если хочешь дебажить точки
+    this.spawnPoints = spawned.spawnPoints;
+
     const r = this.game.state.playerShip?.runtime;
-if (r) {
-  // базовые статы, если их нет
-  if (r.hpMax == null) r.hpMax = 100;
-  if (r.hp == null) r.hp = r.hpMax;
+    const stats = this.game.state.playerShip?.stats;
 
-  if (r.shieldMax == null) r.shieldMax = 50;
-  if (r.shield == null) r.shield = r.shieldMax;
+    if (r && stats) {
+      // hull/shields/energy из stats
+      r.hpMax = Math.round(stats.hull);
+      r.hp = r.hp ?? r.hpMax;
 
-  if (r.energyMax == null) r.energyMax = 100;
-  if (r.energy == null) r.energy = r.energyMax;
-}
-if (!this.shipHud) this.shipHud = new ShipStatsHUD();
-this.shipHud.update(this.game.state.playerShip?.runtime);
+      r.shieldMax = Math.round(stats.shields);
+      r.shield = r.shield ?? r.shieldMax;
+
+      r.energyMax = Math.round(stats.energy);
+      r.energy = r.energy ?? r.energyMax;
+
+      // speed модификатор
+      r.maxSpeed = 260 * (stats.speed ?? 1.0);
+    }
+    if (!this.shipHud) this.shipHud = new ShipStatsHUD();
+    this.shipHud.update(this.game.state.playerShip?.runtime);
     this.quest.addLog(
       "Выход из прыжка: корабль повреждён. Нужно восстановить системы и покинуть систему."
     );
     this.lastLog = this.quest.log.at(-1)?.text ?? "";
     this.updateQuestLine();
-if (!this.hud) {
-  this.hud = new HudOverlay({ anchor: "bottom-left" });
-}
-
-// сразу обновим текст
-this.updateHudText(true);
+    if (!this.hud) {
+      this.hud = new HudOverlay({ anchor: "bottom-left" });
+    }
+    // reset follow cam
+    this.followCam.distance = 340;
+    this.followCam.height = 220;
+    this.followCam.yawOffset = 0.0;
+    this.followCam.pitch = -0.55;
+    // сразу обновим текст
+    this.updateHudText(true);
     // временно: чтобы видеть, что работает
     console.log(this.questLine);
     console.log("LOG:", this.lastLog);
@@ -129,42 +173,102 @@ this.updateHudText(true);
   update(dt) {
     this.time += dt;
     this.updatePlayerShip(dt);
+    this.updateEnemies(dt);
     this.debugPoiOncePerSecond(dt);
     this.updatePoiAndQuests(dt);
     this.updateHudText(false, dt);
+    this.updateCameraInput(dt);
   }
+ updateCameraInput(dt) {
+    const input = this.game.input;
+    const c = this.followCam;
+
+    // 1) Колёсико: зум (distance)
+    // ВАЖНО: ниже два варианта. Выбери тот, который у тебя есть в Input.
+    // Вариант A: input.getWheelDelta?.()
+    const wheel = input.getWheelDelta ? input.getWheelDelta() : 0;
+
+    // Вариант B: если у тебя wheel хранится в input.getMouse()
+    // const m = input.getMouse();
+    // const wheel = m.wheelDelta ?? 0;
+
+    if (wheel) {
+      c.distance = clamp(c.distance * (1 + wheel * -0.0015), c.minDistance, c.maxDistance);
+    }
+
+    // 2) Высота: Q/E
+    if (input.isKeyDown("KeyQ")) c.height -= 220 * dt;
+    if (input.isKeyDown("KeyE")) c.height += 220 * dt;
+    c.height = clamp(c.height, c.minHeight, c.maxHeight);
+
+    // 3) Вращение вокруг корабля: Z/C (yawOffset)
+    if (input.isKeyDown("KeyZ")) c.yawOffset -= 1.6 * dt;
+    if (input.isKeyDown("KeyC")) c.yawOffset += 1.6 * dt;
+
+    // 4) Наклон (pitch): R/F
+    if (input.isKeyDown("KeyR")) c.pitch -= 1.2 * dt; // сильнее вниз
+    if (input.isKeyDown("KeyF")) c.pitch += 1.2 * dt; // ближе к горизонту
+    c.pitch = clamp(c.pitch, c.minPitch, c.maxPitch);
+
+    // (опционально) быстрый сброс
+    if (this.game.actions?.take?.("camReset")) {
+      c.distance = 340;
+      c.height = 220;
+      c.yawOffset = 0;
+      c.pitch = -0.55;
+    }
+  }
+
   updateHudText(force = false, dt = 0) {
-  if (!this.hud) return;
+    if (!this.hud) return;
 
-  // обновляем 10 раз в секунду, чтобы не дергать DOM каждый кадр
-  this._hudTimer += dt;
-  if (!force && this._hudTimer < 0.10) return;
-  this._hudTimer = 0;
+    // обновляем 10 раз в секунду, чтобы не дергать DOM каждый кадр
+    this._hudTimer += dt;
+    if (!force && this._hudTimer < 0.1) return;
+    this._hudTimer = 0;
 
-  // Доп. инфо: расстояние до фокуса (приятно и полезно)
-  let focusLine = "";
-  const shipR = this.game.state.playerShip?.runtime;
-  const focus = this.poiFocus; // из шага 3
-  if (shipR && focus) {
-    const dx = (focus.worldX ?? 0) - shipR.x;
-    const dz = (focus.worldZ ?? 0) - shipR.z;
-    const dist = Math.sqrt(dx * dx + dz * dz);
-    focusLine = `\nДистанция: ${dist.toFixed(0)}m`;
+    // Доп. инфо: расстояние до фокуса (приятно и полезно)
+    let focusLine = "";
+    const shipR = this.game.state.playerShip?.runtime;
+    const focus = this.poiFocus; // из шага 3
+    if (shipR && focus) {
+      const dx = (focus.worldX ?? 0) - shipR.x;
+      const dz = (focus.worldZ ?? 0) - shipR.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      focusLine = `\nДистанция: ${dist.toFixed(0)}m`;
+    }
+
+    const text =
+      `АКТ 1\n` +
+      `${this.questLine || ""}\n\n` +
+      `Рядом: ${this.poiHint || "—"}` +
+      focusLine +
+      `\n\n` +
+      `Событие: ${this.lastLog || "—"}`;
+
+    this.hud.setText(text);
   }
-
-  const text =
-    `АКТ 1\n` +
-    `${this.questLine || ""}\n\n` +
-    `Рядом: ${this.poiHint || "—"}` +
-    focusLine +
-    `\n\n` +
-    `Событие: ${this.lastLog || "—"}`;
-
-  this.hud.setText(text);
-}
   updatePoiAndQuests(dt) {
     const shipR = this.game.state.playerShip?.runtime;
     if (!shipR || !this.poiDef || !this.poi) return;
+    // ✅ DEV: Reset (R)
+    if (this.game.actions.take("reset")) {
+      // сброс квеста
+      this.quest.reset();
+      this.quest.addLog("Квест сброшен (dev).");
+      this.lastLog = this.quest.log.at(-1)?.text ?? "";
+      this.updateQuestLine();
+
+      // ✅ важно: сбросить runtime POI, иначе entered/visited состояния могут остаться
+      this.poi = new PoiRuntimeOrbit({
+        poiDef: this.poiDef,
+        resolvePos: (poi) => this.getPoiWorldPos(poi),
+      });
+
+      // сброс UI подсказок
+      this.poiFocus = null;
+      this.poiHint = "";
+    }
 
     const { entered, focus } = this.poi.update(shipR);
 
@@ -180,12 +284,7 @@ this.updateHudText(true);
           // для отладки
           console.log("EVENT:", p.onEnter, "LOG:", this.lastLog);
         }
-      }if (this.isPressedResetQuest()) {
-  this.quest.reset();
-  this.quest.addLog("Квест сброшен (dev).");
-  this.lastLog = this.quest.log.at(-1)?.text ?? "";
-  this.updateQuestLine();
-}
+      }
     }
 
     // 2) FOCUS: подсказка рядом с объектом
@@ -202,33 +301,54 @@ this.updateHudText(true);
       }
     }
 
-    // 3) Управление: E для маяка
-    // У тебя нет примера isKeyPressed, поэтому делаю адаптер:
-    if (this.isPressedE()) {
+    if (this.game.actions.take("interact")) {
       this.tryInteractFocusedPoi();
     }
   }
-isPressedResetQuest() {
-  const input = this.game.input;
-  // R — reset (если есть такой метод)
-  if (input?.isKeyPressed) return input.isKeyPressed("r") || input.isKeyPressed("R");
-  if (input?.wasKeyPressed) return input.wasKeyPressed("r") || input.wasKeyPressed("R");
-  return false;
-}
-  isPressedE() {
-    const input = this.game.input;
+  updateEnemies(dt) {
+    const player = this.game.state.playerShip?.runtime;
+    if (!player) return;
 
-    // Популярные варианты API — проверим несколько
-    if (input?.isKeyPressed)
-      return input.isKeyPressed("e") || input.isKeyPressed("E");
-    if (input?.isPressed) return input.isPressed("e") || input.isPressed("E");
-    if (input?.wasKeyPressed)
-      return input.wasKeyPressed("e") || input.wasKeyPressed("E");
+    const ships = this.game.state.ships || [];
+    for (const ship of ships) {
+      if (ship === this.game.state.playerShip) continue;
+      if (!ship?.runtime) continue;
 
-    // Если ничего нет — вернём false (тогда просто не будет активации маяка)
-    return false;
+      // ✅ считаем врагом по флагу или по фракции
+      const isEnemy = ship.isEnemy || ship.factionId === "pirates";
+      if (!isEnemy) continue;
+
+      const r = ship.runtime;
+
+      // --- простейшее преследование ---
+      const dx = player.x - r.x;
+      const dz = player.z - r.z;
+      const dist = Math.hypot(dx, dz);
+
+      // если далеко — просто дрейф
+      if (dist > 1200) {
+        r.vx *= 0.98;
+        r.vz *= 0.98;
+        continue;
+      }
+
+      // направление
+      const nx = dx / (dist || 1);
+      const nz = dz / (dist || 1);
+
+      // yaw чтобы "смотрел" на игрока
+      r.yaw = Math.atan2(dx, -dz);
+
+      // скорость
+      const speed = dist > 180 ? 120 : 0; // подлетел — остановился
+      r.vx = nx * speed;
+      r.vz = nz * speed;
+
+      // интеграция (перемещение)
+      r.x += r.vx * dt;
+      r.z += r.vz * dt;
+    }
   }
-
   tryInteractFocusedPoi() {
     const focus = this.poiFocus;
     if (!focus) return;
@@ -271,6 +391,11 @@ isPressedResetQuest() {
     }
 
     const manualControls = getShipControls(input);
+    // ✅ если игрок даёт ручной ввод — отключаем автопилот
+    if (manualControls.manual) {
+      r.targetX = null;
+      r.targetZ = null;
+    }
     const autoControls = manualControls.manual ? null : getAutopilotControls(r);
     const controls = autoControls ?? manualControls;
 
@@ -288,13 +413,89 @@ isPressedResetQuest() {
 
     this.flame.update(dt, pos, dir, throttle);
     // камера за кораблём
-    this.cam3d.target[0] = r.x + fx * 40;
-    this.cam3d.target[1] = 0;
-    this.cam3d.target[2] = r.z + fz * 40;
+  // ---- Follow / Orbit Camera (привязка к точке, не к модели) ----
+    const c = this.followCam;
 
-    this.cam3d.eye[0] = r.x;
-    this.cam3d.eye[1] = 220;
-    this.cam3d.eye[2] = r.z + 340;
+    // anchor = точка корабля
+    const ax = r.x;
+    const az = r.z;
+
+    // направление "за кораблём" с учётом yawOffset камеры
+    const yaw = r.yaw + c.yawOffset;
+
+    // forward (куда смотрит корабль)
+    const fwdX = Math.sin(r.yaw);
+    const fwdZ = -Math.cos(r.yaw);
+
+    // target: чуть впереди корабля (и можно приподнять)
+    const tx = ax + fwdX * c.targetAhead;
+    const ty = c.targetLift;
+    const tz = az + fwdZ * c.targetAhead;
+
+    // eye: сфера вокруг target (yaw + pitch + distance) + отдельная высота
+    // базовая орбита
+    const cosP = Math.cos(c.pitch);
+    const sinP = Math.sin(c.pitch);
+
+    const backX = Math.sin(yaw) * (c.distance * cosP);
+    const backZ = -Math.cos(yaw) * (c.distance * cosP);
+
+    const ex = tx - backX;
+    const ez = tz - backZ;
+
+    // высота = базовая высота + орбитальная компонента pitch
+    const ey = c.height + (-sinP) * c.distance;
+
+    // сглаживание (чтобы не дёргалось)
+    const k = 1 - Math.exp(-c.smooth * dt);
+
+    this.cam3d.target[0] = lerp(this.cam3d.target[0], tx, k);
+    this.cam3d.target[1] = lerp(this.cam3d.target[1], ty, k);
+    this.cam3d.target[2] = lerp(this.cam3d.target[2], tz, k);
+
+    this.cam3d.eye[0] = lerp(this.cam3d.eye[0], ex, k);
+    this.cam3d.eye[1] = lerp(this.cam3d.eye[1], ey, k);
+    this.cam3d.eye[2] = lerp(this.cam3d.eye[2], ez, k);
+    // --- стабилизация up, чтобы не было roll-флипов ---
+const ex0 = this.cam3d.eye[0], ey0 = this.cam3d.eye[1], ez0 = this.cam3d.eye[2];
+const tx0 = this.cam3d.target[0], ty0 = this.cam3d.target[1], tz0 = this.cam3d.target[2];
+
+// forward = normalize(target - eye)
+let fx0 = tx0 - ex0;
+let fy0 = ty0 - ey0;
+let fz0 = tz0 - ez0;
+const fl = Math.hypot(fx0, fy0, fz0) || 1;
+fx0 /= fl; fy0 /= fl; fz0 /= fl;
+
+// worldUp
+const wux = 0, wuy = 1, wuz = 0;
+
+// right = normalize(cross(worldUp, forward))
+let rx0 = wuy * fz0 - wuz * fy0;
+let ry0 = wuz * fx0 - wux * fz0;
+let rz0 = wux * fy0 - wuy * fx0;
+let rl = Math.hypot(rx0, ry0, rz0);
+
+// если почти параллельно worldUp — подстрахуемся (редкий случай)
+if (rl < 1e-6) {
+  // берем другой "вверх" временно
+  const awx = 0, awy = 0, awz = 1;
+  rx0 = awy * fz0 - awz * fy0;
+  ry0 = awz * fx0 - awx * fz0;
+  rz0 = awx * fy0 - awy * fx0;
+  rl = Math.hypot(rx0, ry0, rz0) || 1;
+}
+
+rx0 /= rl; ry0 /= rl; rz0 /= rl;
+
+// up = cross(forward, right)
+const ux0 = fy0 * rz0 - fz0 * ry0;
+const uy0 = fz0 * rx0 - fx0 * rz0;
+const uz0 = fx0 * ry0 - fy0 * rx0;
+
+this.cam3d.up[0] = ux0;
+this.cam3d.up[1] = uy0;
+this.cam3d.up[2] = uz0;
   }
 
   render() {
@@ -318,53 +519,140 @@ isPressedResetQuest() {
     r3d.begin(view, this.cam3d);
     this.drawSystem3D(r3d);
     this.drawPoiDebug3D(r3d);
+    this.drawSpawnPointsDebug3D?.(r3d);
     this.drawPlayerShip3D(r3d);
+    this.drawOtherShips3D(r3d);
     this.flame.draw(r3d.getVP(), dpr);
     this.drawAutopilotDebug3D(r3d);
-    // ---- MINIMAP PASS ----
-    this.renderMinimap(r3d, gl, view);
+    this.updateRelationIcons(view, r3d.getVP());
   }
-drawPoiMinimap(r3d) {
-  if (!this.poiDef) return;
+drawOtherShips3D(r3d) {
+  const ships = this.game.state.ships || [];
+  const shipModel = this.game.assets?.models?.ship;
+  if (!shipModel) return;
 
-  for (const poi of this.poiDef) {
-    const pos = this.getPoiWorldPos(poi);
-    if (!pos) continue;
+  const b = getBasis("ship");
 
-    const isFocus = this.poiFocus && this.poiFocus.id === poi.id;
+  for (const ship of ships) {
+    if (ship === this.game.state.playerShip) continue;
+    if (!ship?.runtime) continue;
 
-    const y = 0.8;
-    const size = isFocus ? 14 : 10;
-    const col = isFocus ? [0.2, 0.9, 1.0, 1.0] : [1.0, 0.85, 0.25, 1.0];
+    const r = ship.runtime;
 
-    // компактный крест
-    r3d.drawCrossAt(pos.x, y, pos.z, size, col);
-
-    // маленький круг-иконка
-    r3d.drawCircleAt(pos.x, y, pos.z, 12, 40, [col[0], col[1], col[2], 0.35]);
+    r3d.drawModel(shipModel, {
+      position: [r.x, 0, r.z],
+      scale: [1, 1, 1],
+      rotationY: r.yaw,
+      basisX: b.x,
+      basisY: b.y,
+      basisZ: b.z,
+      ambient: 0.8,
+      emissive: (ship.isEnemy || ship.factionId === "pirates") ? 0.3 : 0.0,
+    });
   }
 }
+
+
+  drawSpawnPointsDebug3D(r3d) {
+    if (!this.spawnPoints) return;
+    for (const p of this.spawnPoints) {
+      const col =
+        p.type === "pirate"
+          ? [1, 0.2, 0.2, 0.7]
+          : p.type === "trader"
+          ? [0.2, 1, 0.2, 0.7]
+          : [0.8, 0.8, 1.0, 0.7];
+
+      r3d.drawCrossAt(p.x, 0.8, p.z, 12, col);
+      r3d.drawCircleAt(p.x, 0.8, p.z, 22, 32, [col[0], col[1], col[2], 0.25]);
+    }
+  }
+  drawPoiMinimap(r3d) {
+    if (!this.poiDef) return;
+
+    for (const poi of this.poiDef) {
+      const pos = this.getPoiWorldPos(poi);
+      if (!pos) continue;
+
+      const isFocus = this.poiFocus && this.poiFocus.id === poi.id;
+
+      const y = 0.8;
+      const size = isFocus ? 14 : 10;
+      const col = isFocus ? [0.2, 0.9, 1.0, 1.0] : [1.0, 0.85, 0.25, 1.0];
+
+      // компактный крест
+      r3d.drawCrossAt(pos.x, y, pos.z, size, col);
+
+      // маленький круг-иконка
+      r3d.drawCircleAt(pos.x, y, pos.z, 12, 40, [col[0], col[1], col[2], 0.35]);
+    }
+  }
 
   drawPoiDebug3D(r3d) {
-  if (!this.poiDef) return;
+    if (!this.poiDef) return;
 
-  for (const poi of this.poiDef) {
-    const pos = this.getPoiWorldPos(poi);
-    if (!pos) continue;
+    for (const poi of this.poiDef) {
+      const pos = this.getPoiWorldPos(poi);
+      if (!pos) continue;
 
-    const y = 0.65;
-    // крест
-    r3d.drawCrossAt(pos.x, y, pos.z, 10, [1.0, 0.85, 0.25, 1.0]);
+      const y = 0.65;
+      // крест
+      r3d.drawCrossAt(pos.x, y, pos.z, 10, [1.0, 0.85, 0.25, 1.0]);
 
-    // круг радиуса триггера
-    const r = poi.radius ?? 120;
-    r3d.drawCircleAt(pos.x, y, pos.z, r, 64, [1.0, 0.85, 0.25, 0.25]);
+      // круг радиуса триггера
+      const r = poi.radius ?? 120;
+      r3d.drawCircleAt(pos.x, y, pos.z, r, 64, [1.0, 0.85, 0.25, 0.25]);
 
-    // круг радиуса interact (потоньше)
-    const ir = poi.interactRadius ?? r;
-    r3d.drawCircleAt(pos.x, y, pos.z, ir, 64, [0.2, 0.9, 1.0, 0.18]);
+      // круг радиуса interact (потоньше)
+      const ir = poi.interactRadius ?? r;
+      r3d.drawCircleAt(pos.x, y, pos.z, ir, 64, [0.2, 0.9, 1.0, 0.18]);
+    }
   }
-}
+
+  updateRelationIcons(view, vp) {
+    const player = this.game.state.player;
+    const playerFaction = player?.factionId ?? "neutral";
+
+    const ships = this.game.state.ships || [];
+    const entities = [];
+
+    for (const ship of ships) {
+      if (!ship?.runtime) continue;
+
+      // игроку иконку можно не рисовать (или рисовать отдельную)
+      if (ship === this.game.state.playerShip) continue;
+
+      const rel = getFactionRelation(playerFaction, ship.factionId);
+      const relation =
+        rel === "hostile" ? "hostile" : rel === "ally" ? "ally" : "neutral";
+
+      // позиция над кораблём (чуть выше)
+      const wx = ship.runtime.x;
+      const wy = 20; // высота “иконки” над плоскостью
+      const wz = ship.runtime.z;
+
+      const s = projectWorldToScreen(wx, wy, wz, vp, view);
+      if (!s) {
+        entities.push({ id: ship.id, relation, visible: false, x: 0, y: 0 });
+        continue;
+      }
+
+      // спрятать если совсем за краем (не обязательно)
+      const visible =
+        s.x >= -50 && s.x <= view.w + 50 && s.y >= -50 && s.y <= view.h + 50;
+
+      entities.push({
+        id: ship.id,
+        relation,
+        visible,
+        x: s.x,
+        y: s.y,
+      });
+    }
+
+    this.relIcons.update({ view, entities });
+  }
+
   updateQuestLine() {
     const f = this.quest.flags;
     const a = f.nav_restored ? "Навигация ✅" : "Навигация ⬜";
@@ -423,43 +711,6 @@ drawPoiMinimap(r3d) {
     }
     return null;
   }
-  renderMinimap(r3d, gl, view) {
-    if (!this.system) return;
-
-    const dpr = this.game.runtime?.dpr ?? 1;
-    const size = Math.floor(this.minimap.sizeCSS * dpr);
-    const pad = Math.floor(this.minimap.padCSS * dpr);
-
-    const x = view.w - pad - size;
-    const y = pad;
-
-    r3d.beginViewportRect(view, x, y, size, size);
-
-    gl.clearColor(0.01, 0.02, 0.04, 1);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-    const ship = this.game.state.playerShip?.runtime;
-    const cx = ship?.x ?? 0;
-    const cz = ship?.z ?? 0;
-
-    const miniCam = {
-      eye: [cx, this.minimap.height, cz],
-      target: [cx, 0, cz],
-      up: [0, 0, -1],
-      fovRad: Math.PI / 3,
-      near: 0.1,
-      far: 20000,
-    };
-
-    r3d.begin({ w: size, h: size }, miniCam);
-
-    this.drawSystem3D(r3d);
-    // this.drawPoiMinimap(r3d);  // ✅ вместо drawPoiDebug3D
-    this.drawPoiDebug3D(r3d);
-    this.drawPlayerShip3D(r3d);
-    this.drawAutopilotDebug3D(r3d);
-    r3d.endViewportRect();
-  }
 
   drawPlayerShip3D(r3d) {
     const { state, assets } = this.game;
@@ -471,12 +722,16 @@ drawPoiMinimap(r3d) {
     const shipModel = assets?.models?.ship;
     if (!shipModel) return;
 
-    r3d.drawModel(shipModel, {
-      position: [r.x, 0, r.z],
-      scale: [1, 1, 1],
-      rotationY: r.yaw,
-      rotationX: -Math.PI / 2,
-    });
+const b = getBasis("ship");
+
+r3d.drawModel(shipModel, {
+  position: [r.x, 0, r.z],
+  scale: [1, 1, 1],
+  rotationY: r.yaw,     // только yaw из физики
+  basisX: b.x,
+  basisY: b.y,
+  basisZ: b.z,
+});
   }
 
   drawSystem3D(r3d, { scaleMul = 1.0 } = {}) {
@@ -576,3 +831,5 @@ drawPoiMinimap(r3d) {
     r3d.drawLineStrip(pts.subarray(0, k), [1.0, 1.0, 1.0, 0.35]);
   }
 }
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+function lerp(a, b, t) { return a + (b - a) * t; }

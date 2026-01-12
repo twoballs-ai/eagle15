@@ -39,8 +39,8 @@ export function stepShipMovement(runtime, controls, dt, opts = {}) {
   const speed01 = maxSpeed > 0 ? clamp(speed / maxSpeed, 0, 1) : 0;
   const turnScale = 1.0 - speed01 * 0.35;
 
-  runtime.yaw += runtime.turnValue * runtime.turnSpeed * turnScale * dt;
-
+runtime.yaw += runtime.turnValue * runtime.turnSpeed * turnScale * dt;
+runtime.yaw = wrapPi(runtime.yaw);
   // forward vector
 const fx = Math.sin(runtime.yaw);
 const fz = -Math.cos(runtime.yaw);
@@ -96,4 +96,9 @@ const fz = -Math.cos(runtime.yaw);
 
   // вернём удобные значения (можно использовать для камеры/эффектов)
   return { fx, fz, speed: Math.hypot(runtime.vx, runtime.vz) };
+}
+function wrapPi(a) {
+  while (a > Math.PI) a -= Math.PI * 2;
+  while (a < -Math.PI) a += Math.PI * 2;
+  return a;
 }

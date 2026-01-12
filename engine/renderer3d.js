@@ -154,27 +154,39 @@ export class Renderer3D {
     return model;
   }
 
-  drawModel(
-    model,
-    {
-      position = [0, 0, 0],
-      scale = [1, 1, 1],
-      rotationY = 0,
-      rotationX = 0,
-      rotationZ = 0,
-      ambient = 0.85,     
-      emissive = 0.0,     
-    } = {}
-  ) {
-    mat4.identity(this._m);
-    mat4.translate(this._m, this._m, position);
-    if (rotationX) mat4.rotateX(this._m, this._m, rotationX);
-    if (rotationY) mat4.rotateY(this._m, this._m, rotationY);
-    if (rotationZ) mat4.rotateZ(this._m, this._m, rotationZ);
-    mat4.scale(this._m, this._m, scale);
+drawModel(model, {
+  position=[0,0,0],
+  scale=[1,1,1],
 
-    this.models.draw(model, this._vp, this._m, { ambient, emissive });
-  }
+  rotationY=0,
+  rotationX=0,
+  rotationZ=0,
+
+  basisX=0,
+  basisY=0,
+  basisZ=0,
+
+  ambient=0.85,
+  emissive=0.0,
+} = {}) {
+
+  mat4.identity(this._m);
+  mat4.translate(this._m, this._m, position);
+
+  // ✅ 1) СНАЧАЛА basis модели
+  if (basisY) mat4.rotateY(this._m, this._m, basisY);
+  if (basisX) mat4.rotateX(this._m, this._m, basisX);
+  if (basisZ) mat4.rotateZ(this._m, this._m, basisZ);
+
+  // ✅ 2) ПОТОМ world rotation (yaw/pitch/roll объекта)
+  if (rotationY) mat4.rotateY(this._m, this._m, rotationY);
+  if (rotationX) mat4.rotateX(this._m, this._m, rotationX);
+  if (rotationZ) mat4.rotateZ(this._m, this._m, rotationZ);
+
+  mat4.scale(this._m, this._m, scale);
+  this.models.draw(model, this._vp, this._m, { ambient, emissive });
+}
+
 
   // ---- orbits ----
 drawOrbit(radius, segments = 160, colorRGBA = [0.3, 0.3, 0.35, 0.25]) {

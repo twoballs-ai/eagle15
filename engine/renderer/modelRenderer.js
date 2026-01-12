@@ -77,7 +77,7 @@ export class ModelRenderer {
     vec3 lit = c.rgb * (uAmbient + (1.0 - uAmbient) * diff);
     vec3 emi = c.rgb * uEmissive;
 
-    outColor = vec4(lit + emi, c.a);
+    outColor = vec4(lit + emi, 1.0); // ✅ всегда непрозрачно
   }
 `);
 
@@ -94,6 +94,9 @@ this.uEmissive = gl.getUniformLocation(this.prog, "uEmissive");
 
   draw(model, vpMat, modelMat, { ambient = 0.85, emissive = 0.0 } = {}) {
     const gl = this.gl;
+    gl.enable(gl.DEPTH_TEST);
+gl.depthMask(true);
+gl.disable(gl.BLEND);
     gl.useProgram(this.prog);
 
     gl.uniformMatrix4fv(this.uVP, false, vpMat);

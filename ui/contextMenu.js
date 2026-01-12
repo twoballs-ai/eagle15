@@ -1,3 +1,4 @@
+// ui/contextMenu.js
 export class ContextMenu {
   constructor() {
     this.el = document.createElement("div");
@@ -12,25 +13,23 @@ export class ContextMenu {
     this.el.style.padding = "6px";
     this.el.style.display = "none";
     this.el.style.userSelect = "none";
+    this.el.style.pointerEvents = "auto";
 
     document.body.appendChild(this.el);
 
     this.isOpen = false;
     this.onClose = null;
 
-    // Close on outside click
-    window.addEventListener("mousedown", (e) => {
-      if (!this.isOpen) return;
-      if (!this.el.contains(e.target)) this.close();
-    });
-
-    // Close on ESC
-    window.addEventListener("keydown", (e) => {
-      if (e.code === "Escape") this.close();
-    });
+    this._items = [];
+    this._buttons = [];
+    this._hoverIndex = -1;
   }
 
   open({ x, y, title, items }) {
+    this._items = Array.isArray(items) ? items : [];
+    this._buttons = [];
+    this._hoverIndex = -1;
+
     this.el.innerHTML = "";
 
     if (title) {
@@ -44,34 +43,27 @@ export class ContextMenu {
       this.el.appendChild(header);
     }
 
-    for (const it of items) {
+    for (let i = 0; i < this._items.length; i++) {
+      const it = this._items[i];
+
       const btn = document.createElement("div");
-      btn.textContent = it.label;
+      btn.textContent = it.label ?? "";
       btn.style.padding = "10px 10px";
       btn.style.fontSize = "14px";
       btn.style.borderRadius = "8px";
       btn.style.cursor = "pointer";
       btn.style.opacity = it.disabled ? "0.45" : "0.95";
       btn.style.pointerEvents = it.disabled ? "none" : "auto";
-
-      btn.addEventListener("mouseenter", () => {
-        if (!it.disabled) btn.style.background = "rgba(255,255,255,0.07)";
-      });
-      btn.addEventListener("mouseleave", () => {
-        btn.style.background = "transparent";
-      });
-      btn.addEventListener("mousedown", (e) => e.stopPropagation());
-      btn.addEventListener("click", () => {
-        if (it.onClick) it.onClick();
-        this.close();
-      });
+      btn.dataset.idx = String(i);
 
       this.el.appendChild(btn);
+      this._buttons.push(btn);
     }
 
     // Keep inside viewport
     const pad = 10;
     this.el.style.display = "block";
+
     const rect = this.el.getBoundingClientRect();
     const xx = Math.min(window.innerWidth - rect.width - pad, Math.max(pad, x));
     const yy = Math.min(window.innerHeight - rect.height - pad, Math.max(pad, y));
@@ -86,6 +78,57 @@ export class ContextMenu {
     if (!this.isOpen) return;
     this.el.style.display = "none";
     this.isOpen = false;
+    this._hoverIndex = -1;
     if (this.onClose) this.onClose();
+  }
+
+  // ---------- Helpers for Game/UI system ----------
+
+  containsTarget(domTarget) {
+    if (!domTarget) return false;
+    return this.el.contains(domTarget);
+  }
+
+  // Determine which menu item element was clicked using event.target (from Input)
+  getIndexFromTarget(domTarget) {
+    if (!domTarget) return -1;
+
+    // Find closest element with data-idx inside menu
+    const el = domTarget.closest?.("[data-idx]");
+    if (!el) return -1;
+    if (!this.el.contains(el)) return -1;
+
+    const idx = Number(el.dataset.idx);
+    if (!Number.isFinite(idx)) return -1;
+    if (idx < 0 || idx >= this._items.length) return -1;
+    return idx;
+  }
+
+  // Execute menu item by index (Game decides when to call)
+  activateIndex(idx) {
+    if (idx < 0 || idx >= this._items.length) return false;
+    const it = this._items[idx];
+    if (!it || it.disabled) return false;
+
+    if (typeof it.onClick === "function") it.onClick();
+    return true;
+  }
+
+  // Optional visual hover (если захочешь позже делать hover через Input mouse coords)
+  setHover(idx) {
+    if (idx === this._hoverIndex) return;
+    this._hoverIndex = idx;
+
+    for (let i = 0; i < this._buttons.length; i++) {
+      const btn = this._buttons[i];
+      const it = this._items[i];
+      if (!btn) continue;
+
+      if (it?.disabled) {
+        btn.style.background = "transparent";
+        continue;
+      }
+      btn.style.background = i === idx ? "rgba(255,255,255,0.07)" : "transparent";
+    }
   }
 }

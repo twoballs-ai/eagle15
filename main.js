@@ -63,7 +63,7 @@ function tick(ts) {
 
   game.update(time.dt, time);
   game.render(time);
-
+  game.input.beginFrame();
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);

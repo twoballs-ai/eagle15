@@ -3,7 +3,7 @@ import { createGalaxy } from "./data/galaxy.js";
 import { GalaxyMapScene } from "./scenes/galaxyMapScene.js";
 import { StarSystemScene } from "./scenes/starSystemScene.js";
 import { ContextMenu } from "./ui/contextMenu.js";
-import { Input } from "./engine/input.js";
+import { Input } from "./engine/controllers/input.js";
 import { getFactionName, getRankName } from "./data/factionsUtil.js";
 import { StartScreen } from "./ui/startScreen.js";
 import { createCharacter } from "./data/сharacter/character.js";
@@ -11,6 +11,7 @@ import { createShip } from "./data/ship/ship.js";
 import { MinimapSolarSystem } from "./ui/minimapSolarSystem.js";
 import { MinimapGalaxy } from "./ui/minimapGalaxy.js";
 import { PLANET_MODELS } from "./data/models/planetModels.js";
+import { Actions } from "./engine/controllers/actions.js";
 export class Game {
   constructor({ canvas, gl, r2d, r3d, statsEl, getView }) {
     this.canvas = canvas;
@@ -19,7 +20,11 @@ export class Game {
     this.r3d = r3d;
     this.statsEl = statsEl;
     this.getView = getView;
+    // ✅ Input всегда первым (из систем ввода)
+    this.input = new Input({ canvas, getView });
 
+    // ✅ Actions сразу после input
+    this.actions = new Actions(this.input);
     this.state = createState();
     this.galaxy = createGalaxy(777);
 
@@ -36,8 +41,6 @@ export class Game {
     };
     this.currentScene = this.scenes.galaxyMap;
 
-    // Input (единый)
-    this.input = new Input({ canvas, getView });
     // --- Start screen ---
     this.startScreen = new StartScreen();
     this.startScreen.show();
@@ -121,13 +124,7 @@ this.r2d.loadTexture("./assets/2d/raketa_minify.png")
       this.openStarSystem(0);
     };
 
-    // ESC — закрыть меню/модалки
-    window.addEventListener("keydown", (e) => {
-      if (e.code === "Escape") {
-        this.menu.close();
-        this.state.ui.modalOpen = false;
-      }
-    });
+
 
     this.minimapSolar = new MinimapSolarSystem({
       size: 200,
@@ -139,11 +136,16 @@ this.r2d.loadTexture("./assets/2d/raketa_minify.png")
   }
 
   update(dt, time) {
-    if (!this.state.player) {
-      this.statsEl.textContent = "Create your character...";
-      this.input.beginFrame();
-      return;
-    }
+
+      // ✅ глобальная отмена (ESC)
+  if (this.actions.pressed("cancel")) {
+    // приоритеты можно расширять позже
+    this.menu.close();
+    this.state.ui.modalOpen = false;
+
+    // если добавишь consume в actions — можно “съесть”
+    // this.input.consumeKeyPressed("Escape");
+  }
     if (this.currentScene.update) {
       this.currentScene.update(dt);
     }
@@ -162,7 +164,7 @@ this.r2d.loadTexture("./assets/2d/raketa_minify.png")
     //   (p
     //     ? ` | ${getFactionName(p.factionId)} / ${getRankName(p.factionRankId)}`
     //     : "");
-    this.input.beginFrame();
+
   }
 
   render(time) {
