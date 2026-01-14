@@ -1,199 +1,220 @@
+// game.js
 import { createState } from "./data/state.js";
 import { createGalaxy } from "./data/galaxy.js";
+
 import { GalaxyMapScene } from "./scenes/galaxyMapScene.js";
 import { StarSystemScene } from "./scenes/starSystemScene.js";
+
 import { ContextMenu } from "./ui/contextMenu.js";
-import { Input } from "./engine/controllers/input.js";
-import { getFactionName, getRankName } from "./data/factionsUtil.js";
 import { StartScreen } from "./ui/startScreen.js";
+
+import { Input } from "./engine/controllers/input.js";
+import { Actions } from "./engine/controllers/actions.js";
+
 import { createCharacter } from "./data/сharacter/character.js";
 import { createShip } from "./data/ship/ship.js";
-import { MinimapSolarSystem } from "./ui/minimapSolarSystem.js";
-import { MinimapGalaxy } from "./ui/minimapGalaxy.js";
+
 import { PLANET_MODELS } from "./data/models/planetModels.js";
-import { Actions } from "./engine/controllers/actions.js";
+
 export class Game {
-  constructor({ canvas, gl, r2d, r3d, statsEl, getView }) {
+  constructor({ canvas, gl, r2d, r3d, statsEl, getView, getViewPx }) {
     this.canvas = canvas;
     this.gl = gl;
     this.r2d = r2d;
     this.r3d = r3d;
     this.statsEl = statsEl;
-    this.getView = getView;
-    // ✅ Input всегда первым (из систем ввода)
-    this.input = new Input({ canvas, getView });
 
-    // ✅ Actions сразу после input
+    // ✅ View helpers
+    this.getView = getView;
+    this.getViewPx =
+      getViewPx ??
+      (() => {
+        const v = this.getView();
+        const dpr = v?.dpr ?? 1;
+        return {
+          w: Math.floor((v?.w ?? 0) * dpr),
+          h: Math.floor((v?.h ?? 0) * dpr),
+          dpr,
+        };
+      });
+
+    // ✅ Input/Actions
+    this.input = new Input({ canvas, getView: this.getView });
     this.actions = new Actions(this.input);
+
+    // ✅ World state
     this.state = createState();
     this.galaxy = createGalaxy(777);
 
+    // ✅ Assets container
+    this.assets = {
+      models: {},
+      textures: {},
+    };
+
+    // ✅ UI: context menu (global)
     this.menu = new ContextMenu();
     this.menu.onClose = () => {
       this.state.ui.menuOpen = false;
       this.state.selectedSystemId = null;
     };
 
-    // Scenes
+    // ✅ Scenes
     this.scenes = {
       galaxyMap: new GalaxyMapScene(this),
       starSystem: new StarSystemScene(this),
     };
     this.currentScene = this.scenes.galaxyMap;
 
-    // --- Start screen ---
+    // ✅ Start screen
     this.startScreen = new StartScreen();
     this.startScreen.show();
 
-    this.startScreen.onStart = ({
-      name,
+    this.startScreen.onStart = async (cfg) => {
+      try {
+        await this.startNewGame(cfg);
+      } catch (e) {
+        console.error("[startNewGame] failed", e);
+      }
+    };
+  }
+
+  // -----------------------
+  // Game bootstrap
+  // -----------------------
+  async startNewGame({ name, raceId, classId, specializationId } = {}) {
+    // 1) Create player + ship
+    const player = createCharacter({
+      id: "player",
+      name: name ?? "Player",
       raceId,
       classId,
-      specializationId,
-    }) => {
-      const player = createCharacter({
-        id: "player",
-        name,
-        raceId,
-        classId,
-        factionId: "union",
-        factionRankId: "recruit",
-        reputation: 0,
-      });
-
-      const ship = createShip({
-        id: "player_ship",
-        name: "ISS Pioneer",
-        raceId,
-        classId: "scout",
-        factionId: player.factionId,
-      });
-
-      ship.ownerId = player.id;
-
-      // ✅ ассеты
-      this.assets = { models: {} };
-      this.assets.textures = {};
-this.r2d.loadTexture("./assets/2d/raketa_minify.png")
-  .then((t) => {
-    this.assets.textures.shipIcon = t;
-    console.log("[shipIcon] loaded", t);
-  })
-  .catch((e) => console.error("[shipIcon] failed", e));
-      // ---- SUN ----
-      this.r3d
-        .loadGLB("./assets/models/Sun.glb")
-        .then((m) => (this.assets.models.sun = m))
-        .catch(console.error);
-
-      // ---- SHIP ----
-      this.r3d
-        .loadGLB("./assets/models/spaceship.glb")
-        .then((m) => (this.assets.models.ship = m))
-        .catch(console.error);
-
-      // ✅ ---- PLANETS PACK ----
-      // models.planets будет словарь: { [url]: model }
-      this.assets.models.planets = {};
-      this.assets.models.planetsReady = false;
-
-      Promise.all(
-        PLANET_MODELS.map((url) =>
-          this.r3d
-            .loadGLB(url)
-            .then((m) => {
-              this.assets.models.planets[url] = m;
-            })
-            .catch((e) => {
-              console.error("Failed to load planet model:", url, e);
-            })
-        )
-      ).then(() => {
-        this.assets.models.planetsReady = true;
-        // console.log("Planets pack loaded:", Object.keys(this.assets.models.planets).length);
-      });
-
-      // ---- state ----
-      this.state.player = player;
-      this.state.playerShip = ship;
-      this.state.ships = [ship];
-
-      this.startScreen.hide();
-
-      // ✅ стартуем сразу в звездной системе
-      this.openStarSystem(0);
-    };
-
-
-
-    this.minimapSolar = new MinimapSolarSystem({
-      size: 200,
-      fit: 0.94,
-      maxBodyPx: 14,
-      maxStarPx: 22,
+      factionId: "union",
+      factionRankId: "recruit",
+      reputation: 0,
     });
-    this.minimapGalaxy = new MinimapGalaxy(); // пока не используется
+
+    const ship = createShip({
+      id: "player_ship",
+      name: "ISS Pioneer",
+      raceId,
+      classId: "scout",
+      factionId: player.factionId,
+    });
+
+    ship.ownerId = player.id;
+
+    // 2) Put into state
+    this.state.player = player;
+    this.state.playerShip = ship;
+    this.state.ships = [ship];
+
+    // 3) Load assets (fire-and-forget allowed, but we await the essentials)
+    await this._loadCoreAssets();
+
+    // 4) Hide start screen, go to gameplay
+    this.startScreen.hide();
+    this.openStarSystem(0);
   }
 
-  update(dt, time) {
-
-      // ✅ глобальная отмена (ESC)
-  if (this.actions.pressed("cancel")) {
-    // приоритеты можно расширять позже
-    this.menu.close();
-    this.state.ui.modalOpen = false;
-
-    // если добавишь consume в actions — можно “съесть”
-    // this.input.consumeKeyPressed("Escape");
-  }
-    if (this.currentScene.update) {
-      this.currentScene.update(dt);
+  async _loadCoreAssets() {
+    // Textures (2D icon)
+    if (!this.assets.textures.shipIcon) {
+      this.r2d
+        .loadTexture("./assets/2d/raketa_minify.png")
+        .then((t) => {
+          this.assets.textures.shipIcon = t;
+          console.log("[shipIcon] loaded");
+        })
+        .catch((e) => console.error("[shipIcon] failed", e));
     }
 
-    // Stats
-    const cam = this.state.camera;
-    const sceneName = this.currentScene.name || "Unknown";
-    const p = this.state.player;
-    // this.statsEl.textContent =
-    //   `FPS: ${time.fps} | Scene: ${sceneName} | Cam: (${cam.x.toFixed(
-    //     0
-    //   )},${cam.y.toFixed(0)}) z=${cam.zoom.toFixed(2)}` +
-    //   (this.state.currentSystemId != null
-    //     ? ` | Current system: ${this.state.currentSystemId}`
-    //     : "") +
-    //   (p
-    //     ? ` | ${getFactionName(p.factionId)} / ${getRankName(p.factionRankId)}`
-    //     : "");
+    // Models
+    const jobs = [];
 
+    if (!this.assets.models.sun) {
+      jobs.push(
+        this.r3d
+          .loadGLB("./assets/models/Sun.glb")
+          .then((m) => (this.assets.models.sun = m))
+      );
+    }
+
+    if (!this.assets.models.ship) {
+      jobs.push(
+        this.r3d
+          .loadGLB("./assets/models/spaceship.glb")
+          .then((m) => (this.assets.models.ship = m))
+      );
+    }
+
+    // Planets pack
+    if (!this.assets.models.planets) this.assets.models.planets = {};
+    if (!this.assets.models.planetsReady) {
+      jobs.push(
+        Promise.all(
+          PLANET_MODELS.map((url) =>
+            this.r3d
+              .loadGLB(url)
+              .then((m) => {
+                this.assets.models.planets[url] = m;
+              })
+              .catch((e) => console.error("Failed to load planet model:", url, e))
+          )
+        ).then(() => {
+          this.assets.models.planetsReady = true;
+        })
+      );
+    }
+
+    // Await main models, planets can still stream; but it’s ok to await all too.
+    await Promise.allSettled(jobs);
+  }
+
+  // -----------------------
+  // Main loop hooks
+  // -----------------------
+  update(dt, time) {
+    // ✅ global cancel (ESC)
+    if (this.actions.pressed("cancel")) {
+      this.menu.close();
+      this.state.ui.modalOpen = false;
+    }
+
+    this.currentScene?.update?.(dt);
+
+    // optional stats
+    // const sceneName = this.currentScene?.name ?? "Unknown";
+    // this.statsEl.textContent = `FPS: ${time?.fps ?? 0} | Scene: ${sceneName}`;
   }
 
   render(time) {
-    const view = this.getView();
-    this.gl.viewport(0, 0, view.w, view.h);
+    // ✅ viewport ALWAYS in GL px
+    const viewPx = this.getViewPx();
+    this.gl.viewport(0, 0, viewPx.w, viewPx.h);
 
-    if (this.currentScene.render) {
-      this.currentScene.render();
-    }
-    // ✅ UI-оверлей (миникарта)
-    if (this.currentScene === this.scenes.starSystem) {
-      this.minimapSolar.draw(this, this.currentScene);
-    }
+    this.currentScene?.render?.(time);
+
+    // ❌ больше никаких minimap.draw() здесь
+    // HUD/миникарты рисуются в сценах через HUDManager (StarSystemScene.hud.render)
   }
 
-  // ---------- Core game actions ----------
+  // -----------------------
+  // Navigation
+  // -----------------------
   openStarSystem(systemId) {
     this.state.currentSystemId = systemId;
     this.state.ui.modalOpen = false;
     this.menu.close();
 
     this.currentScene = this.scenes.starSystem;
-    if (this.currentScene.enter) this.currentScene.enter(systemId);
+    this.currentScene?.enter?.(systemId);
   }
 
   openGalaxyMap() {
     this.menu.close();
 
     this.currentScene = this.scenes.galaxyMap;
-    if (this.currentScene.enter) this.currentScene.enter();
+    this.currentScene?.enter?.();
   }
 }

@@ -15,7 +15,49 @@ export class MinimapSolarSystem {
     this.margin = margin;
     this.minOrthoSize = minOrthoSize;
   }
+drawIntoRect(game, scene, rect) {
+  const { gl, r3d, getView } = game;
+  if (!gl || !r3d || !scene?.system) return;
 
+  const view = getView();
+  const dpr = game.runtime?.dpr ?? 1;
+
+  const sizePxW = Math.floor(rect.w * dpr);
+  const sizePxH = Math.floor(rect.h * dpr);
+  const xPx = Math.floor(rect.x * dpr);
+  const yPx = Math.floor((view.h - (rect.y + rect.h)) * dpr); 
+  // ↑ важно: WebGL viewport origin снизу, DOM rect сверху
+
+  r3d.beginViewportRect({ w: view.w * dpr, h: view.h * dpr }, xPx, yPx, sizePxW, sizePxH);
+
+  gl.clearColor(...this.clearColor);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  const planets = scene.system?.planets || [];
+  let maxOrbit = 0;
+  for (const p of planets) maxOrbit = Math.max(maxOrbit, p.orbitRadius || 0);
+
+  const orthoSize = Math.max(this.minOrthoSize, maxOrbit * this.margin);
+
+  const cx = 0, cz = 0;
+
+  const miniCam = {
+    eye: [cx, this.height, cz],
+    target: [cx, 0, cz],
+    up: [0, 0, -1],
+    ortho: true,
+    orthoSize,
+    near: 0.1,
+    far: 20000,
+  };
+
+  r3d.begin({ w: sizePxW, h: sizePxH }, miniCam);
+
+  if (scene.drawSystem3D) scene.drawSystem3D(r3d, { scaleMul: 2.2 });
+  if (scene.drawPoiDebug3D) scene.drawPoiDebug3D(r3d);
+
+  r3d.endViewportRect();
+}
   draw(game, scene) {
     const { gl, r3d, getView } = game;
     if (!gl || !r3d || !scene?.system) return;

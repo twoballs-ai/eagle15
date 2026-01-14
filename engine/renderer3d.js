@@ -189,7 +189,7 @@ drawModel(model, {
 
 
   // ---- orbits ----
-drawOrbit(radius, segments = 160, colorRGBA = [0.3, 0.3, 0.35, 0.25]) {
+drawOrbit(radius, segments = 160, colorRGBA = [0.3, 0.3, 0.35, 0.25], y = 0.12) {
   const gl = this.gl;
   if (segments > 256) segments = 256;
 
@@ -200,7 +200,7 @@ drawOrbit(radius, segments = 160, colorRGBA = [0.3, 0.3, 0.35, 0.25]) {
     const z = Math.sin(a) * radius;
     const o = i * 3;
     arr[o + 0] = x;
-    arr[o + 1] = 0.12; // ✅ чуть выше плоскости (убирает “кружок”/z-fighting)
+    arr[o + 1] = y;      // ✅ было 0.12
     arr[o + 2] = z;
   }
 
@@ -213,18 +213,14 @@ drawOrbit(radius, segments = 160, colorRGBA = [0.3, 0.3, 0.35, 0.25]) {
   gl.bindBuffer(gl.ARRAY_BUFFER, this.vboLine);
   gl.bufferSubData(gl.ARRAY_BUFFER, 0, arr.subarray(0, segments * 3));
 
-  // ✅ blending только для орбит
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-  // ✅ чтобы линии не “портили” depth (обычно выглядит лучше)
   gl.depthMask(false);
-
   gl.drawArrays(gl.LINE_LOOP, 0, segments);
-
   gl.depthMask(true);
-  gl.disable(gl.BLEND);
 
+  gl.disable(gl.BLEND);
   gl.bindVertexArray(null);
 }
 drawBackground(view, camera, dpr = 1, parallaxX = 0, parallaxZ = 0) {

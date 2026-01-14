@@ -30,11 +30,16 @@ export function createProjectileSystem(opts = {}) {
     // runtime
     t: 0,
     cooldownT: 0,
-    list: [], // {x,z,vx,vz,life,ownerId}
+    nextId: 1, // ✅ уникальные id для пуль
+    list: [],  // {id,x,z,vx,vz,life,ownerId,teamId,alive}
   };
 }
 
-export function tryFire(system, shipRuntime, shipId, dt, wantFire) {
+/**
+ * tryFire(system, shipRuntime, shipId, dt, wantFire, extra)
+ * extra: { teamId?:string, muzzleSide?:number, damage?:number }
+ */
+export function tryFire(system, shipRuntime, shipId, dt, wantFire, extra = {}) {
   system.t += dt;
   system.cooldownT = Math.max(0, system.cooldownT - dt);
 
@@ -45,7 +50,7 @@ export function tryFire(system, shipRuntime, shipId, dt, wantFire) {
   system.cooldownT = system.fireCooldown;
 
   // направление по yaw
-  const yaw = shipRuntime.yaw;
+  const yaw = shipRuntime.yaw ?? 0;
 
   // небольшой разброс
   const jitter = system.spread > 0 ? (Math.random() * 2 - 1) * system.spread : 0;
@@ -58,16 +63,22 @@ export function tryFire(system, shipRuntime, shipId, dt, wantFire) {
   const rx = -fz;
   const rz = fx;
 
+  const muzzleSide = (extra.muzzleSide ?? system.muzzleSide) || 0;
+
   // точка выстрела (нос)
-  const x0 = shipRuntime.x + fx * system.muzzleAhead + rx * system.muzzleSide;
-  const z0 = shipRuntime.z + fz * system.muzzleAhead + rz * system.muzzleSide;
+  const x0 = (shipRuntime.x ?? 0) + fx * system.muzzleAhead + rx * muzzleSide;
+  const z0 = (shipRuntime.z ?? 0) + fz * system.muzzleAhead + rz * muzzleSide;
 
   system.list.push({
+    id: system.nextId++,      // ✅ стабильный id
     x: x0, z: z0,
     vx: fx * system.bulletSpeed,
     vz: fz * system.bulletSpeed,
     life: system.bulletLife,
     ownerId: shipId,
+    teamId: extra.teamId ?? null, // ✅ для friendly fire
+    alive: true,                  // ✅ чтобы colliders могли убивать пулю
+    damage: extra.damage ?? null, // опционально, если хочешь разный урон
   });
 
   return true;
@@ -77,6 +88,10 @@ export function stepProjectiles(system, dt, boundsRadius = Infinity) {
   const arr = system.list;
   for (let i = arr.length - 1; i >= 0; i--) {
     const b = arr[i];
+
+    // ✅ если убили через коллизии — удалить
+    if (b.alive === false) { arr.splice(i, 1); continue; }
+
     b.life -= dt;
     if (b.life <= 0) { arr.splice(i, 1); continue; }
 
@@ -86,7 +101,7 @@ export function stepProjectiles(system, dt, boundsRadius = Infinity) {
     // удаляем за границей мира (чтобы не улетали в бесконечность)
     if (boundsRadius !== Infinity) {
       const d = Math.hypot(b.x, b.z);
-      if (d > boundsRadius * 1.2) { // небольшой запас
+      if (d > boundsRadius * 1.2) {
         arr.splice(i, 1);
         continue;
       }
@@ -94,13 +109,15 @@ export function stepProjectiles(system, dt, boundsRadius = Infinity) {
   }
 }
 
+// ⚠️ Старую логику можно оставить, но если ты перешёл на projectileHits(colliders),
+// лучше НЕ вызывать applyProjectileHits, чтобы не было двойных попаданий.
 export function applyProjectileHits(system, ships) {
-  // ships: [{id, runtime:{x,z,radius,hp...}, alive:true/false}]
   const bullets = system.list;
   const hitR = system.hitRadius;
 
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
+    if (b.alive === false) { bullets.splice(i, 1); continue; }
 
     for (const s of ships) {
       if (!s?.runtime) continue;
@@ -114,8 +131,9 @@ export function applyProjectileHits(system, ships) {
       const dz = r.z - b.z;
 
       if (dx * dx + dz * dz <= rad * rad) {
-        // попадание
-        r.hp = (r.hp ?? 100) - system.damage;
+        const dmg = b.damage ?? system.damage;
+
+        r.hp = (r.hp ?? 100) - dmg;
         if (r.hp <= 0) {
           r.hp = 0;
           s.alive = false;
@@ -135,12 +153,16 @@ export function buildTracersXYZ(system, y = 1.2, tail = 0.03) {
 
   let k = 0;
   for (const b of bullets) {
-    // хвост чуть назад по скорости
+    if (b.alive === false) continue;
+
     const tx = b.x - b.vx * tail;
     const tz = b.z - b.vz * tail;
 
     out[k++] = tx; out[k++] = y; out[k++] = tz;
     out[k++] = b.x; out[k++] = y; out[k++] = b.z;
   }
-  return out;
+
+  // out фиксированной длины, но k может быть меньше если были dead.
+  // чтобы не усложнять, возвращаем subarray:
+  return out.subarray(0, k);
 }
