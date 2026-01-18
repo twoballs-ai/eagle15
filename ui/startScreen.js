@@ -1,5 +1,5 @@
-import { RACES } from "../data/сharacter/races.js";
-import { CLASSES } from "../data/сharacter/classes.js";
+import { RACES } from "../data/character/races.js";
+import { CLASSES } from "../data/character/classes.js";
 
 const NAMES_BY_RACE = {
   human: ["Александр", "Илья", "Максим", "Даниил", "Артём", "Мария", "Екатерина", "Анна", "Ольга", "Виктория"],

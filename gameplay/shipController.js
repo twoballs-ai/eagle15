@@ -5,28 +5,28 @@ function wrapPi(a) {
   return a;
 }
 
-export function getShipControls(input) {
-  const forward = input.isKeyDown("KeyW") || input.isKeyDown("ArrowUp");
-  const back = input.isKeyDown("KeyS") || input.isKeyDown("ArrowDown");
-
-  const left = input.isKeyDown("KeyA") || input.isKeyDown("ArrowLeft");
-  const right = input.isKeyDown("KeyD") || input.isKeyDown("ArrowRight");
+export function getShipControls(actions) {
+  const forward = actions.down("moveForward");
+  const back    = actions.down("moveBack");
+  const left    = actions.down("moveLeft");
+  const right   = actions.down("moveRight");
 
   let throttle = 0;
   if (forward) throttle += 1;
-  if (back) throttle -= 1;
+  if (back)    throttle -= 1;
 
   let turn = 0;
   if (right) turn += 1;
-  if (left) turn -= 1;
+  if (left)  turn -= 1;
 
-  const boost = input.isKeyDown("ShiftLeft") || input.isKeyDown("ShiftRight");
+  const boost = actions.down("boost");
 
   // если игрок жмёт WASD — это manual override
   const manual = forward || back || left || right;
 
   return { throttle, turn, boost, manual };
 }
+
 
 function clamp(v, a, b) {
   return Math.max(a, Math.min(b, v));

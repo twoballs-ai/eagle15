@@ -1,5 +1,5 @@
 // gameplay/spawn/spawnSystem.js
-import { createCharacter } from "../../data/сharacter/character.js";
+import { createCharacter } from "../../data/character/character.js";
 import { createShip } from "../../data/ship/ship.js";
 import { isHostile } from "../../data/faction/factionRelationsUtil.js";
 import { getSpawnPointsForSystem } from "../../data/system/spawnPointsBySystem.js";

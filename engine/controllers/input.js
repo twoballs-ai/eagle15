@@ -44,10 +44,10 @@ export class Input {
 
     // Pointer move is only needed on canvas to keep coordinates consistent with render
     this._onPointerMove = (e) => {
-      const rect = this.canvas.getBoundingClientRect();
-      const { dpr } = this.getView();
-      this.mouseX = (e.clientX - rect.left) * dpr;
-      this.mouseY = (e.clientY - rect.top) * dpr;
+const rect = this.canvas.getBoundingClientRect();
+const dpr = this.getView?.()?.dpr ?? window.devicePixelRatio ?? 1;
+this.mouseX = (e.clientX - rect.left) * dpr;
+this.mouseY = (e.clientY - rect.top) * dpr;
     };
 
     // We capture pointerdown on WINDOW so we can react to clicks anywhere (menus, UI, outside canvas).
@@ -62,10 +62,10 @@ export class Input {
 
       // If pointerdown is on canvas, update coords right here (in case there was no prior move)
       if (onCanvas) {
-        const rect = this.canvas.getBoundingClientRect();
-        const { dpr } = this.getView();
-        this.mouseX = (e.clientX - rect.left) * dpr;
-        this.mouseY = (e.clientY - rect.top) * dpr;
+const rect = this.canvas.getBoundingClientRect();
+const dpr = this.getView?.()?.dpr ?? window.devicePixelRatio ?? 1;
+this.mouseX = (e.clientX - rect.left) * dpr;
+this.mouseY = (e.clientY - rect.top) * dpr;
       }
 
       // Mouse button mapping (pointer events still expose .button for mouse)

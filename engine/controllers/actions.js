@@ -6,15 +6,35 @@ export class Actions {
   constructor(input, bindings = null) {
     this.input = input;
 
-    // Default bindings
-    this.bindings = bindings ?? {
-      cancel:   { keys: ["Escape"] },
-      interact: { keys: ["KeyE"] },
-      reset:    { keys: ["KeyR"] },
+this.bindings = bindings ?? {
+  cancel:   { keys: ["Escape"] },
+  interact: { keys: ["KeyE"] },
+  reset:    { keys: ["KeyR"] },
 
-      clickPrimary: { mouse: ["left"] },
-      clickAlt:     { mouse: ["right"] },
-    };
+  // клики
+  clickPrimary: { mouse: ["left"] },
+  clickAlt:     { mouse: ["right"] },
+
+  // стрельба
+  fire: { keys: ["Space"] },
+
+  // движение (корабль)
+  moveForward: { keys: ["KeyW", "ArrowUp"] },
+  moveBack:    { keys: ["KeyS", "ArrowDown"] },
+  moveLeft:    { keys: ["KeyA", "ArrowLeft"] },
+  moveRight:   { keys: ["KeyD", "ArrowRight"] },
+
+  // камера
+  camUp:       { keys: ["KeyQ"] },
+  camDown:     { keys: ["KeyE"] },
+  camYawLeft:  { keys: ["KeyZ"] },
+  camYawRight: { keys: ["KeyC"] },
+  camPitchUp:  { keys: ["KeyR"] },
+  camPitchDown:{ keys: ["KeyF"] },
+
+  // по желанию (сброс камеры)
+  camReset: { keys: ["KeyX"] },
+};
   }
 
   // pressed this frame

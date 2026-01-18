@@ -2,20 +2,20 @@
 import { createState } from "./data/state.js";
 import { createGalaxy } from "./data/galaxy.js";
 
-import { GalaxyMapScene } from "./scenes/galaxyMapScene.js";
-import { StarSystemScene } from "./scenes/starSystemScene.js";
-
-import { ContextMenu } from "./ui/contextMenu.js";
-import { StartScreen } from "./ui/startScreen.js";
-
 import { Input } from "./engine/controllers/input.js";
 import { Actions } from "./engine/controllers/actions.js";
 
-import { createCharacter } from "./data/сharacter/character.js";
-import { createShip } from "./data/ship/ship.js";
+import { SceneManager } from "./engine/managers/SceneManager.js";
+import { AssetManager } from "./engine/managers/AssetManager.js";
+import { UIManager } from "./engine/managers/UIManager.js";
 
-import { PLANET_MODELS } from "./data/models/planetModels.js";
-
+import { GalaxyMapScene } from "./scenes/galaxyMapScene.js";
+import { StarSystemScene } from "./scenes/starSystem/StarSystemScene.js";
+import { ASSETS } from "./assets/manifest.js";
+import { ContextMenu } from "./ui/contextMenu.js";
+import { StartScreen } from "./ui/startScreen.js";
+import { Services } from "./engine/core/services.js";
+import { EventBus } from "./engine/core/bus.js";
 export class Game {
   constructor({ canvas, gl, r2d, r3d, statsEl, getView, getViewPx }) {
     this.canvas = canvas;
@@ -24,197 +24,121 @@ export class Game {
     this.r3d = r3d;
     this.statsEl = statsEl;
 
-    // ✅ View helpers
     this.getView = getView;
-    this.getViewPx =
-      getViewPx ??
-      (() => {
-        const v = this.getView();
-        const dpr = v?.dpr ?? 1;
-        return {
-          w: Math.floor((v?.w ?? 0) * dpr),
-          h: Math.floor((v?.h ?? 0) * dpr),
-          dpr,
-        };
-      });
+    this.getViewPx = getViewPx ?? (() => {
+      const v = this.getView();
+      const dpr = v?.dpr ?? 1;
+      return { w: Math.floor(v.w * dpr), h: Math.floor(v.h * dpr), dpr };
+    });
 
-    // ✅ Input/Actions
-    this.input = new Input({ canvas, getView: this.getView });
-    this.actions = new Actions(this.input);
-
-    // ✅ World state
+    // systems
     this.state = createState();
     this.galaxy = createGalaxy(777);
 
-    // ✅ Assets container
-    this.assets = {
-      models: {},
-      textures: {},
-    };
+    this.input = new Input({ canvas, getView: this.getView });
+    this.actions = new Actions(this.input);
 
-    // ✅ UI: context menu (global)
+    this.assets = new AssetManager({ r2d, r3d });
+    this.ui = new UIManager({ parent: document.body });
+    this.scenes = new SceneManager();
+
     this.menu = new ContextMenu();
-    this.menu.onClose = () => {
-      this.state.ui.menuOpen = false;
-      this.state.selectedSystemId = null;
-    };
-
-    // ✅ Scenes
-    this.scenes = {
-      galaxyMap: new GalaxyMapScene(this),
-      starSystem: new StarSystemScene(this),
-    };
-    this.currentScene = this.scenes.galaxyMap;
-
-    // ✅ Start screen
     this.startScreen = new StartScreen();
+    this.bus = new EventBus();
+    this.services = new Services({
+      game: this,           // иногда удобно иметь ссылку на Game
+      canvas: this.canvas,
+      gl: this.gl,
+      r2d: this.r2d,
+      r3d: this.r3d,
+      statsEl: this.statsEl,
+      getView: this.getView,
+      getViewPx: this.getViewPx,
+
+      state: this.state,
+      galaxy: this.galaxy,
+
+      input: this.input,
+      actions: this.actions,
+
+      assets: this.assets,
+      ui: this.ui,
+
+      scenes: this.scenes,
+      bus: this.bus,
+    });
+
+    // scenes instances ✅ теперь передаём services, не Game
+    this.sceneGalaxy = new GalaxyMapScene(this.services);
+    this.sceneStar = new StarSystemScene(this.services);
+
+    // start
     this.startScreen.show();
-
-    this.startScreen.onStart = async (cfg) => {
-      try {
-        await this.startNewGame(cfg);
-      } catch (e) {
-        console.error("[startNewGame] failed", e);
-      }
-    };
+    this.startScreen.onStart = (cfg) => this.startNewGame(cfg);
   }
 
-  // -----------------------
-  // Game bootstrap
-  // -----------------------
-  async startNewGame({ name, raceId, classId, specializationId } = {}) {
-    // 1) Create player + ship
-    const player = createCharacter({
-      id: "player",
-      name: name ?? "Player",
-      raceId,
-      classId,
-      factionId: "union",
-      factionRankId: "recruit",
-      reputation: 0,
-    });
+async startNewGame(cfg) {
+  const assets = this.services.get("assets");
+  const U = ASSETS.normalizeUrl;
 
-    const ship = createShip({
-      id: "player_ship",
-      name: "ISS Pioneer",
-      raceId,
-      classId: "scout",
-      factionId: player.factionId,
-    });
+  // текстуры
+  const shipIconTex = await assets.loadTexture(U(ASSETS.textures.shipIcon));
 
-    ship.ownerId = player.id;
+  // модели
+  await assets.loadModel(U(ASSETS.models.sun));
+  await assets.loadModel(U(ASSETS.models.ship));
 
-    // 2) Put into state
-    this.state.player = player;
-    this.state.playerShip = ship;
-    this.state.ships = [ship];
+  // планеты
+  await Promise.all(ASSETS.planetModels.map((url) => assets.loadModel(U(url))));
 
-    // 3) Load assets (fire-and-forget allowed, but we await the essentials)
-    await this._loadCoreAssets();
+  // bridge под старый рендер
+  assets.models = assets.models || {};
+  assets.textures = assets.textures || {};
 
-    // 4) Hide start screen, go to gameplay
-    this.startScreen.hide();
-    this.openStarSystem(0);
+  assets.models.sun = assets.getModel(U(ASSETS.models.sun));
+  assets.models.ship = assets.getModel(U(ASSETS.models.ship));
+
+  assets.models.planets = assets.models.planets || {};
+  for (const url of ASSETS.planetModels) {
+    const uu = U(url);
+    assets.models.planets[uu] = assets.getModel(uu);
+  }
+  assets.models.planetsReady = true;
+
+  assets.textures.shipIcon = shipIconTex;
+
+  this.startScreen.hide();
+  this.openStarSystem(0);
+}
+
+
+update(dt, time) {
+  // ✅ граница кадра: очистка edge-событий
+  this.input.beginFrame();
+
+  if (this.actions.pressed("cancel")) {
+    this.menu.close();
+    this.state.ui.modalOpen = false;
   }
 
-  async _loadCoreAssets() {
-    // Textures (2D icon)
-    if (!this.assets.textures.shipIcon) {
-      this.r2d
-        .loadTexture("./assets/2d/raketa_minify.png")
-        .then((t) => {
-          this.assets.textures.shipIcon = t;
-          console.log("[shipIcon] loaded");
-        })
-        .catch((e) => console.error("[shipIcon] failed", e));
-    }
-
-    // Models
-    const jobs = [];
-
-    if (!this.assets.models.sun) {
-      jobs.push(
-        this.r3d
-          .loadGLB("./assets/models/Sun.glb")
-          .then((m) => (this.assets.models.sun = m))
-      );
-    }
-
-    if (!this.assets.models.ship) {
-      jobs.push(
-        this.r3d
-          .loadGLB("./assets/models/spaceship.glb")
-          .then((m) => (this.assets.models.ship = m))
-      );
-    }
-
-    // Planets pack
-    if (!this.assets.models.planets) this.assets.models.planets = {};
-    if (!this.assets.models.planetsReady) {
-      jobs.push(
-        Promise.all(
-          PLANET_MODELS.map((url) =>
-            this.r3d
-              .loadGLB(url)
-              .then((m) => {
-                this.assets.models.planets[url] = m;
-              })
-              .catch((e) => console.error("Failed to load planet model:", url, e))
-          )
-        ).then(() => {
-          this.assets.models.planetsReady = true;
-        })
-      );
-    }
-
-    // Await main models, planets can still stream; but it’s ok to await all too.
-    await Promise.allSettled(jobs);
-  }
-
-  // -----------------------
-  // Main loop hooks
-  // -----------------------
-  update(dt, time) {
-    // ✅ global cancel (ESC)
-    if (this.actions.pressed("cancel")) {
-      this.menu.close();
-      this.state.ui.modalOpen = false;
-    }
-
-    this.currentScene?.update?.(dt);
-
-    // optional stats
-    // const sceneName = this.currentScene?.name ?? "Unknown";
-    // this.statsEl.textContent = `FPS: ${time?.fps ?? 0} | Scene: ${sceneName}`;
-  }
+  this.scenes.update(dt);
+  this.ui.update(this, this.scenes.current, dt);
+  
+}
 
   render(time) {
-    // ✅ viewport ALWAYS in GL px
-    const viewPx = this.getViewPx();
-    this.gl.viewport(0, 0, viewPx.w, viewPx.h);
+    const vp = this.getViewPx();
+    this.gl.viewport(0, 0, vp.w, vp.h);
 
-    this.currentScene?.render?.(time);
-
-    // ❌ больше никаких minimap.draw() здесь
-    // HUD/миникарты рисуются в сценах через HUDManager (StarSystemScene.hud.render)
+    this.scenes.render(time);
+    this.ui.render(this, this.scenes.current);
   }
 
-  // -----------------------
-  // Navigation
-  // -----------------------
-  openStarSystem(systemId) {
-    this.state.currentSystemId = systemId;
-    this.state.ui.modalOpen = false;
-    this.menu.close();
-
-    this.currentScene = this.scenes.starSystem;
-    this.currentScene?.enter?.(systemId);
+  openStarSystem(id) {
+    this.scenes.set(this.sceneStar, id);
   }
 
   openGalaxyMap() {
-    this.menu.close();
-
-    this.currentScene = this.scenes.galaxyMap;
-    this.currentScene?.enter?.();
+    this.scenes.set(this.sceneGalaxy);
   }
 }

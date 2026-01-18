@@ -1,5 +1,5 @@
 import { PLANET_MODELS } from "./models/planetModels.js";
-
+import { ASSETS } from "../assets/manifest.js"; // путь поправь относительно файла data/starSystem.js
 export function createStarSystem(seed, systemId) {
   const rand = mulberry32(seed ^ systemId);
 
@@ -28,7 +28,9 @@ export function createStarSystem(seed, systemId) {
 
     // ✅ выбираем модель детерминированно из списка
     const modelIndex = Math.floor(rand() * PLANET_MODELS.length);
-    const modelUrl = PLANET_MODELS[modelIndex];
+
+
+const modelUrl = ASSETS.normalizeUrl(PLANET_MODELS[modelIndex]);
 
     planets.push({
       id: i,

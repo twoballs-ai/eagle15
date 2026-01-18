@@ -1,42 +1,45 @@
 import { MinimapSolarSystem } from "../minimapSolarSystem.js";
 
+function apply(el, styles) { Object.assign(el.style, styles); }
+
 export class MinimapWidget {
   constructor({ id = "minimap-widget" } = {}) {
     this.id = id;
-    this.mm = new MinimapSolarSystem({ size: 220, padding: 0 });
-    this.visible = true;
+    this.el = null;
+    this._mini = new MinimapSolarSystem({ size: 200, padding: 12, height: 900 });
   }
 
-  mount(parent) {
-    // DOM контейнер-рамка, чтобы у слота был размер
-    const el = document.createElement("div");
-    parent.appendChild(el);
-    this.el = el;
+  mount(parent, props = {}) {
+    this.el = document.createElement("div");
+    parent.appendChild(this.el);
 
-    Object.assign(el.style, {
-      width: "240px",
-      height: "240px",
-      borderRadius: "14px",
-      border: "1px solid rgba(255,255,255,0.12)",
+    apply(this.el, {
+      width: (props.size ?? 200) + "px",
+      height: (props.size ?? 200) + "px",
+      borderRadius: "12px",
+      border: "1px solid rgba(255,255,255,0.10)",
       background: "rgba(0,0,0,0.15)",
-      backdropFilter: "blur(2px)",
+      overflow: "hidden",
     });
+
+    // применим props в minimap
+    this._mini.size = props.size ?? this._mini.size;
+    this._mini.padding = props.padding ?? this._mini.padding;
   }
 
   setVisible(v) {
-    this.visible = !!v;
-    if (this.el) this.el.style.display = v ? "" : "none";
+    if (!this.el) return;
+    this.el.style.display = v ? "" : "none";
   }
 
   render(game, scene, rect) {
-    if (!this.visible) return;
-    if (!rect || rect.w <= 2 || rect.h <= 2) return;
-
-    // рисуем В rect слота
-    this.mm.drawIntoRect(game, scene, rect);
+    // rect — слот HUD. Мы рисуем именно В ЭТОТ rect.
+    // Важно: не используем this._mini.draw(), чтобы не было второй логики позиционирования.
+    this._mini.drawIntoRect(game, scene, rect);
   }
 
   destroy() {
     try { this.el?.remove(); } catch (_) {}
+    this.el = null;
   }
 }

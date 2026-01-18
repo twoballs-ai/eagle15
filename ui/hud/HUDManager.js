@@ -150,6 +150,20 @@ export class HUDManager {
     this.enable(id, !rec.enabled);
   }
 
+  unregisterWidget(id) {
+    const rec = this.widgets.get(id);
+    if (!rec) return;
+    try { rec.widget.destroy?.(); } catch (_) {}
+    try { rec.wrap?.remove(); } catch (_) {}
+    this.widgets.delete(id);
+  }
+
+// (опционально) если хочешь: bulk by prefix/owner
+  unregisterWhere(pred) {
+    for (const [id, rec] of [...this.widgets.entries()]) {
+      if (pred(rec, id)) this.unregisterWidget(id);
+    }
+  }
   move(id, slot, order = undefined) {
     const rec = this.widgets.get(id);
     if (!rec) return;
