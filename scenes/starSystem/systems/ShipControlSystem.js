@@ -11,12 +11,18 @@ export class ShipControlSystem extends System {
   }
 
 update(dt) {
+  
   const input = this.s.get("input");
   const actions = this.s.get("actions");
   const state = this.s.get("state");
   const getView = this.s.get("getView");
 
   const ship = state.playerShip;
+  if (!this._dumped) {
+  this._dumped = true;
+  console.log("[ShipControlSystem] state keys:", Object.keys(state || {}));
+  console.log("[ShipControlSystem] state:", state);
+}
   if (!ship?.runtime) return;
 
   const r = ship.runtime;
@@ -27,6 +33,16 @@ update(dt) {
   tryFire(this.ctx.projectiles, r, ship.id, dt, wantFire, {
     teamId: ship.factionId ?? "player",
   });
+if ((this._t = (this._t ?? 0) + dt) > 0.5) {
+  this._t = 0;
+  console.log("ctrl dt", dt,
+    "x", r?.x, "z", r?.z,
+    "vx", r?.vx, "vz", r?.vz,
+    "accel", r?.accel, "turnSpeed", r?.turnSpeed, "maxSpeed", r?.maxSpeed,
+    "W", actions.down("moveForward"),
+    "th", r?.throttleValue
+  );
+}
 
   // set target on left click
   if (actions.pressed("clickPrimary")) {

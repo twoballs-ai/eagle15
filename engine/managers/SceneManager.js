@@ -3,6 +3,7 @@ export class SceneManager {
   constructor() { this.current = null; }
 
   set(scene, payload) {
+     console.log("[SceneManager] set", scene?.name, payload);
     if (this.current === scene) {
       scene.enter?.(payload);
       return;

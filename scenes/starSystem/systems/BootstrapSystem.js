@@ -64,7 +64,7 @@ export class BootstrapSystem extends System {
     });
 
     state.characters = spawned.characters;
-    state.ships = [state.playerShip, ...spawned.ships];
+    state.ships = [state.playerShip, ...spawned.ships].filter(Boolean);
     this.ctx.spawnPoints = spawned.spawnPoints;
 
     // init ship stats

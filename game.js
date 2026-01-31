@@ -113,8 +113,6 @@ async startNewGame(cfg) {
 
 
 update(dt, time) {
-  // ✅ граница кадра: очистка edge-событий
-  this.input.beginFrame();
 
   if (this.actions.pressed("cancel")) {
     this.menu.close();
@@ -134,9 +132,10 @@ update(dt, time) {
     this.ui.render(this, this.scenes.current);
   }
 
-  openStarSystem(id) {
-    this.scenes.set(this.sceneStar, id);
-  }
+openStarSystem(id) {
+  console.log("[Game] openStarSystem", id);
+  this.scenes.set(this.sceneStar, id);
+}
 
   openGalaxyMap() {
     this.scenes.set(this.sceneGalaxy);
