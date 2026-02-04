@@ -4,7 +4,8 @@ import { createAct1Poi } from "../../../data/system/act1PoiFromSystem.js";
 import { PoiRuntimeOrbit } from "../../../gameplay/poi/poiRuntimeOrbit.js";
 import { spawnSystemActors } from "../../../gameplay/spawn/spawnSystem.js";
 import { ShipStatsHUD } from "../../../ui/shipStatsHud.js";
-
+import { RACES } from "../../../data/character/races.js";
+import { CLASSES } from "../../../data/character/classes.js";
 export class BootstrapSystem extends System {
   constructor(services, ctx) {
     super(services);
@@ -36,10 +37,10 @@ export class BootstrapSystem extends System {
 
     // POI
     this.ctx.poiDef = createAct1Poi(galaxy.seed, sys.id, this.ctx.system);
-    this.ctx.poi = new PoiRuntimeOrbit({
-      poiDef: this.ctx.poiDef,
-      resolvePos: (poi) => this.getPoiWorldPos(poi),
-    });
+this.ctx.poi = new PoiRuntimeOrbit({
+  poiDef: this.ctx.poiDef,
+  resolvePos: (poi) => this.ctx.resolvePoiPos(poi),
+});
 
     this.ctx.poiHint = "";
     this.ctx.poiFocus = null;
@@ -83,8 +84,18 @@ export class BootstrapSystem extends System {
       r.maxSpeed = 260 * (stats.speed ?? 1.0);
     }
 
-    if (!this.shipHud) this.shipHud = new ShipStatsHUD();
-    this.shipHud.update(state.playerShip?.runtime);
+if (!this.shipHud) this.shipHud = new ShipStatsHUD();
+
+const p = state.player;
+this.shipHud.setPilot({
+  name: p?.name ?? "—",
+raceName: RACES[p?.raceId]?.name ?? p?.raceId ?? "",
+className: CLASSES[p?.classId]?.name ?? p?.classId ?? "",
+  avatarUrl: p?.avatarUrl ?? "",
+  sub: "Пилот",
+});
+
+this.shipHud.update(state.playerShip?.runtime);
 
     // quest init
     this.ctx.quest.reset?.(); // если есть reset

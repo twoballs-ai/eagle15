@@ -59,7 +59,7 @@ this.mouseY = (e.clientY - rect.top) * dpr;
       // determine if click is on canvas (or inside it)
       const onCanvas = e.target === this.canvas || this.canvas.contains(e.target);
       this._lastPointerDownWasOnCanvas = !!onCanvas;
-
+console.log("pointerdown btn", e.button, "set pressed");
       // If pointerdown is on canvas, update coords right here (in case there was no prior move)
       if (onCanvas) {
 const rect = this.canvas.getBoundingClientRect();
@@ -111,6 +111,7 @@ this.mouseY = (e.clientY - rect.top) * dpr;
 
     // global pointerdown/up (capture down so UI doesn't have to)
     window.addEventListener("pointerdown", this._onPointerDownWindow, true);
+    
     window.addEventListener("pointerup", this._onPointerUpWindow, true);
 
     canvas.addEventListener("wheel", this._onWheel, { passive: false });

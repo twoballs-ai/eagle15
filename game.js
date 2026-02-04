@@ -1,7 +1,7 @@
 // game.js
 import { createState } from "./data/state.js";
 import { createGalaxy } from "./data/galaxy.js";
-
+import { SHIP_CLASSES } from "./data/ship/shipClasses.js";
 import { Input } from "./engine/controllers/input.js";
 import { Actions } from "./engine/controllers/actions.js";
 
@@ -16,8 +16,22 @@ import { ContextMenu } from "./ui/contextMenu.js";
 import { StartScreen } from "./ui/startScreen.js";
 import { Services } from "./engine/core/services.js";
 import { EventBus } from "./engine/core/bus.js";
+import { loadSave, writeSave, makeSaveFromState } from "./data/save.js";
+
+import { createPilotProfile } from "./data/character/pilot.js"; 
+import { applyPilotModifiersToShipStats } from "./data/ship/applyPilotModifiers.js";
 export class Game {
-  constructor({ canvas, gl, r2d, r3d, statsEl, getView, getViewPx }) {
+  static async create(args) {
+    const saved = await loadSave();
+
+    const game = new Game(args, saved);
+
+
+
+    return game;
+  }
+
+  constructor({ canvas, gl, r2d, r3d, statsEl, getView, getViewPx }, saved) {
     this.canvas = canvas;
     this.gl = gl;
     this.r2d = r2d;
@@ -32,9 +46,10 @@ export class Game {
     });
 
     // systems
-    this.state = createState();
+    this.state = createState(saved);
+    
     this.galaxy = createGalaxy(777);
-
+this.started = false;
     this.input = new Input({ canvas, getView: this.getView });
     this.actions = new Actions(this.input);
 
@@ -72,26 +87,63 @@ export class Game {
     this.sceneGalaxy = new GalaxyMapScene(this.services);
     this.sceneStar = new StarSystemScene(this.services);
 
-    // start
-    this.startScreen.show();
-    this.startScreen.onStart = (cfg) => this.startNewGame(cfg);
+const p = this.state.player;
+const hasSavedPilot =
+  !!(p && typeof p === "object" && p.name && p.raceId && p.classId);
+
+if (hasSavedPilot) {
+  this.startScreen.hide();
+  this.startNewGame({
+    name: this.state.player.name,
+    raceId: this.state.player.raceId,
+    classId: this.state.player.classId,
+    shipClassId: this.state.playerShipClassId ?? "scout", // ✅ ВОТ ТУТ
+  });
+} else {
+  this.startScreen.show();
+  this.startScreen.onStart = (cfg) => this.startNewGame(cfg);
+}
   }
 
 async startNewGame(cfg) {
+  this.started = true; // ✅ теперь можно входить в игру
+
+  // 1) создаём пилота
+  const pilot = createPilotProfile({
+    id: "pilot_1",
+    name: cfg.name,
+    raceId: cfg.raceId,
+    classId: cfg.classId,
+    factionId: "player",
+    factionRankId: "outsider",
+    reputation: 0,
+  });
+
+  this.state.player = pilot;
+this.state.playerShipClassId = cfg.shipClassId ?? this.state.playerShipClassId ?? "scout";
+  // 2) базовые статы корабля по выбору игрока
+const shipBase =
+  SHIP_CLASSES[this.state.playerShipClassId]?.baseStats ||
+  SHIP_CLASSES.scout.baseStats;
+
+  // 3) применяем модификаторы пилота к кораблю
+  this.state.playerShip.stats = applyPilotModifiersToShipStats(shipBase, pilot.modifiers);
+
+  // 4) включаем автосейв ТОЛЬКО ПОСЛЕ СТАРТА
+  this._enableAutosave();
+
+  // 5) сохраняем первый раз (теперь уже есть пилот и корабль)
+  await writeSave(makeSaveFromState(this.state));
+
+  // 6) загрузка ассетов и вход в систему
   const assets = this.services.get("assets");
   const U = ASSETS.normalizeUrl;
 
-  // текстуры
   const shipIconTex = await assets.loadTexture(U(ASSETS.textures.shipIcon));
-
-  // модели
   await assets.loadModel(U(ASSETS.models.sun));
   await assets.loadModel(U(ASSETS.models.ship));
+  await Promise.all(ASSETS.planetModels.map((url) => assets.loadModel(U(ASSETS.normalizeUrl(url)))));
 
-  // планеты
-  await Promise.all(ASSETS.planetModels.map((url) => assets.loadModel(U(url))));
-
-  // bridge под старый рендер
   assets.models = assets.models || {};
   assets.textures = assets.textures || {};
 
@@ -108,7 +160,7 @@ async startNewGame(cfg) {
   assets.textures.shipIcon = shipIconTex;
 
   this.startScreen.hide();
-  this.openStarSystem(0);
+  this.openStarSystem(this.state.currentSystemId ?? 0);
 }
 
 
@@ -133,10 +185,21 @@ update(dt, time) {
   }
 
 openStarSystem(id) {
+  if (!this.started) return;
   console.log("[Game] openStarSystem", id);
   this.scenes.set(this.sceneStar, id);
 }
+_enableAutosave() {
+  if (this._autosaveTimer) return;
 
+  this._autosaveTimer = setInterval(() => {
+    writeSave(makeSaveFromState(this.state));
+  }, 5000);
+
+  window.addEventListener("beforeunload", () => {
+    writeSave(makeSaveFromState(this.state));
+  });
+}
   openGalaxyMap() {
     this.scenes.set(this.sceneGalaxy);
   }

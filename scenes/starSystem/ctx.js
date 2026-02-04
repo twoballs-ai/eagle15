@@ -9,7 +9,7 @@ export function createStarSystemCtx(services) {
   const gl = services.get("gl");
   const canvas = services.get("canvas");
 
-  return {
+  const ctx = {
     // runtime
     systemId: null,
     system: null,
@@ -84,9 +84,25 @@ export function createStarSystemCtx(services) {
     celestialInteractMul: 1.0,
 
     // debug flags
-    debug: {
-      colliders: true,
-      poiSampleLog: true,
-    },
+  debug: {
+    colliders: true,
+    poiSampleLog: true,
+    poiZones: true, // ✅
+  },
   };
+
+  // ✅ теперь ctx существует и замыкается
+  ctx.resolvePoiPos = (poi) => {
+    if (!poi) return null;
+    if (poi.kind === "static") return { x: poi.x ?? 0, z: poi.z ?? 0 };
+    if (poi.kind === "planet") {
+      const p = ctx.system?.planets?.find((pp) => pp.id === poi.planetId);
+      if (!p) return null;
+      const a = ctx.time * p.speed + p.phase;
+      return { x: Math.cos(a) * p.orbitRadius, z: Math.sin(a) * p.orbitRadius };
+    }
+    return null;
+  };
+
+  return ctx;
 }

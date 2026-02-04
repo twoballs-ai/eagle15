@@ -10,75 +10,91 @@ export class ShipControlSystem extends System {
     this.ctx = ctx;
   }
 
-update(dt) {
-  
-  const input = this.s.get("input");
-  const actions = this.s.get("actions");
-  const state = this.s.get("state");
-  const getView = this.s.get("getView");
+  update(dt) {
+    const input = this.s.get("input");
+    const actions = this.s.get("actions");
+    const state = this.s.get("state");
 
-  const ship = state.playerShip;
-  if (!this._dumped) {
-  this._dumped = true;
-  console.log("[ShipControlSystem] state keys:", Object.keys(state || {}));
-  console.log("[ShipControlSystem] state:", state);
-}
-  if (!ship?.runtime) return;
+    const getView = this.s.get("getView");
+    const getViewPx = this.s.get("getViewPx"); // ✅ добавили
 
-  const r = ship.runtime;
-  const view = getView();
-
-  // FIRE
-  const wantFire = actions.down("fire");
-  tryFire(this.ctx.projectiles, r, ship.id, dt, wantFire, {
-    teamId: ship.factionId ?? "player",
-  });
-if ((this._t = (this._t ?? 0) + dt) > 0.5) {
-  this._t = 0;
-  console.log("ctrl dt", dt,
-    "x", r?.x, "z", r?.z,
-    "vx", r?.vx, "vz", r?.vz,
-    "accel", r?.accel, "turnSpeed", r?.turnSpeed, "maxSpeed", r?.maxSpeed,
-    "W", actions.down("moveForward"),
-    "th", r?.throttleValue
-  );
-}
-
-  // set target on left click
-  if (actions.pressed("clickPrimary")) {
-    const m = input.getMouse();
-    const hit = raycastToGround(m.x, m.y, view.w, view.h, this.ctx.cam3d);
-    if (hit) {
-      r.targetX = hit.x;
-      r.targetZ = hit.z;
+    const ship = state.playerShip;
+    if (!this._dumped) {
+      this._dumped = true;
+      console.log("[ShipControlSystem] state keys:", Object.keys(state || {}));
+      console.log("[ShipControlSystem] state:", state);
     }
+    if (!ship?.runtime) return;
+
+    const r = ship.runtime;
+
+    // FIRE
+    const wantFire = actions.down("fire");
+    tryFire(this.ctx.projectiles, r, ship.id, dt, wantFire, {
+      teamId: ship.factionId ?? "player",
+    });
+
+    if ((this._t = (this._t ?? 0) + dt) > 0.5) {
+      this._t = 0;
+      console.log(
+        "ctrl dt", dt,
+        "x", r?.x, "z", r?.z,
+        "vx", r?.vx, "vz", r?.vz,
+        "accel", r?.accel, "turnSpeed", r?.turnSpeed, "maxSpeed", r?.maxSpeed,
+        "W", actions.down("moveForward"),
+        "th", r?.throttleValue
+      );
+    }
+
+    // ✅ set target on left click (FIX: px<->css mismatch)
+    if (actions.pressed("clickPrimary")) {
+      const m = input.getMouse(); // m.x/m.y в DEVICE PIXELS
+
+      // w/h должны быть в тех же единицах что m.x/m.y => берём viewPx
+      const viewPx = getViewPx ? getViewPx() : null;
+
+      // fallback на случай если getViewPx нет (тогда конвертим вручную)
+      let w = viewPx?.w;
+      let h = viewPx?.h;
+
+      if (w == null || h == null) {
+        const view = getView ? getView() : { w: 0, h: 0, dpr: 1 };
+        const dpr = view?.dpr ?? 1;
+        w = Math.floor((view?.w ?? 0) * dpr);
+        h = Math.floor((view?.h ?? 0) * dpr);
+      }
+
+      const hit = raycastToGround(m.x, m.y, w, h, this.ctx.cam3d);
+      if (hit) {
+        r.targetX = hit.x;
+        r.targetZ = hit.z;
+      }
+    }
+
+    // manual controls
+    const manual = getShipControls(actions);
+
+    if (manual.manual) {
+      r.targetX = null;
+      r.targetZ = null;
+    }
+
+    const auto = manual.manual ? null : getAutopilotControls(r);
+    const controls = auto ?? manual;
+
+    const { fx, fz } = stepShipMovement(r, controls, dt, {
+      boundsRadius: this.ctx.boundsRadius,
+    });
+
+    // flame
+    const pos = [r.x, 0, r.z];
+    const dir = [fx, 0, fz];
+    const throttle = Math.max(0, Math.min(1, r.throttleValue ?? 1.0));
+    this.ctx.flame.update(dt, pos, dir, throttle);
+
+    // camera follow update
+    this.applyFollowCamera(dt, r);
   }
-
-  // ✅ manual controls теперь из Actions (не из Input)
-  const manual = getShipControls(actions);
-
-  if (manual.manual) {
-    r.targetX = null;
-    r.targetZ = null;
-  }
-
-  const auto = manual.manual ? null : getAutopilotControls(r);
-  const controls = auto ?? manual;
-
-  const { fx, fz } = stepShipMovement(r, controls, dt, {
-    boundsRadius: this.ctx.boundsRadius,
-  });
-
-  // flame
-  const pos = [r.x, 0, r.z];
-  const dir = [fx, 0, fz];
-  const throttle = Math.max(0, Math.min(1, r.throttleValue ?? 1.0));
-  this.ctx.flame.update(dt, pos, dir, throttle);
-
-  // camera follow update
-  this.applyFollowCamera(dt, r);
-}
-
 
   applyFollowCamera(dt, r) {
     const cam = this.ctx.cam3d;

@@ -35,31 +35,32 @@ export class QuestWidget {
     this.el.style.display = v ? "" : "none";
   }
 
-  update(game, scene, dt) {
-    // Забираем данные прямо из сцены — ровно как у тебя было в updateHudText
-    const shipR = game.state.playerShip?.runtime;
-    const focus = scene.poiFocus;
+update(game, scene, dt) {
+  const ctx = scene?.ctx ?? scene; // на всякий, если когда-то передашь ctx напрямую
 
-    let focusLine = "";
-    if (shipR && focus) {
-      const dx = (focus.worldX ?? 0) - shipR.x;
-      const dz = (focus.worldZ ?? 0) - shipR.z;
-      const dist = Math.sqrt(dx * dx + dz * dz);
-      focusLine = `\nДистанция: ${dist.toFixed(0)}m`;
-    }
+  const shipR = game.state.playerShip?.runtime;
+  const focus = ctx.poiFocus;
 
-    const text =
-      `АКТ 1\n` +
-      `${scene.questLine || ""}\n\n` +
-      `Рядом: ${scene.poiHint || "—"}` +
-      focusLine +
-      `\n\n` +
-      `Событие: ${scene.lastLog || "—"}`;
-
-    if (text === this._last) return;
-    this._last = text;
-    this.el.textContent = text;
+  let focusLine = "";
+  if (shipR && focus) {
+    const dx = (focus.worldX ?? 0) - shipR.x;
+    const dz = (focus.worldZ ?? 0) - shipR.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    focusLine = `\nДистанция: ${dist.toFixed(0)}m`;
   }
+
+  const text =
+    `АКТ 1\n` +
+    `${ctx.questLine || ""}\n\n` +
+    `Рядом: ${ctx.poiHint || "—"}` +
+    focusLine +
+    `\n\n` +
+    `Событие: ${ctx.lastLog || "—"}`;
+
+  if (text === this._last) return;
+  this._last = text;
+  this.el.textContent = text;
+}
 
   destroy() {
     try { this.el?.remove(); } catch (_) {}

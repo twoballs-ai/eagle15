@@ -1,5 +1,9 @@
 import { RACES } from "../data/character/races.js";
 import { CLASSES } from "../data/character/classes.js";
+import { SHIP_CLASSES } from "../data/ship/shipClasses.js";
+
+import { createPilotProfile } from "../data/character/pilot.js";
+import { applyPilotModifiersToShipStats } from "../data/ship/applyPilotModifiers.js";
 
 const NAMES_BY_RACE = {
   human: ["Александр", "Илья", "Максим", "Даниил", "Артём", "Мария", "Екатерина", "Анна", "Ольга", "Виктория"],
@@ -10,33 +14,39 @@ const NAMES_BY_RACE = {
   voidborn: ["Нокс", "Эхо", "Люмен", "Пульсар", "Тень"],
 };
 
-const STAT_LABELS_RU = {
-  hp: "❤️ Здоровье",
-  stamina: "🦵 Выносливость",
-  energy: "⚡ Энергия",
-  speed: "🚀 Скорость",
-};
+function fmt(v) {
+  if (typeof v !== "number") return String(v);
+  return Number.isInteger(v) ? String(v) : v.toFixed(2);
+}
 
 export class StartScreen {
   constructor() {
+    // elements
     this.root = document.getElementById("startUI");
+
     this.raceSel = document.getElementById("raceSelect");
     this.classSel = document.getElementById("classSelect");
+    this.shipClassSel = document.getElementById("shipClassSelect");
+
     this.nameInp = document.getElementById("nameInput");
     this.randomNameBtn = document.getElementById("randomNameBtn");
     this.summaryEl = document.getElementById("summary");
 
     this.startBtn = document.getElementById("startBtn");
-    this.defaultBtn = document.getElementById("startDefaultBtn");
 
     this.onStart = null;
-
-    // handlers refs (for destroy)
     this._handlers = {};
 
+    // fill
     this._fillRaces();
-    this._fillClasses();
+    this._fillPilotClasses();
+    this._fillShipClasses();
+
+    // bind
     this._bind();
+
+    // initial name and summary
+    this._setRandomName();
     this._updateSummary();
   }
 
@@ -49,15 +59,14 @@ export class StartScreen {
   }
 
   destroy() {
-    // If you ever recreate StartScreen, this prevents double listeners
     const h = this._handlers;
 
     if (this.raceSel && h.onRaceChange) this.raceSel.removeEventListener("change", h.onRaceChange);
-    if (this.classSel && h.onClassChange) this.classSel.removeEventListener("change", h.onClassChange);
+    if (this.classSel && h.onPilotClassChange) this.classSel.removeEventListener("change", h.onPilotClassChange);
+    if (this.shipClassSel && h.onShipClassChange) this.shipClassSel.removeEventListener("change", h.onShipClassChange);
     if (this.nameInp && h.onNameInput) this.nameInp.removeEventListener("input", h.onNameInput);
 
     if (this.randomNameBtn && h.onRandomClick) this.randomNameBtn.removeEventListener("click", h.onRandomClick);
-    if (this.defaultBtn && h.onDefaultClick) this.defaultBtn.removeEventListener("click", h.onDefaultClick);
     if (this.startBtn && h.onStartClick) this.startBtn.removeEventListener("click", h.onStartClick);
 
     this._handlers = {};
@@ -65,38 +74,46 @@ export class StartScreen {
 
   getSelection() {
     return {
-      name: (this.nameInp?.value || "Commander").trim(),
+      name: (this.nameInp?.value || "").trim(),
       raceId: this.raceSel?.value || "human",
       classId: this.classSel?.value || "soldier",
+      shipClassId: this.shipClassSel?.value || "scout",
     };
-  }
-
-  setDefault() {
-    if (this.nameInp) this.nameInp.value = "Commander";
-    if (this.raceSel) this.raceSel.value = Object.keys(RACES)[0] || "human";
-    if (this.classSel) this.classSel.value = Object.keys(CLASSES)[0] || "soldier";
-    this._updateSummary();
   }
 
   _bind() {
     const h = this._handlers;
 
-    h.onRaceChange = () => this._setRandomName();
-    h.onClassChange = () => this._updateSummary();
+    h.onRaceChange = () => {
+      this._setRandomName();
+      this._updateSummary();
+    };
+
+    h.onPilotClassChange = () => this._updateSummary();
+    h.onShipClassChange = () => this._updateSummary();
     h.onNameInput = () => this._updateSummary();
 
     h.onRandomClick = () => this._setRandomName();
-    h.onDefaultClick = () => this.setDefault();
+
     h.onStartClick = () => {
-      if (this.onStart) this.onStart(this.getSelection());
+      if (!this.onStart) return;
+      const cfg = this.getSelection();
+
+      // минимальная валидация
+      if (!cfg.name) {
+        this._setRandomName();
+        cfg.name = this.getSelection().name;
+      }
+
+      this.onStart(cfg);
     };
 
     if (this.raceSel) this.raceSel.addEventListener("change", h.onRaceChange);
-    if (this.classSel) this.classSel.addEventListener("change", h.onClassChange);
+    if (this.classSel) this.classSel.addEventListener("change", h.onPilotClassChange);
+    if (this.shipClassSel) this.shipClassSel.addEventListener("change", h.onShipClassChange);
     if (this.nameInp) this.nameInp.addEventListener("input", h.onNameInput);
 
     if (this.randomNameBtn) this.randomNameBtn.addEventListener("click", h.onRandomClick);
-    if (this.defaultBtn) this.defaultBtn.addEventListener("click", h.onDefaultClick);
     if (this.startBtn) this.startBtn.addEventListener("click", h.onStartClick);
   }
 
@@ -111,10 +128,10 @@ export class StartScreen {
       this.raceSel.appendChild(opt);
     }
 
-    if (!this.raceSel.value) this.raceSel.value = Object.keys(RACES)[0] || "";
+    if (!this.raceSel.value) this.raceSel.value = Object.keys(RACES)[0] || "human";
   }
 
-  _fillClasses() {
+  _fillPilotClasses() {
     if (!this.classSel) return;
     this.classSel.innerHTML = "";
 
@@ -125,54 +142,67 @@ export class StartScreen {
       this.classSel.appendChild(opt);
     }
 
-    if (!this.classSel.value) this.classSel.value = Object.keys(CLASSES)[0] || "";
+    if (!this.classSel.value) this.classSel.value = Object.keys(CLASSES)[0] || "soldier";
   }
 
-  _updateSummary() {
-    if (!this.summaryEl) return;
+  _fillShipClasses() {
+    if (!this.shipClassSel) return;
+    this.shipClassSel.innerHTML = "";
 
-    const { name, raceId, classId } = this.getSelection();
-    const r = RACES[raceId];
-    const c = CLASSES[classId];
+    for (const id of Object.keys(SHIP_CLASSES)) {
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = SHIP_CLASSES[id]?.name || id;
+      this.shipClassSel.appendChild(opt);
+    }
 
-    const stats = {
-      hp: (r?.stats?.hp || 0) + (c?.baseStats?.hp || 0),
-      stamina: (r?.stats?.stamina || 0) + (c?.baseStats?.stamina || 0),
-      energy: (r?.stats?.energy || 0) + (c?.baseStats?.energy || 0),
-      speed: (r?.stats?.speed ?? 1.0),
-    };
-
-    const raceName = r?.name || raceId;
-    const raceDesc = r?.description || "Описание отсутствует.";
-    const className = c?.name || classId;
-    const classDesc = c?.description || "Описание отсутствует.";
-
-    this.summaryEl.textContent =
-      `Имя: ${name}\n` +
-      `Раса: ${raceName}\n` +
-      `Описание расы: ${raceDesc}\n` +
-      `Класс: ${className}\n` +
-      `Описание класса: ${classDesc}\n` +
-      `Характеристики:\n` +
-      `${STAT_LABELS_RU.hp}: ${Math.round(stats.hp)}\n` +
-      `${STAT_LABELS_RU.stamina}: ${Math.round(stats.stamina)}\n` +
-      `${STAT_LABELS_RU.energy}: ${Math.round(stats.energy)}\n` +
-      `${STAT_LABELS_RU.speed}: ${stats.speed.toFixed(2)}`;
+    if (!this.shipClassSel.value) this.shipClassSel.value = Object.keys(SHIP_CLASSES)[0] || "scout";
   }
 
   _setRandomName() {
     const raceId = this.raceSel?.value || "human";
     const list = NAMES_BY_RACE[raceId];
 
-    if (this.nameInp) {
-      if (!list || list.length === 0) {
-        this.nameInp.value = "Commander";
-      } else {
-        const i = Math.floor(Math.random() * list.length);
-        this.nameInp.value = list[i];
-      }
-    }
+    if (!this.nameInp) return;
 
-    this._updateSummary();
+    if (!list || list.length === 0) {
+      this.nameInp.value = "Pilot";
+    } else {
+      const i = Math.floor(Math.random() * list.length);
+      this.nameInp.value = list[i];
+    }
+  }
+
+  _updateSummary() {
+    if (!this.summaryEl) return;
+
+    const { name, raceId, classId, shipClassId } = this.getSelection();
+
+    const race = RACES[raceId];
+    const cls = CLASSES[classId];
+    const shipCls = SHIP_CLASSES[shipClassId];
+
+    const pilot = createPilotProfile({
+      id: "preview_pilot",
+      name: name || "—",
+      raceId,
+      classId,
+      factionId: "player",
+    });
+
+    const baseShipStats = shipCls?.baseStats || { hull: 0, shields: 0, energy: 0, speed: 0 };
+    const finalShipStats = applyPilotModifiersToShipStats(baseShipStats, pilot.modifiers);
+
+    this.summaryEl.textContent =
+      `Пилот: ${name || "—"}\n` +
+      `Раса: ${race?.name || raceId}\n` +
+      `Класс пилота: ${cls?.name || classId}\n` +
+      `Корабль: ${shipCls?.name || shipClassId}\n` +
+      `\n` +
+      `Характеристики корабля (с модификаторами пилота):\n` +
+      `🧱 Корпус: ${finalShipStats.hull}\n` +
+      `🛡️ Щиты: ${finalShipStats.shields}\n` +
+      `⚡ Энергия: ${finalShipStats.energy}\n` +
+      `🚀 Скорость: ${fmt(finalShipStats.speed)}`;
   }
 }

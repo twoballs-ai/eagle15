@@ -38,6 +38,9 @@ export class DebugOverlaySystem extends System {
           borderRadius: "10px",
           padding: "8px 10px",
           maxWidth: "520px",
+          position: "fixed", // фиксированное положение
+          bottom: "20px",    // отступ снизу
+          right: "20px",     // отступ справа
         });
       },
       setVisible: (v) => {

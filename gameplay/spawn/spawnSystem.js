@@ -1,5 +1,5 @@
 // gameplay/spawn/spawnSystem.js
-import { createCharacter } from "../../data/character/character.js";
+import { createPilotProfile } from "../../data/character/pilot.js";
 import { createShip } from "../../data/ship/ship.js";
 import { isHostile } from "../../data/faction/factionRelationsUtil.js";
 import { getSpawnPointsForSystem } from "../../data/system/spawnPointsBySystem.js";
@@ -88,15 +88,15 @@ const isEnemy =
         const charId = makeId("char", ++charN);
         const shipId = makeId("ship", ++shipN);
 
-        const c = createCharacter({
-          id: charId,
-          name: isEnemy ? `Raider-${charN}` : `Pilot-${charN}`,
-          raceId: "human",          // это “раса персонажа”; можно тоже рандомить из RACES
-          classId: "soldier",       // класс персонажа; тоже можно таблицей
-          factionId: table.factionId,
-          factionRankId: isEnemy ? "outsider" : "member",
-          reputation: 0,
-        });
+const c = createPilotProfile({
+  id: charId,
+  name: isEnemy ? `Raider-${charN}` : `Pilot-${charN}`,
+  raceId: "human",
+  classId: "soldier",
+  factionId: table.factionId,
+  factionRankId: isEnemy ? "outsider" : "member",
+  reputation: 0,
+});
 
         c.controller = isEnemy ? "ai_hostile" : "ai_neutral";
 

@@ -2,6 +2,7 @@ import { createGL } from "./engine/gl.js";
 import { Renderer2D } from "./engine/renderer2d.js";
 import { Renderer3D } from "./engine/renderer3d.js";
 import { Game } from "./game.js";
+import { clearSave } from "./data/save.js";
 
 const canvas = document.getElementById("game");
 const statsEl = document.getElementById("stats");
@@ -18,7 +19,7 @@ const runtime = {
 const gl = createGL(canvas);
 const r2d = new Renderer2D(gl);
 const r3d = new Renderer3D(gl);
-
+await clearSave();
 function resize() {
   const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
   runtime.dpr = dpr;
@@ -38,7 +39,7 @@ function resize() {
 window.addEventListener("resize", resize);
 resize();
 
-const game = new Game({
+const game = await Game.create({
   canvas,
   gl,
   r2d,
@@ -47,7 +48,6 @@ const game = new Game({
   getView: () => ({ w: runtime.cssW, h: runtime.cssH, dpr: runtime.dpr }),
   getViewPx: () => ({ w: runtime.pxW, h: runtime.pxH, dpr: runtime.dpr }),
 });
-
 function tick(ts) {
   const time = runtime.time;
   if (!time.last) time.last = ts;
@@ -64,10 +64,10 @@ function tick(ts) {
     time.fpsCount = 0;
   }
 
-  game.input.beginFrame();       // ✅ в начале кадра
+
   game.update(time.dt, time);
   game.render(time);
-
+  game.input.beginFrame();      
   requestAnimationFrame(tick);
 }
 

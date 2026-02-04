@@ -40,17 +40,17 @@ export class PoiQuestSystem extends System {
       this.ctx.lastLog = this.ctx.quest.log.at(-1)?.text ?? "";
       this.updateQuestLine();
 
-      this.ctx.poi = new PoiRuntimeOrbit({
-        poiDef: this.ctx.poiDef,
-        resolvePos: (poi) => this.getPoiWorldPos(poi),
-      });
-
+this.ctx.poi = new PoiRuntimeOrbit({
+  poiDef: this.ctx.poiDef,
+  resolvePos: (poi) => this.ctx.resolvePoiPos(poi),
+});
       this.ctx.poiFocus = null;
       this.ctx.poiHint = "";
     }
 
     const { entered, focus } = this.ctx.poi.update(shipR);
-
+if (entered.length) console.log("ENTERED:", entered.map(e => e.id));
+if (focus) console.log("FOCUS:", focus.id);
     for (const p of entered) {
       if (!this.ctx.quest.isVisited(p.id)) {
         this.ctx.quest.markVisited(p.id);
@@ -184,7 +184,7 @@ export class PoiQuestSystem extends System {
     if (!this.ctx.debug.poiSampleLog || !this.ctx.poiDef) return;
 
     const sample = this.ctx.poiDef.slice(0, 3).map((p) => {
-      const pos = this.getPoiWorldPos(p);
+      const pos = this.ctx.resolvePoiPos(p);
       return { id: p.id, name: p.name, kind: p.kind, x: pos?.x?.toFixed?.(1), z: pos?.z?.toFixed?.(1) };
     });
     console.log("POI sample:", sample);

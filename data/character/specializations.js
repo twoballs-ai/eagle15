@@ -4,14 +4,12 @@ export const SPECIALIZATIONS = {
     classId: "soldier",
     name: "Assault",
 
-    statModifiers: {
-      hp: 20,
-      speed: 0.1,
+    modifiers: {
+      shipHullMul: 0.03,
+      shipSpeedMul: 0.02,
     },
 
-    abilities: [
-      "dash",
-    ],
+    abilities: ["dash"],
   },
 
   sniper: {
@@ -19,12 +17,11 @@ export const SPECIALIZATIONS = {
     classId: "soldier",
     name: "Sniper",
 
-    statModifiers: {
-      energy: 20,
+    modifiers: {
+      weaponSpreadMul: -0.10,
+      weaponRangeMul: 0.08,
     },
 
-    abilities: [
-      "aim_focus",
-    ],
+    abilities: ["aim_focus"],
   },
 };

@@ -40,20 +40,16 @@ export function createShip({
   }
 
   return {
-    id,
-    name,
-
-    raceId,
-    classId,
-    specializationId,
-    factionId,
-    stats,
-    slots: cls.slots,
-
-    ownerId: null, // player / npc id
-    faction: "neutral",
-
-    alive: true,
+  id,
+  name,
+  raceId,
+  classId,
+  specializationId,
+  factionId,
+  ownerId: null,
+  stats,
+  slots: cls.slots,
+  alive: true,
 
     // ✅ runtime: положение/движение корабля в звёздной системе
     runtime: {

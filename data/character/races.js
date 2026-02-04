@@ -3,112 +3,83 @@ export const RACES = {
     id: "human",
     name: "Люди",
     description: "Адаптивная и выносливая раса, ставшая пионерами галактики.",
+    traits: ["adaptive", "balanced"],
 
-    stats: {
-      hp: 100,
-      stamina: 100,
-      energy: 100,
-      speed: 1.0,
+    modifiers: {
+      shipHullMul: 0.0,
+      shipShieldsMul: 0.0,
+      shipEnergyMul: 0.0,
+      shipSpeedMul: 0.0,
     },
-
-    traits: [
-      "adaptive",     // универсальность
-      "balanced",     // отсутствие штрафов
-    ],
   },
 
   synth: {
     id: "synth",
     name: "Синты",
     description: "Искусственные формы жизни, созданные для эффективности и выживания.",
+    traits: ["no_breath", "immune_poison", "energy_based"],
 
-    stats: {
-      hp: 120,
-      stamina: 0,
-      energy: 150,
-      speed: 0.9,
+    modifiers: {
+      shipHullMul: (120 - 100) / 200,     // +0.10
+      shipShieldsMul: (0 - 100) / 200,    // -0.50
+      shipEnergyMul: (150 - 100) / 200,   // +0.25
+      shipSpeedMul: 0.9 - 1.0,            // -0.10
     },
-
-    traits: [
-      "no_breath",        // не нуждаются в дыхании
-      "immune_poison",    // иммунитет к ядам
-      "energy_based",     // способности используют энергию
-    ],
   },
 
   aeon: {
     id: "aeon",
     name: "Эоны",
     description: "Древние существа из чистой энергии, заключённые в физические оболочки.",
+    traits: ["energy_regen", "phase_shift", "low_physical_resistance"],
 
-    stats: {
-      hp: 80,
-      stamina: 50,
-      energy: 200,
-      speed: 1.05,
+    modifiers: {
+      shipHullMul: (80 - 100) / 200,      // -0.10
+      shipShieldsMul: (50 - 100) / 200,   // -0.25
+      shipEnergyMul: (200 - 100) / 200,   // +0.50
+      shipSpeedMul: 1.05 - 1.0,           // +0.05
     },
-
-    traits: [
-      "energy_regen",         // ускоренная регенерация энергии
-      "phase_shift",          // фазовое смещение
-      "low_physical_resistance",
-    ],
   },
 
   drakar: {
     id: "drakar",
     name: "Дракары",
     description: "Рептилоидная раса, эволюционировавшая для войны и выносливости.",
+    traits: ["combat_bred", "slow_regen", "heat_resistant"],
 
-    stats: {
-      hp: 140,
-      stamina: 120,
-      energy: 60,
-      speed: 0.95,
+    modifiers: {
+      shipHullMul: (140 - 100) / 200,     // +0.20
+      shipShieldsMul: (120 - 100) / 200,  // +0.10
+      shipEnergyMul: (60 - 100) / 200,    // -0.20
+      shipSpeedMul: 0.95 - 1.0,           // -0.05
     },
-
-    traits: [
-      "combat_bred",      // рождены для боя
-      "slow_regen",       // медленное восстановление
-      "heat_resistant",   // устойчивость к высоким температурам
-    ],
   },
 
   mycel: {
     id: "mycel",
     name: "Мицелы",
     description: "Коллективные грибные организмы с распределённым сознанием.",
+    traits: ["collective_mind", "bio_regen", "toxin_affinity"],
 
-    stats: {
-      hp: 90,
-      stamina: 80,
-      energy: 140,
-      speed: 0.9,
+    modifiers: {
+      shipHullMul: (90 - 100) / 200,      // -0.05
+      shipShieldsMul: (80 - 100) / 200,   // -0.10
+      shipEnergyMul: (140 - 100) / 200,   // +0.20
+      shipSpeedMul: 0.9 - 1.0,            // -0.10
     },
-
-    traits: [
-      "collective_mind",  // коллективный разум
-      "bio_regen",        // биологическая регенерация
-      "toxin_affinity",   // взаимодействие с токсинами
-    ],
   },
 
   voidborn: {
     id: "voidborn",
     name: "Рождённые Пустотой",
     description: "Существа, приспособленные к существованию в вакууме между звёздами.",
+    traits: ["vacuum_adapted", "high_mobility", "fragile_body"],
 
-    stats: {
-      hp: 70,
-      stamina: 60,
-      energy: 180,
-      speed: 1.2,
+    modifiers: {
+      shipHullMul: (70 - 100) / 200,      // -0.15
+      shipShieldsMul: (60 - 100) / 200,   // -0.20
+      shipEnergyMul: (180 - 100) / 200,   // +0.40
+      shipSpeedMul: 1.2 - 1.0,            // +0.20
     },
-
-    traits: [
-      "vacuum_adapted",   // адаптация к вакууму
-      "high_mobility",    // повышенная мобильность
-      "fragile_body",     // хрупкое тело
-    ],
   },
 };

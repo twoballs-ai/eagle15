@@ -1,4 +1,7 @@
-export function createState() {
+// data/state.js
+import { applySaveToState } from "./save.js";
+
+export function createState(save = null) {
   const playerShip = {
     id: "ship_player",
     isPlayer: true,
@@ -10,19 +13,17 @@ export function createState() {
       yaw: 0,
       targetX: null,
       targetZ: null,
-
-      // важно для stepShipMovement
       accel: 520,
       turnSpeed: 2.4,
       maxSpeed: 260,
-
       radius: 10,
     },
   };
-
-  return {
+console.log("[STATE] createState(save):", save);
+  const state = {
     camera: { x: 0, y: 0, zoom: 1 },
     player: null,
+    playerShipClassId: "scout",
     playerShip,
     characters: [],
     ships: [playerShip],
@@ -30,4 +31,6 @@ export function createState() {
     currentSystemId: null,
     selectedSystemId: null,
   };
+
+  return applySaveToState(state, save);
 }
