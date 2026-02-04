@@ -46,16 +46,19 @@ this.ctx.poi = new PoiRuntimeOrbit({
     this.ctx.poiFocus = null;
 
     // reset ship runtime
-    const ship = state.playerShip;
-    if (ship?.runtime) {
-      ship.runtime.x = 0;
-      ship.runtime.z = 0;
-      ship.runtime.vx = 0;
-      ship.runtime.vz = 0;
-      ship.runtime.yaw = 0;
-      ship.runtime.targetX = null;
-      ship.runtime.targetZ = null;
-    }
+const ship = state.playerShip;
+if (ship?.runtime) {
+  // ✅ у края карты
+  const R = this.ctx.boundsRadius * 0.88;
+  ship.runtime.x = R;
+  ship.runtime.z = -R * 0.35;
+
+  ship.runtime.vx = 0;
+  ship.runtime.vz = 0;
+  ship.runtime.yaw = Math.PI * 0.65; // слегка в “центр” для киношности
+  ship.runtime.targetX = null;
+  ship.runtime.targetZ = null;
+}
 
     // spawn NPC
     const spawned = spawnSystemActors({

@@ -10,6 +10,10 @@ export class PoiQuestSystem extends System {
   }
 
   update(dt) {
+    if (this.ctx.inputLock?.interact) {
+  this.ctx.poiHint = "Катсцена… (ESC чтобы пропустить)";
+  return;
+}
     const state = this.s.get("state");
     const actions = this.s.get("actions");
 

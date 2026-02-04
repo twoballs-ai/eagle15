@@ -7,6 +7,7 @@ export class CameraInputSystem extends System {
   }
 
 update(dt) {
+  if (this.ctx.inputLock?.camera) return;
   const input = this.s.get("input");
   const actions = this.s.get("actions");
   const c = this.ctx.followCam;

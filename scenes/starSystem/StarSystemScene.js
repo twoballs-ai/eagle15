@@ -1,6 +1,6 @@
 import { Scene } from "../../engine/core/scene.js";
 import { createStarSystemCtx } from "./ctx.js";
-
+import { CutsceneSystem } from "./systems/CutsceneSystem.js";
 import { TimeSystem } from "./systems/TimeSystem.js";
 import { BootstrapSystem } from "./systems/BootstrapSystem.js";
 import { CameraInputSystem } from "./systems/CameraInputSystem.js";
@@ -25,7 +25,7 @@ export class StarSystemScene extends Scene {
     // порядок важен
     this.add(new TimeSystem(services, this.ctx));
     this.add(new BootstrapSystem(services, this.ctx));
-
+this.add(new CutsceneSystem(services, this.ctx));
     this.add(new CameraInputSystem(services, this.ctx));
     this.add(new ShipControlSystem(services, this.ctx));
     this.add(new EnemyAISystem(services, this.ctx));
