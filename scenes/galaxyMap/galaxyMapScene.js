@@ -1,28 +1,29 @@
 // scenes/galaxyMapScene.js
 import { Scene } from "../../engine/core/scene.js";
 
-function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-
 export class GalaxyMapScene extends Scene {
   constructor(services) {
     super(services);
     this.name = "Galaxy Map";
 
-    this._tmpCam = {
-      // ortho top-down
+    // Камера карты (3D, но вид сверху; ортографическая проекция)
+    this._mapCam = {
       ortho: true,
-      orthoSize: 900,
+      orthoSize: 900, // будет вычисляться из state.camera.zoom
+
       eye: [0, 1600, 0],
       target: [0, 0, 0],
-      // чтобы “север” был вверх экрана
+
+      // “север вверх экрана” (top-down)
       up: [0, 0, -1],
+
       near: 0.1,
       far: 8000,
 
-      // неважно для ortho, но пусть будет
-      fovRad: Math.PI / 3,
+      fovRad: Math.PI / 3, // не используется в ortho, но оставим
     };
-
+this._t = 0;
+    // Камера фона (звёздное поле)
     this._bgCam = {
       eye: [0, 0, 0],
       target: [0, 0, -1],
@@ -31,6 +32,9 @@ export class GalaxyMapScene extends Scene {
       near: 1,
       far: 24000,
     };
+
+    // Базовый “масштаб” карты (как твой прежний orthoSize=900)
+    this._baseOrthoSize = 900;
   }
 
   enter() {
@@ -46,53 +50,39 @@ export class GalaxyMapScene extends Scene {
     const state = this.s.get("state");
     const input = this.s.get("input");
     const galaxy = this.s.get("galaxy");
-
-    const view = this.s.get("getView")?.();
-    const viewPx = this.s.get("getViewPx")?.() ?? { w: view?.w ?? 1, h: view?.h ?? 1, dpr: view?.dpr ?? 1 };
-
     const menu = game?.menu;
 
-    const cam = state.galaxyCam;
+    const view = this.s.get("getView")?.();
+    const viewPx =
+      this.s.get("getViewPx")?.() ?? {
+        w: Math.floor((view?.w ?? 1) * (view?.dpr ?? 1)),
+        h: Math.floor((view?.h ?? 1) * (view?.dpr ?? 1)),
+        dpr: view?.dpr ?? 1,
+      };
 
-    // ===== wheel zoom (orthoSize) =====
-    const wheel = input.getWheelY?.() ?? input.wheelY ?? 0;
-    if (wheel && !menu?.isOpen) {
-      const k = wheel < 0 ? 0.88 : 1.12;
-      cam.orthoSize = clamp(cam.orthoSize * k, 260, 2400);
-      input.consumeWheel?.();
-    }
+    // ✅ СТАТИЧНО: отключаем wheel и wasd (как у тебя было)
+    input.consumeWheel?.();
 
-    // ===== WASD pan =====
-    if (!menu?.isOpen) {
-      const speed = 920 * (cam.orthoSize / 900); // масштабируем скорость от масштаба карты
-      let mx = 0, mz = 0;
-
-      if (input.isKeyDown("KeyA")) mx -= 1;
-      if (input.isKeyDown("KeyD")) mx += 1;
-      if (input.isKeyDown("KeyW")) mz -= 1;
-      if (input.isKeyDown("KeyS")) mz += 1;
-
-      if (mx || mz) {
-        const l = Math.hypot(mx, mz) || 1;
-        mx /= l; mz /= l;
-        cam.x += mx * speed * dt;
-        cam.z += mz * speed * dt;
-      }
-    }
-
-    // ===== mouse → world pos on galaxy plane =====
+    // ✅ НЕ МЕНЯЕМ state.camera СТРУКТУРУ:
+    // camera.x -> центр по X
+    // camera.y -> центр по Z (в этой сцене y используется как второй параметр панорамы карты)
+    // camera.zoom -> масштаб карты
+    const cam2d = state.camera;
+this._t += dt;
+    // мышь -> world XZ (в плоскости карты) для ORTHO камеры
     const m = input.getMouse?.() ?? { x: 0, y: 0 }; // device px
-    const wpos = screenToGalaxyWorld({
+    const wpos = screenToGalaxyWorldOrtho({
       sx: m.x,
       sy: m.y,
       viewW: viewPx.w,
       viewH: viewPx.h,
-      camX: cam.x,
-      camZ: cam.z,
-      orthoSize: cam.orthoSize,
+      camX: cam2d.x ?? 0,
+      camZ: cam2d.y ?? 0,
+      zoom: cam2d.zoom ?? 1,
+      baseOrthoSize: this._baseOrthoSize,
     });
 
-    // ===== RMB context menu =====
+    // RMB context menu
     if (input.isMousePressed?.("right")) {
       const sys = galaxy.pickSystem(wpos.x, wpos.z, 28);
       if (sys) {
@@ -107,10 +97,7 @@ export class GalaxyMapScene extends Scene {
           y: cssY,
           title: `${sys.name}${sys.kind === "relay" ? " (Relay)" : ""}`,
           items: [
-            {
-              label: "Перейти в систему",
-              onClick: () => game.openStarSystem(sys.id),
-            },
+            { label: "Перейти в систему", onClick: () => game.openStarSystem(sys.id) },
             { label: "Отмена", onClick: () => {} },
           ],
         });
@@ -119,102 +106,83 @@ export class GalaxyMapScene extends Scene {
       }
     }
 
-    // LMB close menu
-    if (input.isMousePressed?.("left")) {
-      menu?.close?.();
-    }
-
-    // (опционально) hover highlight можно добавить позже
+    if (input.isMousePressed?.("left")) menu?.close?.();
   }
 
-  render(time) {
+  render() {
     const gl = this.s.get("gl");
     const r3d = this.s.get("r3d");
     const state = this.s.get("state");
     const galaxy = this.s.get("galaxy");
-    const view = this.s.get("getViewPx")?.() ?? this.s.get("getView")?.();
 
-    // clear
+    const view = this.s.get("getViewPx")?.() ?? this.s.get("getView")?.();
+    const dpr = view.dpr ?? 1;
+
     gl.viewport(0, 0, view.w, view.h);
     gl.clearColor(0.02, 0.02, 0.035, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    // ===== background =====
-    const dpr = view.dpr ?? 1;
-    const cam = state.galaxyCam;
-    const px = -cam.x * 0.0015;
-    const pz = -cam.z * 0.0015;
+    // state.camera не трогаем; просто трактуем:
+    // x -> X, y -> Z, zoom -> scale
+    const cam2d = state.camera;
+
+    // фон (параллакс от камеры карты — слабый)
+    const px = -(cam2d.x ?? 0) * 0.0015;
+    const pz = -(cam2d.y ?? 0) * 0.0015;
     r3d.drawBackground(view, this._bgCam, dpr, px, pz);
 
-    // ===== map camera =====
-    const aspect = view.w / view.h;
-    const topCam = this._tmpCam;
-
+    // top-down ORTHO cam
+    const topCam = this._mapCam;
     topCam.ortho = true;
-    topCam.orthoSize = cam.orthoSize;
-    topCam.eye[0] = cam.x;
+
+    // ✅ zoom влияет на orthoSize:
+    // zoom больше => “приблизили” => orthoSize меньше
+    topCam.orthoSize = this._baseOrthoSize / Math.max(0.15, cam2d.zoom ?? 1);
+
+    topCam.eye[0] = cam2d.x ?? 0;
     topCam.eye[1] = 1600;
-    topCam.eye[2] = cam.z;
+    topCam.eye[2] = cam2d.y ?? 0;
 
-    topCam.target[0] = cam.x;
+    topCam.target[0] = cam2d.x ?? 0;
     topCam.target[1] = 0;
-    topCam.target[2] = cam.z;
-
-    topCam.near = 0.1;
-    topCam.far = 8000;
+    topCam.target[2] = cam2d.y ?? 0;
 
     r3d.begin(view, topCam);
 
-    // ===== draw lanes =====
+    // ✅ “настоящая” спиральная галактика: 4 рукава, пятна, блюр-точки
+    r3d.drawGalaxySpiral(view, topCam, dpr, this._t);
+
+    // линии гиперпространства (если нужны)
     for (const l of galaxy.links) {
       const a = galaxy.systems[l.a];
       const b = galaxy.systems[l.b];
       if (!a || !b) continue;
 
       const y = 0.0;
-      const pts = new Float32Array([
-        a.x, y, a.z,
-        b.x, y, b.z,
-      ]);
-const dpr = view.dpr ?? 1;
+      const pts = new Float32Array([a.x, y, a.z, b.x, y, b.z]);
 
-// рисуем “настоящую” галактику точками
-r3d.drawGalaxySpiral(view, topCam, dpr);
-      // relay links brighter
-      const col = (l.kind === "relay")
-        ? [0.25, 0.95, 1.0, 0.55]
-        : [0.30, 0.45, 0.70, 0.28];
+      const col =
+        l.kind === "relay"
+          ? [0.25, 0.95, 1.0, 0.55]
+          : [0.30, 0.45, 0.70, 0.22];
 
       r3d.drawLines(pts, col);
     }
 
-    // ===== draw systems =====
+    // системы
     const selectedId = state.selectedSystemId;
     const currentId = state.currentSystemId;
-
-    // выделим “доступные” соседние от current (ME-логика)
-    const reachable = new Set();
-    if (typeof currentId === "number") {
-      for (const n of galaxy.getNeighbors(currentId)) reachable.add(n);
-      reachable.add(currentId);
-    }
 
     for (const s of galaxy.systems) {
       const isSelected = s.id === selectedId;
       const isCurrent = s.id === currentId;
-      const isReachable = reachable.size ? reachable.has(s.id) : true;
 
       const baseR = (s.size ?? 12) * 2.2;
       const y = 0.0;
 
-      // base ring
-      const colBase = isReachable
-        ? [0.85, 0.90, 1.0, 0.40]
-        : [0.45, 0.50, 0.60, 0.22];
+      // база
+      r3d.drawCircleAt(s.x, y, s.z, baseR, 64, [0.85, 0.90, 1.0, 0.25]);
 
-      r3d.drawCircleAt(s.x, y, s.z, baseR, 64, colBase);
-
-      // relay = дополнительный “ореол”
       if (s.kind === "relay") {
         r3d.drawCircleAt(s.x, y, s.z, baseR * 1.65, 72, [0.25, 0.95, 1.0, 0.35]);
         r3d.drawCrossAt(s.x, y, s.z, baseR * 0.55, [0.25, 0.95, 1.0, 0.85]);
@@ -222,12 +190,10 @@ r3d.drawGalaxySpiral(view, topCam, dpr);
         r3d.drawCrossAt(s.x, y, s.z, baseR * 0.40, [1.0, 1.0, 1.0, 0.65]);
       }
 
-      // current system marker
       if (isCurrent) {
         r3d.drawCircleAt(s.x, y, s.z, baseR * 2.1, 84, [0.25, 1.0, 0.35, 0.55]);
       }
 
-      // selected highlight
       if (isSelected) {
         r3d.drawCircleAt(s.x, y, s.z, baseR * 2.6, 96, [1.0, 0.80, 0.25, 0.65]);
       }
@@ -235,14 +201,26 @@ r3d.drawGalaxySpiral(view, topCam, dpr);
   }
 }
 
-// screen (device px) -> galaxy world (x,z) for ortho camera
-function screenToGalaxyWorld({ sx, sy, viewW, viewH, camX, camZ, orthoSize }) {
+// device px -> world XZ for ORTHO camera using state.camera{x,y,zoom}
+// camX = camera.x, camZ = camera.y, zoom = camera.zoom
+function screenToGalaxyWorldOrtho({
+  sx,
+  sy,
+  viewW,
+  viewH,
+  camX,
+  camZ,
+  zoom,
+  baseOrthoSize = 900,
+}) {
   const aspect = viewW / viewH;
+
+  // orthoSize = половина высоты видимой области в world units
+  const orthoSize = baseOrthoSize / Math.max(0.15, zoom);
 
   const halfH = orthoSize;
   const halfW = orthoSize * aspect;
 
-  // NDC
   const nx = (sx / viewW) * 2 - 1;
   const ny = 1 - (sy / viewH) * 2;
 
