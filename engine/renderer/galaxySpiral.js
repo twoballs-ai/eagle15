@@ -58,7 +58,6 @@ export class GalaxySpiral {
     this.pointCount = pointCount;
     this.armCount = armCount;
     this.radius = radius;
-
     const vs = compile(
       gl,
       gl.VERTEX_SHADER,
@@ -77,13 +76,14 @@ layout(location=5) in float aTwPhase;  // phase
 uniform mat4 uVP;
 uniform float uDpr;
 uniform float uTime;
-
+uniform float uTiltMul;
+uniform float uGain;
 out vec3 vColor;
 out float vAlpha;
 
 void main() {
   gl_Position = uVP * vec4(aPos, 1.0);
-  gl_PointSize = aSize * uDpr;
+  gl_PointSize = aSize * sqrt(uDpr);
 
   // ✅ более заметное мерцание, но без “строба”
   // диапазон примерно 0.70..1.35
@@ -92,7 +92,7 @@ tw *= (0.95 + 0.08 * sin(uTime * (aTwSpeed * 0.33) + aTwPhase * 1.73));
 tw = clamp(tw, 0.72, 1.32);
 
   vColor = aColor;
-  vAlpha = aAlpha * tw;
+  vAlpha = aAlpha * tw * uTiltMul * uGain;
 }
 `,
     );
@@ -108,15 +108,16 @@ in float vAlpha;
 out vec4 outColor;
 
 void main() {
-  vec2 p = gl_PointCoord * 2.0 - 1.0;
-  float r = length(p);
+vec2 p = gl_PointCoord * 2.0 - 1.0;
+float r = length(p);
 
-// ✅ резче и плотнее (меньше "тумана")
-float core = smoothstep(0.92, 0.18, r);   // более плотное ядро
-float haze = smoothstep(0.95, 0.65, r);   // узкий ореол (не мыло)
+// было: core 0.92..0.18 и haze 0.95..0.65 (очень мягко)
+// станет: плотнее и меньше ореола
+float core = smoothstep(0.75, 0.10, r);
+float haze = smoothstep(0.85, 0.55, r);
 
-// сильнее ядро, слабее ореол
-float a = (0.10 * haze + 0.90 * core) * vAlpha;
+float a = (0.06 * haze + 0.94 * core) * vAlpha;
+
 
   // ✅ сине-свечение, но не в серый
   vec3 tint = vec3(1.00, 1.10, 1.32);
@@ -137,6 +138,8 @@ col *= (0.92 + 0.65 * core);
     );
 
     this.prog = link(gl, vs, fs);
+    this.uTiltMul = gl.getUniformLocation(this.prog, "uTiltMul");
+    this.uGain = gl.getUniformLocation(this.prog, "uGain");
     this.uVP = gl.getUniformLocation(this.prog, "uVP");
     this.uDpr = gl.getUniformLocation(this.prog, "uDpr");
     this.uTime = gl.getUniformLocation(this.prog, "uTime");
@@ -214,14 +217,13 @@ col *= (0.92 + 0.65 * core);
     const coreFrac = 0.03;
     const Tmax = 10.5;
 
-const sizeMin = 5.4;
-const sizeMaxAdd = 9.2;
+const sizeMin = 5.2;
+const sizeMaxAdd = 10.5;
 
-    // ❗️ВАЖНО: при additive альфы 0.5..0.8 => всё выбеливает и “серит” цвета.
-    // Делаем альфу небольшой, а яркость — size + шейдер.
-    const alphaMin = 0.16;
-    const alphaMaxAdd = 0.18;
-    const alphaMaxClamp = 0.34;
+
+const alphaMin = 0.12;
+const alphaMaxAdd = 0.16;
+const alphaMaxClamp = 0.34;
 
     for (let i = 0; i < N; i++) {
       const arm = i % armN;
@@ -331,10 +333,12 @@ const sizeMaxAdd = 9.2;
   }
 
   // timeSec нужен для моргания
-  draw(vpMat4, dpr = 1, timeSec = 0) {
-    const gl = this.gl;
+draw(vpMat4, dpr = 1, timeSec = 0, tiltMul = 1.0) {
+const gl = this.gl;
 
-    gl.useProgram(this.prog);
+gl.useProgram(this.prog);
+gl.uniform1f(this.uTiltMul, tiltMul);
+gl.uniform1f(this.uGain, 2.2); // 1.2..2.2
     gl.uniformMatrix4fv(this.uVP, false, vpMat4);
     gl.uniform1f(this.uDpr, dpr);
     gl.uniform1f(this.uTime, timeSec);

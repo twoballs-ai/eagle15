@@ -4,7 +4,9 @@ import { loadGLBModel } from "../assets/glbLoader.js";
 import { ModelRenderer } from "./renderer/modelRenderer.js";
 import { Starfield } from "./renderer/starfield.js";
 import { GalaxySpiral } from "./renderer/galaxySpiral.js";
-
+import { ThickRings } from "./renderer/rings2d3d.js";
+import { ExtrudedRings } from "./renderer/extrudedRings.js";
+import { OverlayQuad } from "./renderer/overlayQuad.js";
 function compile(gl, type, src) {
   const s = gl.createShader(type);
   gl.shaderSource(s, src);
@@ -71,7 +73,9 @@ export class Renderer3D {
 
     // temp orbit buffer (xyz * 256)
     this._orbit = new Float32Array(3 * 256);
-
+this._rings = new ThickRings(gl, { maxSegments: 256 });
+this._extrudedRings = new ExtrudedRings(gl, { maxSegments: 256 });
+this._overlay = new OverlayQuad(gl);
     // cached per begin()
     this._vp = mat4.create();
     this._m = mat4.create();
@@ -160,7 +164,6 @@ export class Renderer3D {
     this._modelCache.set(url, model);
     return model;
   }
-
   drawModel(model, {
     position=[0,0,0],
     scale=[1,1,1],
@@ -193,10 +196,21 @@ export class Renderer3D {
     this.models.draw(model, this._vp, this._m, { ambient, emissive });
   }
 
+
+drawOverlay(colorRGBA) {
+  this._overlay.draw(colorRGBA);
+}
+
+drawRingAt(x, y, z, radius, thickness = 6, segments = 96, colorRGBA = [1,1,1,1], opts = {}) {
+  this._rings.drawRing(this._vp, x, y, z, radius, thickness, segments, colorRGBA, opts);
+}
+drawExtrudedRingAt(x, y, z, radius, thickness = 10, height = 6, segments = 96, colorRGBA = [1,0,0,1], opts = {}) {
+  this._extrudedRings.drawRing(this._vp, x, y, z, radius, thickness, height, segments, colorRGBA, opts);
+}
   // ✅ добавили timeSec
-  drawGalaxySpiral(view, camera, dpr = 1, timeSec = 0) {
-    this._galaxySpiral.draw(this._vp, dpr, timeSec);
-  }
+drawGalaxySpiral(view, camera, dpr = 1, timeSec = 0, tiltMul = 1.0) {
+  this._galaxySpiral.draw(this._vp, dpr, timeSec, tiltMul);
+}
 
   regenGalaxySpiral(seed) {
     this._galaxySpiral.regen(seed);

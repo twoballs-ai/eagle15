@@ -1,29 +1,43 @@
 // scenes/galaxyMapScene.js
 import { Scene } from "../../engine/core/scene.js";
+import { raycastToGround } from "../../gameplay/cameraRay.js";
 
 export class GalaxyMapScene extends Scene {
   constructor(services) {
     super(services);
     this.name = "Galaxy Map";
 
-    // Камера карты (3D, но вид сверху; ортографическая проекция)
-    this._mapCam = {
-      ortho: true,
-      orthoSize: 900, // будет вычисляться из state.camera.zoom
+    // ===== Follow (cursor-pan) state =====
+    this._follow = { x: 0, z: 0 };
 
-      eye: [0, 1600, 0],
-      target: [0, 0, 0],
-
-      // “север вверх экрана” (top-down)
-      up: [0, 0, -1],
-
-      near: 0.1,
-      far: 8000,
-
-      fovRad: Math.PI / 3, // не используется в ortho, но оставим
+    // 🔧 Настройки “следования за курсором”
+    this._followCfg = {
+      dead: 0.14,         // мёртвая зона (0.08..0.20)
+      panBase: 420,       // амплитуда смещения в world units при zoom=1 (300..700)
+      followSpeed: 2.0,   // скорость догоняния (1.2..3.5)
+      // Ограничение по границам галактики (радиус)
+      // ДОЛЖНО соответствовать GalaxySpiral radius в renderer3d.js (у тебя radius: 2200)
+      galaxyRadius: 2200,
+      margin: 250,        // запас от края
+      // База карты (центр). Если твоя карта центрирована не в (0,0) — поменяй.
+      baseX: 0,
+      baseZ: 0,
     };
-this._t = 0;
-    // Камера фона (звёздное поле)
+
+    // ===== Map camera (perspective top-ish) =====
+    this._mapCam = {
+      ortho: false,
+      eye: [0, 1400, 1200],
+      target: [0, 0, 0],
+      up: [0, 1, 0],
+      near: 0.1,
+      far: 24000,
+      fovRad: Math.PI / 3.2,
+    };
+
+    this._t = 0;
+
+    // (не используется здесь, оставил как было)
     this._bgCam = {
       eye: [0, 0, 0],
       target: [0, 0, -1],
@@ -33,16 +47,25 @@ this._t = 0;
       far: 24000,
     };
 
-    // Базовый “масштаб” карты (как твой прежний orthoSize=900)
     this._baseOrthoSize = 900;
   }
 
   enter() {
     const game = this.s.get("game");
     const state = this.s.get("state");
+
     state.ui.menuOpen = false;
     state.selectedSystemId = null;
     game?.menu?.close?.();
+
+    // Стартовые значения (чтобы сразу было “крупно”)
+    state.camera.zoom ??= 1.6;
+    state.camera.x ??= this._followCfg.baseX;
+    state.camera.y ??= this._followCfg.baseZ;
+
+    // синхронизируем follow, чтобы не было рывка на первом кадре
+    this._follow.x = state.camera.x;
+    this._follow.z = state.camera.y;
   }
 
   update(dt) {
@@ -60,27 +83,77 @@ this._t = 0;
         dpr: view?.dpr ?? 1,
       };
 
-    // ✅ СТАТИЧНО: отключаем wheel и wasd (как у тебя было)
+    // статично: отключаем wheel/wasd
     input.consumeWheel?.();
 
-    // ✅ НЕ МЕНЯЕМ state.camera СТРУКТУРУ:
-    // camera.x -> центр по X
-    // camera.y -> центр по Z (в этой сцене y используется как второй параметр панорамы карты)
-    // camera.zoom -> масштаб карты
     const cam2d = state.camera;
-this._t += dt;
-    // мышь -> world XZ (в плоскости карты) для ORTHO камеры
-    const m = input.getMouse?.() ?? { x: 0, y: 0 }; // device px
-    const wpos = screenToGalaxyWorldOrtho({
-      sx: m.x,
-      sy: m.y,
-      viewW: viewPx.w,
-      viewH: viewPx.h,
-      camX: cam2d.x ?? 0,
-      camZ: cam2d.y ?? 0,
-      zoom: cam2d.zoom ?? 1,
-      baseOrthoSize: this._baseOrthoSize,
-    });
+    this._t += dt;
+
+    const m = input.getMouse?.() ?? { x: 0, y: 0 };
+
+    // Камера для raycast берём текущую (до обновления follow)
+    const camBefore = this._applyCamFromState(cam2d);
+
+    // mouse->ground (для меню/пика)
+    const hit = raycastToGround(m.x, m.y, viewPx.w, viewPx.h, camBefore);
+    const wpos = hit ?? { x: 0, z: 0 };
+
+    // ====== CURSOR FOLLOW (NO CLICK) ======
+    // Нормализуем курсор относительно центра экрана
+    const cx = viewPx.w * 0.5;
+    const cy = viewPx.h * 0.5;
+
+    let nx = (m.x - cx) / cx; // -1..1
+    let ny = (m.y - cy) / cy; // -1..1
+    nx = Math.max(-1, Math.min(1, nx));
+    ny = Math.max(-1, Math.min(1, ny));
+
+    // Мёртвая зона + плавное нарастание (без “дёрганья” в центре)
+    const dead = this._followCfg.dead;
+    const len = Math.hypot(nx, ny);
+    if (len < dead) {
+      nx = 0;
+      ny = 0;
+    } else {
+      const t = (len - dead) / (1 - dead);
+      nx = (nx / len) * t;
+      ny = (ny / len) * t;
+    }
+
+    const zoom = Math.max(0.35, cam2d.zoom ?? 1);
+    const panRadius = this._followCfg.panBase / zoom;
+
+    // ✅ ВАЖНО: цель считаем от “базы”, а не от текущей cam2d.x/y
+    // иначе будет саморазгон/дрифт
+    const baseX = this._followCfg.baseX;
+    const baseZ = this._followCfg.baseZ;
+
+    const targetX = baseX + nx * panRadius;
+    const targetZ = baseZ + ny * panRadius;
+
+    // сглаживание
+    const followSpeed = this._followCfg.followSpeed;
+    const k = 1.0 - Math.exp(-followSpeed * dt);
+
+    this._follow.x += (targetX - this._follow.x) * k;
+    this._follow.z += (targetZ - this._follow.z) * k;
+
+    // ограничиваем по радиусу галактики (чтобы не улетать за край)
+    const maxR = Math.max(0, (this._followCfg.galaxyRadius - this._followCfg.margin));
+    let fx = this._follow.x;
+    let fz = this._follow.z;
+
+    const r = Math.hypot(fx - baseX, fz - baseZ);
+    if (r > maxR) {
+      const s = maxR / r;
+      fx = baseX + (fx - baseX) * s;
+      fz = baseZ + (fz - baseZ) * s;
+      this._follow.x = fx;
+      this._follow.z = fz;
+    }
+
+    cam2d.x = fx;
+    cam2d.y = fz;
 
     // RMB context menu
     if (input.isMousePressed?.("right")) {
@@ -122,37 +195,27 @@ this._t += dt;
     gl.clearColor(0.02, 0.02, 0.035, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    // state.camera не трогаем; просто трактуем:
-    // x -> X, y -> Z, zoom -> scale
     const cam2d = state.camera;
+    const cam = this._applyCamFromState(cam2d);
 
-    // фон (параллакс от камеры карты — слабый)
-    const px = -(cam2d.x ?? 0) * 0.0015;
-    const pz = -(cam2d.y ?? 0) * 0.0015;
-    r3d.drawBackground(view, this._bgCam, dpr, px, pz);
+    r3d.begin(view, cam);
 
-    // top-down ORTHO cam
-    const topCam = this._mapCam;
-    topCam.ortho = true;
+    // tiltMul: не даём гаснуть
+    const vx = cam.target[0] - cam.eye[0];
+    const vy = cam.target[1] - cam.eye[1];
+    const vz = cam.target[2] - cam.eye[2];
+    const invLen = 1 / Math.max(1e-6, Math.hypot(vx, vy, vz));
+    const vny = vy * invLen;
+    const cosTilt = Math.abs(vny);
+    const tiltMul = Math.max(0.85, cosTilt);
 
-    // ✅ zoom влияет на orthoSize:
-    // zoom больше => “приблизили” => orthoSize меньше
-    topCam.orthoSize = this._baseOrthoSize / Math.max(0.15, cam2d.zoom ?? 1);
+    // фон-галактика
+    r3d.drawGalaxySpiral(view, cam, dpr, this._t, tiltMul);
 
-    topCam.eye[0] = cam2d.x ?? 0;
-    topCam.eye[1] = 1600;
-    topCam.eye[2] = cam2d.y ?? 0;
+    // вуаль для читаемости карты
+    r3d.drawOverlay([0.0, 0.0, 0.0, 0.42]);
 
-    topCam.target[0] = cam2d.x ?? 0;
-    topCam.target[1] = 0;
-    topCam.target[2] = cam2d.y ?? 0;
-
-    r3d.begin(view, topCam);
-
-    // ✅ “настоящая” спиральная галактика: 4 рукава, пятна, блюр-точки
-    r3d.drawGalaxySpiral(view, topCam, dpr, this._t);
-
-    // линии гиперпространства (если нужны)
+    // гиперкоридоры
     for (const l of galaxy.links) {
       const a = galaxy.systems[l.a];
       const b = galaxy.systems[l.b];
@@ -161,12 +224,21 @@ this._t += dt;
       const y = 0.0;
       const pts = new Float32Array([a.x, y, a.z, b.x, y, b.z]);
 
-      const col =
+      // 1) подложка
+      r3d.drawLines(
+        pts,
         l.kind === "relay"
-          ? [0.25, 0.95, 1.0, 0.55]
-          : [0.30, 0.45, 0.70, 0.22];
+          ? [0.25, 0.95, 1.0, 0.35]
+          : [0.3, 0.5, 0.8, 0.22],
+      );
 
-      r3d.drawLines(pts, col);
+      // 2) ядро
+      r3d.drawLines(
+        pts,
+        l.kind === "relay"
+          ? [0.6, 1.0, 1.0, 0.85]
+          : [0.65, 0.85, 1.0, 0.65],
+      );
     }
 
     // системы
@@ -180,52 +252,71 @@ this._t += dt;
       const baseR = (s.size ?? 12) * 2.2;
       const y = 0.0;
 
-      // база
-      r3d.drawCircleAt(s.x, y, s.z, baseR, 64, [0.85, 0.90, 1.0, 0.25]);
+      const fade = 0.85;
+      const ringR = baseR * 1.0;
+      const ringT = baseR * 0.22;
+      const strokeT = ringT * 1.55;
 
+      const col =
+        s.kind === "relay"
+          ? [0.25, 0.75, 1.0, 0.42 * fade]
+          : [0.90, 0.25, 0.22, 0.42 * fade];
+
+      // stroke (чёрный контур)
+      r3d.drawRingAt(s.x, y, s.z, ringR, strokeT, 128, [0, 0, 0, 0.52 * fade]);
+      // цвет
+      r3d.drawRingAt(s.x, y, s.z, ringR, ringT, 128, col);
+
+      // крест
       if (s.kind === "relay") {
-        r3d.drawCircleAt(s.x, y, s.z, baseR * 1.65, 72, [0.25, 0.95, 1.0, 0.35]);
-        r3d.drawCrossAt(s.x, y, s.z, baseR * 0.55, [0.25, 0.95, 1.0, 0.85]);
+        r3d.drawCrossAt(s.x, y, s.z, baseR * 0.52, [0.35, 0.95, 1.0, 0.75]);
       } else {
-        r3d.drawCrossAt(s.x, y, s.z, baseR * 0.40, [1.0, 1.0, 1.0, 0.65]);
+        r3d.drawCrossAt(s.x, y, s.z, baseR * 0.52, [1.0, 1.0, 1.0, 0.75]);
       }
 
+      // current / selected (толстые кольца)
       if (isCurrent) {
-        r3d.drawCircleAt(s.x, y, s.z, baseR * 2.1, 84, [0.25, 1.0, 0.35, 0.55]);
+        r3d.drawRingAt(s.x, y, s.z, baseR * 1.45, baseR * 0.18, 128, [0.25, 1.0, 0.35, 0.35]);
       }
-
       if (isSelected) {
-        r3d.drawCircleAt(s.x, y, s.z, baseR * 2.6, 96, [1.0, 0.80, 0.25, 0.65]);
+        r3d.drawRingAt(s.x, y, s.z, baseR * 1.75, baseR * 0.20, 128, [1.0, 0.80, 0.25, 0.45]);
       }
     }
   }
-}
 
-// device px -> world XZ for ORTHO camera using state.camera{x,y,zoom}
-// camX = camera.x, camZ = camera.y, zoom = camera.zoom
-function screenToGalaxyWorldOrtho({
-  sx,
-  sy,
-  viewW,
-  viewH,
-  camX,
-  camZ,
-  zoom,
-  baseOrthoSize = 900,
-}) {
-  const aspect = viewW / viewH;
+  _applyCamFromState(cam2d) {
+    const cam = this._mapCam;
+    const zoom = Math.max(0.15, cam2d.zoom ?? 1);
 
-  // orthoSize = половина высоты видимой области в world units
-  const orthoSize = baseOrthoSize / Math.max(0.15, zoom);
+    const tiltDeg = 30;
+    const tilt = (tiltDeg * Math.PI) / 180;
 
-  const halfH = orthoSize;
-  const halfW = orthoSize * aspect;
+    // “крупность карты” — один главный параметр
+    const distBase = 1100;
+    const zoomStrength = 0.6;
+    const dist = (distBase / zoom) * zoomStrength;
 
-  const nx = (sx / viewW) * 2 - 1;
-  const ny = 1 - (sy / viewH) * 2;
+    const height = Math.sin(tilt) * dist;
+    const back = Math.cos(tilt) * dist;
 
-  const x = camX + nx * halfW;
-  const z = camZ + ny * halfH;
+    // композиция: поднимаем карту в кадре
+    const aimDown = 0.09 * dist;
+    const targetY = -aimDown;
 
-  return { x, z };
+    cam.ortho = false;
+
+    cam.target[0] = cam2d.x ?? 0;
+    cam.target[1] = targetY;
+    cam.target[2] = cam2d.y ?? 0;
+
+    cam.eye[0] = cam.target[0];
+    cam.eye[1] = height;
+    cam.eye[2] = cam.target[2] + back;
+
+    cam.up[0] = 0;
+    cam.up[1] = 1;
+    cam.up[2] = 0;
+
+    return cam;
+  }
 }
