@@ -200,7 +200,7 @@ export class StartScreen {
       `Корабль: ${shipCls?.name || shipClassId}\n` +
       `\n` +
       `Характеристики корабля (с модификаторами пилота):\n` +
-      `🧱 Корпус: ${finalShipStats.hull}\n` +
+      `🧱 Броня: ${finalShipStats.hull}\n` +
       `🛡️ Щиты: ${finalShipStats.shields}\n` +
       `⚡ Энергия: ${finalShipStats.energy}\n` +
       `🚀 Скорость: ${fmt(finalShipStats.speed)}`;

@@ -36,7 +36,27 @@ export class QuestWidget {
   }
 
 update(game, scene, dt) {
-  const ctx = scene?.ctx ?? scene; // на всякий, если когда-то передашь ctx напрямую
+  const ctx = scene?.ctx ?? scene;
+
+  const actId = ctx.act?.current ?? "—";
+
+  // active quests overview
+  const active = ctx.quest?.active ?? {};
+  const lines = [];
+
+  for (const [qid, qstate] of Object.entries(active)) {
+    const qdef = ctx.content?.questsById?.[qid];
+    const title = qdef?.title ?? qid;
+    const type = qdef?.type ?? "unknown";
+    const pr = qstate?.priority ? "⭐" : " ";
+
+    // кратко: сколько objectives done
+    const obj = qstate?.objectives ?? {};
+    const doneN = Object.values(obj).filter(o => o?.done).length;
+    const allN = Object.keys(obj).length;
+
+    lines.push(`${pr} [${type}] ${title} (${doneN}/${allN})`);
+  }
 
   const shipR = game.state.playerShip?.runtime;
   const focus = ctx.poiFocus;
@@ -50,8 +70,11 @@ update(game, scene, dt) {
   }
 
   const text =
-    `АКТ 1\n` +
-    `${ctx.questLine || ""}\n\n` +
+    `АКТ: ${actId}\n` +
+    `\n` +
+    `АКТИВНЫЕ КВЕСТЫ:\n` +
+    (lines.length ? lines.join("\n") : "—") +
+    `\n\n` +
     `Рядом: ${ctx.poiHint || "—"}` +
     focusLine +
     `\n\n` +
@@ -61,6 +84,7 @@ update(game, scene, dt) {
   this._last = text;
   this.el.textContent = text;
 }
+
 
   destroy() {
     try { this.el?.remove(); } catch (_) {}

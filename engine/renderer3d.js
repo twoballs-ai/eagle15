@@ -3,7 +3,7 @@ import { mat4 } from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index.js"
 import { loadGLBModel } from "../assets/glbLoader.js";
 import { ModelRenderer } from "./renderer/modelRenderer.js";
 import { Starfield } from "./renderer/starfield.js";
-
+import { GalaxySpiral } from "./renderer/galaxySpiral.js";
 function compile(gl, type, src) {
   const s = gl.createShader(type);
   gl.shaderSource(s, src);
@@ -85,6 +85,14 @@ export class Renderer3D {
   starCount: 3500,
   radius: 12000,
   seed: 1337,
+});
+this._galaxySpiral = new GalaxySpiral(gl, {
+  seed: 777,
+  count: 18000,
+  arms: 3,
+  radius: 2600,
+  coreRadius: 520,
+  thickness: 240,
 });
   }
 
@@ -187,7 +195,15 @@ drawModel(model, {
   this.models.draw(model, this._vp, this._m, { ambient, emissive });
 }
 
-
+drawGalaxySpiral(view, camera, dpr = 1) {
+  // важно: этот метод предполагает, что VP уже актуален (после begin())
+  // но чтобы было удобно — можно сделать так:
+  // r3d.begin(view, camera); r3d.drawGalaxySpiral(...)
+  this._galaxySpiral.draw(this._vp, dpr);
+}
+regenGalaxySpiral(seed) {
+  this._galaxySpiral.regen(seed);
+}
   // ---- orbits ----
 drawOrbit(radius, segments = 160, colorRGBA = [0.3, 0.3, 0.35, 0.25], y = 0.12) {
   const gl = this.gl;

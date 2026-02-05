@@ -9,7 +9,7 @@ import { SceneManager } from "./engine/managers/SceneManager.js";
 import { AssetManager } from "./engine/managers/AssetManager.js";
 import { UIManager } from "./engine/managers/UIManager.js";
 
-import { GalaxyMapScene } from "./scenes/galaxyMapScene.js";
+import { GalaxyMapScene } from "./scenes/galaxyMap/galaxyMapScene.js";
 import { StarSystemScene } from "./scenes/starSystem/StarSystemScene.js";
 import { ASSETS } from "./assets/manifest.js";
 import { ContextMenu } from "./ui/contextMenu.js";

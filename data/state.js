@@ -22,6 +22,7 @@ export function createState(save = null) {
 console.log("[STATE] createState(save):", save);
   const state = {
     camera: { x: 0, y: 0, zoom: 1 },
+    galaxyCam: { x: 0, z: 0, orthoSize: 900 },
     player: null,
     playerShipClassId: "scout",
     playerShip,

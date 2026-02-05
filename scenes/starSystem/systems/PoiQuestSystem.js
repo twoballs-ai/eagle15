@@ -1,6 +1,6 @@
 import { System } from "../../../engine/core/lifecycle.js";
 import { PoiRuntimeOrbit } from "../../../gameplay/poi/poiRuntimeOrbit.js";
-import { runAct1Event } from "../../../gameplay/quest/eventsAct1.js";
+
 
 export class PoiQuestSystem extends System {
   constructor(services, ctx) { super(services); this.ctx = ctx; }
@@ -58,11 +58,9 @@ if (focus) console.log("FOCUS:", focus.id);
     for (const p of entered) {
       if (!this.ctx.quest.isVisited(p.id)) {
         this.ctx.quest.markVisited(p.id);
-        if (p.onEnter) {
-          runAct1Event(p.onEnter, { quest: this.ctx.quest, shipRuntime: shipR });
-          this.ctx.lastLog = this.ctx.quest.log.at(-1)?.text ?? "";
-          this.updateQuestLine();
-        }
+this.ctx.story?.onPoiEnter({ poi: p, systemId: this.ctx.systemId, ctx: this.ctx });
+this.ctx.lastLog = this.ctx.quest.log.at(-1)?.text ?? "";
+this.updateQuestLine();
       }
     }
 
@@ -70,33 +68,28 @@ if (focus) console.log("FOCUS:", focus.id);
     this.ctx.poiHint = "";
 
     if (focus) {
-      if (focus.id === "poi_beacon") {
-        this.ctx.poiHint = this.ctx.quest.hasFlag("beacon_enabled")
-          ? "E: активировать маяк"
-          : "Маяк заблокирован (нужно починить корабль)";
-      } else {
-        this.ctx.poiHint = focus.name;
-      }
+if (focus.id === "poi_beacon") {
+  const f = this.ctx.quest.flags;
+  const ok = !!(f["act1.ship_stabilized"] && f["act1.nav_restored"] && f["act1.got_parts"] && f["act1.installed_upgrade"]);
+  this.ctx.poiHint = ok ? "E: активировать маяк" : "Маяк заблокирован (сначала почини корабль)";
+} else {
+  this.ctx.poiHint = focus.name;
+}
     }
 
     if (actions.take("interact")) this.tryInteractFocusedPoi();
   }
 
-  tryInteractFocusedPoi() {
-    const focus = this.ctx.poiFocus;
-    if (!focus) return;
+tryInteractFocusedPoi() {
+  const focus = this.ctx.poiFocus;
+  if (!focus) return;
 
-    if (focus.id === "poi_beacon") {
-      if (this.ctx.quest.hasFlag("beacon_enabled")) {
-        this.ctx.quest.activateBeacon();
-        this.ctx.lastLog = this.ctx.quest.log.at(-1)?.text ?? "";
-        this.updateQuestLine();
-      } else {
-        this.ctx.quest.addLog("Маяк не активируется: корабль ещё не готов.");
-        this.ctx.lastLog = this.ctx.quest.log.at(-1)?.text ?? "";
-      }
-    }
-  }
+  // всё решение — в story triggers
+  this.ctx.story?.onPoiInteract({ poi: focus, systemId: this.ctx.systemId, ctx: this.ctx });
+
+  this.ctx.lastLog = this.ctx.quest.log.at(-1)?.text ?? "";
+  this.updateQuestLine();
+}
 
   openCelestialInteraction(cel) {
     if (cel.kind === "planet") {

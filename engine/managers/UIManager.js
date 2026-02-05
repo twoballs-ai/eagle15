@@ -1,9 +1,17 @@
-// engine/managers/AssetManager.js
+// engine/managers/UIManager.js
 import { HUDManager } from "../../ui/hud/HUDManager.js";
+import { GalaxyMapButton } from "../../ui/widgets/GalaxyMapButton.js";
 
 export class UIManager {
   constructor({ parent = document.body } = {}) {
     this.hud = new HUDManager({ parent, id: "hud-root" });
+
+    // ✅ кнопка карты по центру снизу
+    this.hud.registerWidget(new GalaxyMapButton(), {
+      slot: "bottom-center",
+      order: 50,
+      enabled: true,
+    });
   }
 
   update(game, scene, dt) {

@@ -1,16 +1,17 @@
 import { System } from "../../../engine/core/lifecycle.js";
 import { createStarSystem } from "../../../data/starSystem.js";
-import { createAct1Poi } from "../../../data/system/act1PoiFromSystem.js";
+import { createAct1Poi } from "../../../data/system/poiGenerators/act1_poi.js";
 import { PoiRuntimeOrbit } from "../../../gameplay/poi/poiRuntimeOrbit.js";
 import { spawnSystemActors } from "../../../gameplay/spawn/spawnSystem.js";
 import { ShipStatsHUD } from "../../../ui/shipStatsHud.js";
 import { RACES } from "../../../data/character/races.js";
 import { CLASSES } from "../../../data/character/classes.js";
+
 export class BootstrapSystem extends System {
   constructor(services, ctx) {
     super(services);
     this.ctx = ctx;
-    this.shipHud = null; // твой ShipStatsHUD (если реально нужен)
+    this.shipHud = null;
   }
 
   enter(systemId) {
@@ -31,34 +32,33 @@ export class BootstrapSystem extends System {
     // camera far
     this.ctx.cam3d.far = Math.max(5000, this.ctx.boundsRadius * 2.5);
 
-    // reset camera
+    // reset camera (это ок)
     this.ctx.cam3d.eye = [0, 220, 340];
     this.ctx.cam3d.target = [0, 0, 0];
 
-    // POI
+    // POI (пока act1 генератор — ок)
     this.ctx.poiDef = createAct1Poi(galaxy.seed, sys.id, this.ctx.system);
-this.ctx.poi = new PoiRuntimeOrbit({
-  poiDef: this.ctx.poiDef,
-  resolvePos: (poi) => this.ctx.resolvePoiPos(poi),
-});
+    this.ctx.poi = new PoiRuntimeOrbit({
+      poiDef: this.ctx.poiDef,
+      resolvePos: (poi) => this.ctx.resolvePoiPos(poi),
+    });
 
     this.ctx.poiHint = "";
     this.ctx.poiFocus = null;
 
-    // reset ship runtime
-const ship = state.playerShip;
-if (ship?.runtime) {
-  // ✅ у края карты
-  const R = this.ctx.boundsRadius * 0.88;
-  ship.runtime.x = R;
-  ship.runtime.z = -R * 0.35;
+    // reset ship runtime (позиция в системе — норм)
+    const ship = state.playerShip;
+    if (ship?.runtime) {
+      const R = this.ctx.boundsRadius * 0.88;
+      ship.runtime.x = R;
+      ship.runtime.z = -R * 0.35;
 
-  ship.runtime.vx = 0;
-  ship.runtime.vz = 0;
-  ship.runtime.yaw = Math.PI * 0.65; // слегка в “центр” для киношности
-  ship.runtime.targetX = null;
-  ship.runtime.targetZ = null;
-}
+      ship.runtime.vx = 0;
+      ship.runtime.vz = 0;
+      ship.runtime.yaw = Math.PI * 0.65;
+      ship.runtime.targetX = null;
+      ship.runtime.targetZ = null;
+    }
 
     // spawn NPC
     const spawned = spawnSystemActors({
@@ -71,7 +71,7 @@ if (ship?.runtime) {
     state.ships = [state.playerShip, ...spawned.ships].filter(Boolean);
     this.ctx.spawnPoints = spawned.spawnPoints;
 
-    // init ship stats
+    // init ship stats (ок)
     const r = state.playerShip?.runtime;
     const stats = state.playerShip?.stats;
     if (r && stats) {
@@ -87,39 +87,25 @@ if (ship?.runtime) {
       r.maxSpeed = 260 * (stats.speed ?? 1.0);
     }
 
-if (!this.shipHud) this.shipHud = new ShipStatsHUD();
+    // HUD pilot
+    if (!this.shipHud) this.shipHud = new ShipStatsHUD();
 
-const p = state.player;
-this.shipHud.setPilot({
-  name: p?.name ?? "—",
-raceName: RACES[p?.raceId]?.name ?? p?.raceId ?? "",
-className: CLASSES[p?.classId]?.name ?? p?.classId ?? "",
-  avatarUrl: p?.avatarUrl ?? "",
-  sub: "Пилот",
-});
+    const p = state.player;
+    this.shipHud.setPilot({
+      name: p?.name ?? "—",
+      raceName: RACES[p?.raceId]?.name ?? p?.raceId ?? "",
+      className: CLASSES[p?.classId]?.name ?? p?.classId ?? "",
+      avatarUrl: p?.avatarUrl ?? "",
+      sub: "Пилот",
+    });
 
-this.shipHud.update(state.playerShip?.runtime);
+    this.shipHud.update(state.playerShip?.runtime);
 
-    // quest init
-    this.ctx.quest.reset?.(); // если есть reset
-    this.ctx.quest.addLog("Выход из прыжка: корабль повреждён. Нужно восстановить системы и покинуть систему.");
-    this.ctx.lastLog = this.ctx.quest.log.at(-1)?.text ?? "";
-  }
+    // ✅ ВАЖНО: НЕ reset() квеста тут.
+    // Вместо этого просто обновим lastLog/questLine, если уже есть
+    this.ctx.lastLog = this.ctx.quest.log.at(-1)?.text ?? this.ctx.lastLog;
 
-  // ==== world pos helpers (вынесены из сцены) ====
-  getPlanetWorldPosById(planetId) {
-    const p = this.ctx.system?.planets?.find((pp) => pp.id === planetId);
-    if (!p) return null;
-    const a = this.ctx.time * p.speed + p.phase;
-    const x = Math.cos(a) * p.orbitRadius;
-    const z = Math.sin(a) * p.orbitRadius;
-    return { x, z };
-  }
-
-  getPoiWorldPos(poi) {
-    if (!poi) return null;
-    if (poi.kind === "static") return { x: poi.x ?? 0, z: poi.z ?? 0 };
-    if (poi.kind === "planet") return this.getPlanetWorldPosById(poi.planetId);
-    return null;
+    // ✅ Сообщаем сюжету: вошли в систему
+    this.ctx.story?.onSystemEnter({ systemId, ctx: this.ctx });
   }
 }
