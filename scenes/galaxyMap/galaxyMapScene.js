@@ -168,7 +168,7 @@ export class GalaxyMapScene extends Scene {
         menu?.open?.({
           x: cssX,
           y: cssY,
-          title: `${sys.name}${sys.kind === "relay" ? " (Relay)" : ""}`,
+          title: sys.name,
           items: [
             { label: "Перейти в систему", onClick: () => game.openStarSystem(sys.id) },
             { label: "Отмена", onClick: () => {} },
@@ -257,11 +257,7 @@ export class GalaxyMapScene extends Scene {
       const ringT = baseR * 0.22;
       const strokeT = ringT * 1.55;
 
-      const col =
-        s.kind === "relay"
-          ? [0.25, 0.75, 1.0, 0.42 * fade]
-          : [0.90, 0.25, 0.22, 0.42 * fade];
-
+const col = [0.90, 0.25, 0.22, 0.42 * fade]; 
       // stroke (чёрный контур)
       r3d.drawRingAt(s.x, y, s.z, ringR, strokeT, 128, [0, 0, 0, 0.52 * fade]);
       // цвет

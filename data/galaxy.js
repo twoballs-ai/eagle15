@@ -1,5 +1,8 @@
 // data/galaxy.js
 import { dist } from "../engine/math.js";
+import { GALAXY_STATIC } from "./galaxy.static.js";
+
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
 function rng(seed) {
   let t = seed >>> 0;
@@ -11,143 +14,110 @@ function rng(seed) {
     return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
   };
 }
-
 function randRange(R, a, b) { return a + R() * (b - a); }
 
-// “псевдо-нормальное” распределение (быстро)
-function randN(R) {
-  // Box-Muller simplified
-  const u = Math.max(1e-6, R());
-  const v = Math.max(1e-6, R());
-  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+function makeKey(a, b, kind) {
+  const i = String(a);
+  const j = String(b);
+  return (i < j) ? `${i}-${j}-${kind}` : `${j}-${i}-${kind}`;
 }
 
-function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+function buildIndexById(systems) {
+  const map = new Map();
+  for (let i = 0; i < systems.length; i++) map.set(String(systems[i].id), i);
+  return map;
+}
 
-export function createGalaxy(seed = 777) {
+function neighborsFromLinks(systems, links) {
+  const n = systems.length;
+  const adj = Array.from({ length: n }, () => []);
+  const idx = buildIndexById(systems);
+
+  for (const l of links) {
+    const a = idx.get(String(l.a));
+    const b = idx.get(String(l.b));
+    if (a == null || b == null) continue;
+    adj[a].push(b);
+    adj[b].push(a);
+  }
+  return { adj, idx };
+}
+
+function connectedComponents(systems, links) {
+  const { adj } = neighborsFromLinks(systems, links);
+  const n = systems.length;
+  const seen = new Array(n).fill(false);
+  const comps = [];
+
+  for (let i = 0; i < n; i++) {
+    if (seen[i]) continue;
+    const stack = [i];
+    seen[i] = true;
+    const comp = [];
+    while (stack.length) {
+      const v = stack.pop();
+      comp.push(v);
+      for (const to of adj[v]) {
+        if (!seen[to]) { seen[to] = true; stack.push(to); }
+      }
+    }
+    comps.push(comp);
+  }
+  return comps;
+}
+
+function ensureConnectedByNearestBridge(systems, links) {
+  // Достраиваем связность: находим компоненты связности,
+  // и соединяем их “мостами” по ближайшей паре систем.
+  // kind ставим "relay" (или "lane" — на твой вкус)
+  let comps = connectedComponents(systems, links);
+  if (comps.length <= 1) return;
+
+  // Пока больше одной компоненты — соединяем две ближайшие
+  while (comps.length > 1) {
+    let best = null;
+
+    for (let ci = 0; ci < comps.length; ci++) {
+      for (let cj = ci + 1; cj < comps.length; cj++) {
+        for (const ai of comps[ci]) {
+          const A = systems[ai];
+          for (const bi of comps[cj]) {
+            const B = systems[bi];
+            const d = dist(A.x, A.z, B.x, B.z);
+            if (!best || d < best.d) best = { ci, cj, aId: A.id, bId: B.id, d };
+          }
+        }
+      }
+    }
+
+    if (!best) break;
+
+    const key = makeKey(best.aId, best.bId, "relay");
+    if (!links.some(l => l.key === key)) {
+      links.push({ key, a: String(best.aId), b: String(best.bId), kind: "relay" });
+    }
+
+    comps = connectedComponents(systems, links);
+  }
+}
+
+export function createGalaxyStatic(options = {}) {
+  const {
+    base = GALAXY_STATIC,
+    ensureConnected = true,
+
+    // можно добавлять дополнительные системы позже
+    randomCount = 0,
+    randomSeed = 777,
+    randomConnect = true,      // подключать ли рандомные к сети
+    isolatedCount = 0,         // добавить изолированные “пустые” системы
+  } = options;
+
   const g = {
-    seed,
-    systems: [],   // { id,x,z,size,name, clusterId, kind }
-    links: [],     // { key,a,b, kind:"lane"|"relay" }
-    clusters: [],  // { id,x,z,name }
-
-    gen(seed2 = seed) {
-      this.seed = seed2;
-      const R = rng(seed2);
-
-      // ===== параметры “Mass Effect feel” =====
-      const N = 28;                 // количество систем
-      const CLUSTERS = 5;           // кластеров
-      const MAP_W = 2200;           // ширина карты
-      const MAP_H = 1500;           // высота карты
-
-      this.systems.length = 0;
-      this.links.length = 0;
-      this.clusters.length = 0;
-
-      // 1) генерим центры кластеров
-      for (let c = 0; c < CLUSTERS; c++) {
-        const cx = randRange(R, -MAP_W * 0.45, MAP_W * 0.45);
-        const cz = randRange(R, -MAP_H * 0.45, MAP_H * 0.45);
-        this.clusters.push({
-          id: c,
-          x: cx,
-          z: cz,
-          name: `Cluster-${c + 1}`,
-        });
-      }
-
-      // 2) раскладываем системы вокруг кластеров
-      for (let i = 0; i < N; i++) {
-        const clusterId = Math.floor(R() * CLUSTERS);
-        const c = this.clusters[clusterId];
-
-        // плотность кластера
-        const spreadX = 220 + R() * 160;
-        const spreadZ = 170 + R() * 140;
-
-        const x = c.x + randN(R) * spreadX;
-        const z = c.z + randN(R) * spreadZ;
-
-        const size = 10 + Math.floor(R() * 10);
-
-        // 1-2 “особых” узла (ретранслятор / важная точка)
-        const kind = (R() < 0.10) ? "relay" : "system";
-
-        this.systems.push({
-          id: i,
-          x,
-          z,
-          size,
-          name: `System-${i}`,
-          clusterId,
-          kind,
-        });
-      }
-
-      // 3) линкование: внутри кластера плотнее, между кластерами — реже (через relay)
-      // внутри каждого кластера: каждый узел соединить с 2 ближайшими в кластере
-      for (let c = 0; c < CLUSTERS; c++) {
-        const ids = this.systems.filter(s => s.clusterId === c).map(s => s.id);
-
-        for (const i of ids) {
-          const a = this.systems[i];
-          const dists = [];
-          for (const j of ids) if (j !== i) {
-            const b = this.systems[j];
-            dists.push({ j, d: dist(a.x, a.z, b.x, b.z) });
-          }
-          dists.sort((p, q) => p.d - q.d);
-          const K = Math.min(2, dists.length);
-          for (let k = 0; k < K; k++) this._addLink(i, dists[k].j, "lane");
-        }
-      }
-
-      // межкластерные связи: выбираем relay узлы (или ближайшие к центру) и связываем цепочкой
-      const relayIds = this.systems
-        .filter(s => s.kind === "relay")
-        .map(s => s.id);
-
-      // если релеев мало — “доделаем” по одному на кластер (ближайший к центру)
-      if (relayIds.length < CLUSTERS) {
-        for (let c = 0; c < CLUSTERS; c++) {
-          const cc = this.clusters[c];
-          let best = null;
-          let bestD = Infinity;
-          for (const s of this.systems) if (s.clusterId === c) {
-            const d = dist(cc.x, cc.z, s.x, s.z);
-            if (d < bestD) { bestD = d; best = s; }
-          }
-          if (best && !relayIds.includes(best.id)) {
-            best.kind = "relay";
-            relayIds.push(best.id);
-          }
-        }
-      }
-
-      // связываем relay узлы по ближайшему соседу (создаёт “магистрали”)
-      for (const i of relayIds) {
-        const a = this.systems[i];
-        let bestJ = null;
-        let bestD = Infinity;
-        for (const j of relayIds) if (j !== i) {
-          const b = this.systems[j];
-          const d = dist(a.x, a.z, b.x, b.z);
-          if (d < bestD) { bestD = d; bestJ = j; }
-        }
-        if (bestJ != null) this._addLink(i, bestJ, "relay");
-      }
-
-      // слегка подчистим “дубликаты/петли” уже ключом
-    },
-
-    _addLink(a, b, kind = "lane") {
-      const i = Math.min(a, b);
-      const j = Math.max(a, b);
-      const key = `${i}-${j}-${kind}`;
-      if (this.links.some(l => l.key === key)) return;
-      this.links.push({ key, a: i, b: j, kind });
-    },
+    seed: randomSeed,
+    systems: [],
+    links: [],
+    clusters: [],
 
     pickSystem(wx, wz, radius = 26) {
       for (const s of this.systems) {
@@ -157,15 +127,124 @@ export function createGalaxy(seed = 777) {
     },
 
     getNeighbors(systemId) {
+      const id = String(systemId);
       const out = [];
       for (const l of this.links) {
-        if (l.a === systemId) out.push(l.b);
-        else if (l.b === systemId) out.push(l.a);
+        if (String(l.a) === id) out.push(String(l.b));
+        else if (String(l.b) === id) out.push(String(l.a));
       }
       return out;
     },
   };
 
-  g.gen(seed);
+  // 1) загружаем базовую статику
+  g.clusters = (base.clusters ?? []).map(c => ({ ...c, id: Number(c.id) }));
+  g.systems = (base.systems ?? []).map(s => ({
+    ...s,
+    id: String(s.id),
+    clusterId: (s.clusterId ?? 0),
+    kind: s.kind ?? "system",
+    size: s.size ?? 10,
+  }));
+
+  // 2) links с ключами (и нормализация id)
+  const links = [];
+  for (const l of (base.links ?? [])) {
+    const a = String(l.a);
+    const b = String(l.b);
+    const kind = l.kind ?? "lane";
+    links.push({ key: makeKey(a, b, kind), a, b, kind });
+  }
+  g.links = links;
+
+  // 3) опционально: добавить изолированные системы (ни с кем не связаны)
+  if (isolatedCount > 0) {
+    const R = rng(randomSeed ^ 0x9e3779b9);
+    const W = base.map?.w ?? 2200;
+    const H = base.map?.h ?? 1500;
+
+    for (let i = 0; i < isolatedCount; i++) {
+      const id = `iso-${i + 1}`;
+      g.systems.push({
+        id,
+        x: randRange(R, -W * 0.48, W * 0.48),
+        z: randRange(R, -H * 0.48, H * 0.48),
+        size: 10,
+        name: `Isolated-${i + 1}`,
+        clusterId: 0,
+        kind: "system",
+        isolated: true,
+      });
+    }
+  }
+
+  // 4) опционально: добавить рандомные системы
+  if (randomCount > 0) {
+    const R = rng(randomSeed);
+    const W = base.map?.w ?? 2200;
+    const H = base.map?.h ?? 1500;
+
+    for (let i = 0; i < randomCount; i++) {
+      const id = `rnd-${i + 1}`;
+      const x = randRange(R, -W * 0.48, W * 0.48);
+      const z = randRange(R, -H * 0.48, H * 0.48);
+
+      g.systems.push({
+        id,
+        x,
+        z,
+        size: 10 + Math.floor(R() * 6),
+        name: `Random-${i + 1}`,
+        clusterId: 0,
+        kind: (R() < 0.10) ? "relay" : "system",
+        random: true,
+      });
+
+      if (randomConnect) {
+        // подключаем к ближайшей НЕ-изолированной системе (или к любой, если хочешь)
+        let best = null;
+        for (const s of g.systems) {
+          if (s.id === id) continue;
+          if (s.isolated) continue;
+          const d = dist(x, z, s.x, s.z);
+          if (!best || d < best.d) best = { id: s.id, d };
+        }
+        if (best) {
+          const kind = "lane";
+          const key = makeKey(id, best.id, kind);
+          if (!g.links.some(l => l.key === key)) {
+            g.links.push({ key, a: id, b: best.id, kind });
+          }
+        }
+      }
+    }
+  }
+
+  // 5) гарантируем связность “основной” сети, если включено
+  if (ensureConnected) {
+    // Важно: изолированные мы НЕ обязаны подключать.
+    // Поэтому временно фильтруем их для проверки связности.
+    const mainSystems = g.systems.filter(s => !s.isolated);
+    const mainIds = new Set(mainSystems.map(s => s.id));
+
+    const mainLinks = g.links.filter(l => mainIds.has(String(l.a)) && mainIds.has(String(l.b)));
+
+    // Приведем обратно (ссылка на массивы нам важна)
+    if (mainSystems.length > 0) {
+      const tempLinks = mainLinks.map(l => ({ ...l }));
+      ensureConnectedByNearestBridge(mainSystems, tempLinks);
+
+      // Добавим “мосты”, которых не было
+      for (const l of tempLinks) {
+        if (!g.links.some(x => x.key === l.key)) g.links.push(l);
+      }
+    }
+  }
+
   return g;
+}
+
+// Удобный алиас: сейчас используем статику вместо рандома
+export function createGalaxy(seed = 777, options = {}) {
+  return createGalaxyStatic({ randomSeed: seed, ...options });
 }
