@@ -1,83 +1,190 @@
 // data/galaxy.static.js
-// Статичный “каркас” галактики: 18 систем, базовые кластеры, связи.
-// ВАЖНО: links можно редактировать вручную, но даже если забудешь —
-// createGalaxy() сможет ДОСТРОИТЬ связность автоматически (если включено ensureConnected).
+// ✅ Статичная галактика (10 кластеров / 40 систем) + OFFSET сдвиг "вперёд"
+// ✅ Убрана диагональ Perseus<->Hydra через центр (перестроены relay-связи)
+
+const OFFSET = { x: 0, z: -260 }; // <-- сдвигай z: -260..-500 если надо дальше от "ближнего края"
+
+const CLUSTERS_RAW = [
+  { id: 0, x: -900, z: -520, name: "Argo" },
+  { id: 1, x: -350, z: -560, name: "Vela" },
+  { id: 2, x:  250, z: -540, name: "Orion" },
+  { id: 3, x:  820, z: -460, name: "Lyra" },
+
+  { id: 4, x: -980, z:  -40, name: "Draco" },
+  { id: 5, x: -300, z:  -80, name: "Perseus" },
+  { id: 6, x:  380, z:  -60, name: "Hydra" },
+  { id: 7, x:  980, z:  -40, name: "Phoenix" },
+
+  { id: 8, x: -520, z:  520, name: "Aquila" },
+  { id: 9, x:  420, z:  520, name: "Cygnus" },
+];
+
+const SYSTEMS_RAW = [
+  // Cluster 0 Argo
+  { id: "argo-hub", x: -900, z: -520, size: 13, name: "Argo Hub", clusterId: 0, kind: "relay" },
+  { id: "argo-1",   x: -760, z: -610, size: 11, name: "Argo-1",   clusterId: 0, kind: "system" },
+  { id: "argo-2",   x: -980, z: -640, size: 10, name: "Argo-2",   clusterId: 0, kind: "system" },
+  { id: "argo-3",   x: -1040, z: -440, size: 10, name: "Argo-3",  clusterId: 0, kind: "system" },
+
+  // Cluster 1 Vela
+  { id: "vela-hub", x: -350, z: -560, size: 13, name: "Vela Hub", clusterId: 1, kind: "relay" },
+  { id: "vela-1",   x: -210, z: -650, size: 11, name: "Vela-1",   clusterId: 1, kind: "system" },
+  { id: "vela-2",   x: -480, z: -670, size: 10, name: "Vela-2",   clusterId: 1, kind: "system" },
+  { id: "vela-3",   x: -420, z: -430, size: 10, name: "Vela-3",   clusterId: 1, kind: "system" },
+
+  // Cluster 2 Orion
+  { id: "orion-hub", x: 250, z: -540, size: 13, name: "Orion Hub", clusterId: 2, kind: "relay" },
+  { id: "orion-1",   x: 390, z: -640, size: 11, name: "Orion-1",   clusterId: 2, kind: "system" },
+  { id: "orion-2",   x: 120, z: -670, size: 10, name: "Orion-2",   clusterId: 2, kind: "system" },
+  { id: "orion-3",   x: 160, z: -420, size: 10, name: "Orion-3",   clusterId: 2, kind: "system" },
+
+  // Cluster 3 Lyra
+  { id: "lyra-hub", x: 820, z: -460, size: 13, name: "Lyra Hub", clusterId: 3, kind: "relay" },
+  { id: "lyra-1",   x: 960, z: -560, size: 11, name: "Lyra-1",   clusterId: 3, kind: "system" },
+  { id: "lyra-2",   x: 700, z: -590, size: 10, name: "Lyra-2",   clusterId: 3, kind: "system" },
+  { id: "lyra-3",   x: 740, z: -340, size: 10, name: "Lyra-3",   clusterId: 3, kind: "system" },
+
+  // Cluster 4 Draco
+  { id: "draco-hub", x: -980, z: -40, size: 13, name: "Draco Hub", clusterId: 4, kind: "relay" },
+  { id: "draco-1",   x: -840, z: -140, size: 11, name: "Draco-1",   clusterId: 4, kind: "system" },
+  { id: "draco-2",   x: -1120, z: -170, size: 10, name: "Draco-2",  clusterId: 4, kind: "system" },
+  { id: "draco-3",   x: -1100, z:  120, size: 10, name: "Draco-3",  clusterId: 4, kind: "system" },
+
+  // Cluster 5 Perseus
+  { id: "perseus-hub", x: -300, z: -80, size: 13, name: "Perseus Hub", clusterId: 5, kind: "relay" },
+  { id: "perseus-1",   x: -160, z: -180, size: 11, name: "Perseus-1",   clusterId: 5, kind: "system" },
+  { id: "perseus-2",   x: -430, z: -210, size: 10, name: "Perseus-2",   clusterId: 5, kind: "system" },
+  { id: "perseus-3",   x: -420, z:  110, size: 10, name: "Perseus-3",   clusterId: 5, kind: "system" },
+
+  // Cluster 6 Hydra
+  { id: "hydra-hub", x: 380, z: -60, size: 13, name: "Hydra Hub", clusterId: 6, kind: "relay" },
+  { id: "hydra-1",   x: 520, z: -170, size: 11, name: "Hydra-1",   clusterId: 6, kind: "system" },
+  { id: "hydra-2",   x: 250, z: -210, size: 10, name: "Hydra-2",   clusterId: 6, kind: "system" },
+  { id: "hydra-3",   x: 270, z:  120, size: 10, name: "Hydra-3",   clusterId: 6, kind: "system" },
+
+  // Cluster 7 Phoenix
+  { id: "phoenix-hub", x: 980, z: -40, size: 13, name: "Phoenix Hub", clusterId: 7, kind: "relay" },
+  { id: "phoenix-1",   x: 1120, z: -150, size: 11, name: "Phoenix-1",   clusterId: 7, kind: "system" },
+  { id: "phoenix-2",   x: 850,  z: -200, size: 10, name: "Phoenix-2",   clusterId: 7, kind: "system" },
+  { id: "phoenix-3",   x: 880,  z:  120, size: 10, name: "Phoenix-3",   clusterId: 7, kind: "system" },
+
+  // Cluster 8 Aquila
+  { id: "aquila-hub", x: -520, z: 520, size: 13, name: "Aquila Hub", clusterId: 8, kind: "relay" },
+  { id: "aquila-1",   x: -380, z: 410, size: 11, name: "Aquila-1",   clusterId: 8, kind: "system" },
+  { id: "aquila-2",   x: -670, z: 380, size: 10, name: "Aquila-2",   clusterId: 8, kind: "system" },
+  { id: "aquila-3",   x: -680, z: 650, size: 10, name: "Aquila-3",   clusterId: 8, kind: "system" },
+
+  // Cluster 9 Cygnus
+  { id: "cygnus-hub", x: 420, z: 520, size: 13, name: "Cygnus Hub", clusterId: 9, kind: "relay" },
+  { id: "cygnus-1",   x: 560, z: 410, size: 11, name: "Cygnus-1",   clusterId: 9, kind: "system" },
+  { id: "cygnus-2",   x: 260, z: 390, size: 10, name: "Cygnus-2",   clusterId: 9, kind: "system" },
+  { id: "cygnus-3",   x: 280, z: 660, size: 10, name: "Cygnus-3",   clusterId: 9, kind: "system" },
+];
+
+const LINKS = [
+  // --- IN-CLUSTER LANES (звезда через hub + 1 локальная) ---
+  // Argo
+  { a: "argo-1", b: "argo-hub", kind: "lane" },
+  { a: "argo-2", b: "argo-hub", kind: "lane" },
+  { a: "argo-3", b: "argo-hub", kind: "lane" },
+  { a: "argo-1", b: "argo-2",   kind: "lane" },
+
+  // Vela
+  { a: "vela-1", b: "vela-hub", kind: "lane" },
+  { a: "vela-2", b: "vela-hub", kind: "lane" },
+  { a: "vela-3", b: "vela-hub", kind: "lane" },
+  { a: "vela-1", b: "vela-3",   kind: "lane" },
+
+  // Orion
+  { a: "orion-1", b: "orion-hub", kind: "lane" },
+  { a: "orion-2", b: "orion-hub", kind: "lane" },
+  { a: "orion-3", b: "orion-hub", kind: "lane" },
+  { a: "orion-2", b: "orion-1",   kind: "lane" },
+
+  // Lyra
+  { a: "lyra-1", b: "lyra-hub", kind: "lane" },
+  { a: "lyra-2", b: "lyra-hub", kind: "lane" },
+  { a: "lyra-3", b: "lyra-hub", kind: "lane" },
+  { a: "lyra-2", b: "lyra-3",   kind: "lane" },
+
+  // Draco
+  { a: "draco-1", b: "draco-hub", kind: "lane" },
+  { a: "draco-2", b: "draco-hub", kind: "lane" },
+  { a: "draco-3", b: "draco-hub", kind: "lane" },
+  { a: "draco-1", b: "draco-3",   kind: "lane" },
+
+  // Perseus
+  { a: "perseus-1", b: "perseus-hub", kind: "lane" },
+  { a: "perseus-2", b: "perseus-hub", kind: "lane" },
+  { a: "perseus-3", b: "perseus-hub", kind: "lane" },
+  { a: "perseus-1", b: "perseus-2",   kind: "lane" },
+
+  // Hydra
+  { a: "hydra-1", b: "hydra-hub", kind: "lane" },
+  { a: "hydra-2", b: "hydra-hub", kind: "lane" },
+  { a: "hydra-3", b: "hydra-hub", kind: "lane" },
+  { a: "hydra-2", b: "hydra-3",   kind: "lane" },
+
+  // Phoenix
+  { a: "phoenix-1", b: "phoenix-hub", kind: "lane" },
+  { a: "phoenix-2", b: "phoenix-hub", kind: "lane" },
+  { a: "phoenix-3", b: "phoenix-hub", kind: "lane" },
+  { a: "phoenix-2", b: "phoenix-3",   kind: "lane" },
+
+  // Aquila
+  { a: "aquila-1", b: "aquila-hub", kind: "lane" },
+  { a: "aquila-2", b: "aquila-hub", kind: "lane" },
+  { a: "aquila-3", b: "aquila-hub", kind: "lane" },
+  { a: "aquila-1", b: "aquila-2",   kind: "lane" },
+
+  // Cygnus
+  { a: "cygnus-1", b: "cygnus-hub", kind: "lane" },
+  { a: "cygnus-2", b: "cygnus-hub", kind: "lane" },
+  { a: "cygnus-3", b: "cygnus-hub", kind: "lane" },
+  { a: "cygnus-2", b: "cygnus-1",   kind: "lane" },
+
+  // --- межкластерные магистрали (relay) ---
+  // Верхняя дуга
+  { a: "argo-hub",  b: "vela-hub",    kind: "relay" },
+  { a: "vela-hub",  b: "orion-hub",   kind: "relay" },
+  { a: "orion-hub", b: "lyra-hub",    kind: "relay" },
+  { a: "lyra-hub",  b: "phoenix-hub", kind: "relay" },
+
+  // Средняя дуга (слева направо)
+  { a: "argo-hub",   b: "draco-hub",   kind: "relay" },
+  { a: "draco-hub",  b: "perseus-hub", kind: "relay" },
+
+  // ✅ ВАЖНО: УБРАЛИ perseus-hub <-> hydra-hub (она резала центр)
+  // Вместо неё "по соседям"
+  { a: "perseus-hub", b: "vela-hub",   kind: "relay" },
+  { a: "orion-hub",   b: "hydra-hub",  kind: "relay" },
+  { a: "hydra-hub",   b: "phoenix-hub",kind: "relay" },
+
+  // Нижняя дуга
+  { a: "perseus-hub", b: "aquila-hub", kind: "relay" },
+  { a: "hydra-hub",   b: "cygnus-hub", kind: "relay" },
+
+  // Пара "коротких путей" (не режут центр)
+  { a: "aquila-hub",  b: "cygnus-hub", kind: "relay" },
+  { a: "draco-hub",   b: "vela-hub",   kind: "relay" },
+];
 
 export const GALAXY_STATIC = {
-  id: "core-v1",
+  id: "core-v2",
   name: "Core Galaxy",
   map: { w: 2200, h: 1500 },
 
-  // Можно оставить кластеры для визуала и логики (регион/сектор)
-  clusters: [
-    { id: 0, x: -650, z: -300, name: "Argo" },
-    { id: 1, x:  200, z: -350, name: "Vela" },
-    { id: 2, x:  650, z:  150, name: "Orion" },
-    { id: 3, x: -150, z:  450, name: "Lyra" },
-  ],
+  clusters: CLUSTERS_RAW.map((c) => ({
+    ...c,
+    x: c.x + OFFSET.x,
+    z: c.z + OFFSET.z,
+  })),
 
-  // 18 систем (можешь сделать 15-20 — здесь 18, удобно расширять)
-  // id: строка (лучше чем число — проще жить дальше)
-  systems: [
-    { id: "sol",        x: -720, z: -320, size: 14, name: "Sol",        clusterId: 0, kind: "system" },
-    { id: "argo-1",     x: -520, z: -420, size: 12, name: "Argo-1",     clusterId: 0, kind: "system" },
-    { id: "argo-relay", x: -600, z: -120, size: 12, name: "Argo Relay", clusterId: 0, kind: "relay" },
-    { id: "argo-2",     x: -820, z: -120, size: 11, name: "Argo-2",     clusterId: 0, kind: "system" },
+  systems: SYSTEMS_RAW.map((s) => ({
+    ...s,
+    x: s.x + OFFSET.x,
+    z: s.z + OFFSET.z,
+  })),
 
-    { id: "vela-1",     x:   80, z: -480, size: 12, name: "Vela-1",     clusterId: 1, kind: "system" },
-    { id: "vela-2",     x:  260, z: -520, size: 10, name: "Vela-2",     clusterId: 1, kind: "system" },
-    { id: "vela-relay", x:  320, z: -280, size: 12, name: "Vela Relay", clusterId: 1, kind: "relay" },
-    { id: "vela-3",     x:  120, z: -220, size: 11, name: "Vela-3",     clusterId: 1, kind: "system" },
-
-    { id: "orion-1",     x:  520, z:   40, size: 12, name: "Orion-1",     clusterId: 2, kind: "system" },
-    { id: "orion-2",     x:  720, z:   10, size: 11, name: "Orion-2",     clusterId: 2, kind: "system" },
-    { id: "orion-relay", x:  760, z:  220, size: 12, name: "Orion Relay", clusterId: 2, kind: "relay" },
-    { id: "orion-3",     x:  560, z:  260, size: 10, name: "Orion-3",     clusterId: 2, kind: "system" },
-
-    { id: "lyra-1",     x:  -60, z:  360, size: 12, name: "Lyra-1",     clusterId: 3, kind: "system" },
-    { id: "lyra-2",     x:  -220, z: 520, size: 11, name: "Lyra-2",     clusterId: 3, kind: "system" },
-    { id: "lyra-relay", x:  -10, z:  560, size: 12, name: "Lyra Relay", clusterId: 3, kind: "relay" },
-    { id: "lyra-3",     x:   80, z:  480, size: 10, name: "Lyra-3",     clusterId: 3, kind: "system" },
-
-    // 2 системы “краевые” (можно потом сделать изолированными/рандомными)
-    { id: "rim-1",      x:  980, z: -520, size: 10, name: "Rim-1",      clusterId: 2, kind: "system" },
-    { id: "rim-2",      x: -980, z:  620, size: 10, name: "Rim-2",      clusterId: 3, kind: "system" },
-  ],
-
-  // Связи. Можно править вручную.
-  // kind: "lane" (обычная) | "relay" (магистраль)
-  links: [
-    // cluster Argo
-    { a: "sol",        b: "argo-1",     kind: "lane" },
-    { a: "sol",        b: "argo-2",     kind: "lane" },
-    { a: "argo-1",     b: "argo-relay", kind: "lane" },
-    { a: "argo-2",     b: "argo-relay", kind: "lane" },
-
-    // cluster Vela
-    { a: "vela-1",     b: "vela-2",     kind: "lane" },
-    { a: "vela-1",     b: "vela-3",     kind: "lane" },
-    { a: "vela-3",     b: "vela-relay", kind: "lane" },
-    { a: "vela-2",     b: "vela-relay", kind: "lane" },
-
-    // cluster Orion
-    { a: "orion-1",     b: "orion-2",     kind: "lane" },
-    { a: "orion-2",     b: "orion-relay", kind: "lane" },
-    { a: "orion-1",     b: "orion-3",     kind: "lane" },
-    { a: "orion-3",     b: "orion-relay", kind: "lane" },
-
-    // cluster Lyra
-    { a: "lyra-1",     b: "lyra-2",     kind: "lane" },
-    { a: "lyra-1",     b: "lyra-3",     kind: "lane" },
-    { a: "lyra-2",     b: "lyra-relay", kind: "lane" },
-    { a: "lyra-3",     b: "lyra-relay", kind: "lane" },
-
-    // межкластерные магистрали через relay
-    { a: "argo-relay", b: "vela-relay",  kind: "relay" },
-    { a: "vela-relay", b: "orion-relay", kind: "relay" },
-    { a: "orion-relay", b: "lyra-relay", kind: "relay" },
-
-    // подключаем “краевые”
-    { a: "orion-2", b: "rim-1", kind: "lane" },
-    { a: "lyra-2",  b: "rim-2", kind: "lane" },
-  ],
+  links: LINKS,
 };

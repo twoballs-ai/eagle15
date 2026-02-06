@@ -3,7 +3,7 @@ export class ContextMenu {
   constructor() {
     this.el = document.createElement("div");
     this.el.style.position = "fixed";
-    this.el.style.zIndex = "1000";
+    this.el.style.zIndex = "999999"; // ✅ выше всего
     this.el.style.minWidth = "220px";
     this.el.style.background = "rgba(10,12,18,0.92)";
     this.el.style.border = "1px solid rgba(255,255,255,0.12)";
@@ -23,6 +23,23 @@ export class ContextMenu {
     this._items = [];
     this._buttons = [];
     this._hoverIndex = -1;
+
+    // ✅ чтобы клики по меню не доходили до канваса/игры
+    this.el.addEventListener("pointerdown", (e) => e.stopPropagation(), { passive: false });
+    this.el.addEventListener("mousedown", (e) => e.stopPropagation(), { passive: false });
+    this.el.addEventListener("click", (e) => e.stopPropagation(), { passive: false });
+    this.el.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    // ✅ закрытие при клике вне меню
+    this._onDocPointerDown = (e) => {
+      if (!this.isOpen) return;
+      if (this.el.contains(e.target)) return;
+      this.close();
+    };
+    document.addEventListener("pointerdown", this._onDocPointerDown, true);
   }
 
   open({ x, y, title, items }) {
@@ -51,10 +68,27 @@ export class ContextMenu {
       btn.style.padding = "10px 10px";
       btn.style.fontSize = "14px";
       btn.style.borderRadius = "8px";
-      btn.style.cursor = "pointer";
+      btn.style.cursor = it.disabled ? "default" : "pointer";
       btn.style.opacity = it.disabled ? "0.45" : "0.95";
       btn.style.pointerEvents = it.disabled ? "none" : "auto";
       btn.dataset.idx = String(i);
+
+      // ✅ hover визуал (DOM)
+      btn.addEventListener("mouseenter", () => this.setHover(i));
+      btn.addEventListener("mouseleave", () => this.setHover(-1));
+
+      // ✅ ГЛАВНОЕ: обработчик выбора пункта
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (it.disabled) return;
+
+        try {
+          if (typeof it.onClick === "function") it.onClick();
+        } finally {
+          this.close();
+        }
+      });
 
       this.el.appendChild(btn);
       this._buttons.push(btn);
@@ -82,18 +116,16 @@ export class ContextMenu {
     if (this.onClose) this.onClose();
   }
 
-  // ---------- Helpers for Game/UI system ----------
+  // ---------- Helpers (если захочешь управлять меню из Input) ----------
 
   containsTarget(domTarget) {
     if (!domTarget) return false;
     return this.el.contains(domTarget);
   }
 
-  // Determine which menu item element was clicked using event.target (from Input)
   getIndexFromTarget(domTarget) {
     if (!domTarget) return -1;
 
-    // Find closest element with data-idx inside menu
     const el = domTarget.closest?.("[data-idx]");
     if (!el) return -1;
     if (!this.el.contains(el)) return -1;
@@ -104,7 +136,6 @@ export class ContextMenu {
     return idx;
   }
 
-  // Execute menu item by index (Game decides when to call)
   activateIndex(idx) {
     if (idx < 0 || idx >= this._items.length) return false;
     const it = this._items[idx];
@@ -114,7 +145,6 @@ export class ContextMenu {
     return true;
   }
 
-  // Optional visual hover (если захочешь позже делать hover через Input mouse coords)
   setHover(idx) {
     if (idx === this._hoverIndex) return;
     this._hoverIndex = idx;
@@ -130,5 +160,16 @@ export class ContextMenu {
       }
       btn.style.background = i === idx ? "rgba(255,255,255,0.07)" : "transparent";
     }
+  }
+
+  destroy() {
+    try {
+      document.removeEventListener("pointerdown", this._onDocPointerDown, true);
+    } catch (_) {}
+    try { this.el?.remove(); } catch (_) {}
+    this.el = null;
+    this.isOpen = false;
+    this._items = [];
+    this._buttons = [];
   }
 }

@@ -48,7 +48,11 @@ export class Game {
     // systems
     this.state = createState(saved);
     
-    this.galaxy = createGalaxy(777);
+    this.galaxy = createGalaxy(777, {
+  ensureConnected: true,
+  randomCount: 0,
+  isolatedCount: 0,
+});
 this.started = false;
     this.input = new Input({ canvas, getView: this.getView });
     this.actions = new Actions(this.input);
@@ -160,7 +164,11 @@ const shipBase =
   assets.textures.shipIcon = shipIconTex;
 
   this.startScreen.hide();
-  this.openStarSystem(this.state.currentSystemId ?? 0);
+  const startId =
+  this.state.currentSystemId ??
+  (this.galaxy.systems[0]?.id ?? "sol");
+
+this.openStarSystem(startId);
 }
 
 
@@ -185,10 +193,26 @@ update(dt, time) {
   }
 
 openStarSystem(id) {
-  if (!this.started) return;
-  console.log("[Game] openStarSystem", id);
-  this.scenes.set(this.sceneStar, id);
+  const sid = String(id);
+
+  // ✅ если игра ещё не стартовала — покажем в консоли почему не перешли
+  if (!this.started) {
+    console.warn("[Game] openStarSystem ignored (game not started yet):", sid);
+    return;
+  }
+
+  console.log("[Game] openStarSystem", sid);
+
+  // ✅ важно для всего остального (UI/квесты/карта)
+  this.state.currentSystemId = sid;
+
+  // закрываем контекстное меню
+  this.menu?.close?.();
+
+  // переключаем сцену и передаём sid
+  this.scenes.set(this.sceneStar, sid);
 }
+
 _enableAutosave() {
   if (this._autosaveTimer) return;
 

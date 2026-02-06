@@ -2,15 +2,16 @@
 export class SceneManager {
   constructor() { this.current = null; }
 
-  set(scene, payload) {
-     console.log("[SceneManager] set", scene?.name, payload);
+  set(scene, ...args) {
+    console.log("[SceneManager] set", scene?.name, ...args);
+
     if (this.current === scene) {
-      scene.enter?.(payload);
+      scene.enter?.(...args);
       return;
     }
     this.current?.exit?.();
     this.current = scene;
-    this.current?.enter?.(payload);
+    this.current?.enter?.(...args);
   }
 
   update(dt) { this.current?.update?.(dt); }

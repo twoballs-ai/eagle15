@@ -169,17 +169,25 @@ export class GalaxyMapScene extends Scene {
           x: cssX,
           y: cssY,
           title: sys.name,
-          items: [
-            { label: "Перейти в систему", onClick: () => game.openStarSystem(sys.id) },
-            { label: "Отмена", onClick: () => {} },
-          ],
+items: [
+  {
+    label: "Перейти в систему",
+    onClick: () => {
+      console.log("[GalaxyMap] go to system:", sys.id);
+      game.openStarSystem(sys.id);
+    },
+  },
+  { label: "Отмена", onClick: () => {} },
+],
         });
       } else {
         menu?.close?.();
       }
     }
 
-    if (input.isMousePressed?.("left")) menu?.close?.();
+  //   if (input.isMousePressed?.("left")) {
+  // if (!state.ui.menuOpen) menu?.close?.();
+// }
   }
 
   render() {
@@ -215,32 +223,31 @@ export class GalaxyMapScene extends Scene {
     // вуаль для читаемости карты
     r3d.drawOverlay([0.0, 0.0, 0.0, 0.42]);
 
-    // гиперкоридоры
-    for (const l of galaxy.links) {
-      const a = galaxy.systems[l.a];
-      const b = galaxy.systems[l.b];
-      if (!a || !b) continue;
+// гиперкоридоры
+for (const l of galaxy.links) {
+  const a = galaxy.getSystem?.(l.a) ?? null;
+  const b = galaxy.getSystem?.(l.b) ?? null;
+  if (!a || !b) continue;
 
-      const y = 0.0;
-      const pts = new Float32Array([a.x, y, a.z, b.x, y, b.z]);
+  const y = 0.0;
+  const pts = new Float32Array([a.x, y, a.z, b.x, y, b.z]);
 
-      // 1) подложка
-      r3d.drawLines(
-        pts,
-        l.kind === "relay"
-          ? [0.25, 0.95, 1.0, 0.35]
-          : [0.3, 0.5, 0.8, 0.22],
-      );
+  // 1) подложка
+  r3d.drawLines(
+    pts,
+    l.kind === "relay"
+      ? [0.25, 0.95, 1.0, 0.35]
+      : [0.3, 0.5, 0.8, 0.22],
+  );
 
-      // 2) ядро
-      r3d.drawLines(
-        pts,
-        l.kind === "relay"
-          ? [0.6, 1.0, 1.0, 0.85]
-          : [0.65, 0.85, 1.0, 0.65],
-      );
-    }
-
+  // 2) ядро
+  r3d.drawLines(
+    pts,
+    l.kind === "relay"
+      ? [0.6, 1.0, 1.0, 0.85]
+      : [0.65, 0.85, 1.0, 0.65],
+  );
+}
     // системы
     const selectedId = state.selectedSystemId;
     const currentId = state.currentSystemId;
