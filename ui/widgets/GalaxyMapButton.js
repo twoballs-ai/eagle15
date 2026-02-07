@@ -71,6 +71,7 @@ export class GalaxyMapButton {
     });
 
     parent.appendChild(btn);
+    this.setVisible(false);
   }
 
   setVisible(v) {
@@ -78,14 +79,29 @@ export class GalaxyMapButton {
     this.el.style.display = v ? "flex" : "none";
   }
 
-  update(game, scene, dt) {
-    this._game = game;
-    this._scene = scene;
+update(game, scene, dt) {
+  this._game = game;
+  this._scene = scene;
 
-    // прячем во время катсцены (чтобы не ломать драму)
-    const cutsceneActive = !!scene?.ctx?.cutscene?.active;
-    this.setVisible(!cutsceneActive);
+  // 1) игра ещё не стартовала — скрыть (главное меню / стартовый экран)
+  if (!game?.started) {
+    this.setVisible(false);
+    return;
   }
+
+  // 2) во время катсцены — скрыть
+  const cutsceneActive = !!scene?.ctx?.cutscene?.active;
+  if (cutsceneActive) {
+    this.setVisible(false);
+    return;
+  }
+
+  // 3) показываем только на нужных сценах
+  const isGalaxy = scene?.name === "Galaxy Map";
+  const isStar = scene?.name === "Star System"; // ⚠️ поставь точное имя твоей сцены
+  this.setVisible(isGalaxy || isStar);
+}
+
 
   _handleClick() {
     const game = this._game;

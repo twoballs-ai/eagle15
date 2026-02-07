@@ -2,7 +2,7 @@ import { createGL } from "./engine/gl.js";
 import { Renderer2D } from "./engine/renderer2d.js";
 import { Renderer3D } from "./engine/renderer3d.js";
 import { Game } from "./game.js";
-import { clearSave } from "./data/save.js";
+
 
 const canvas = document.getElementById("game");
 const statsEl = document.getElementById("stats");
@@ -19,7 +19,6 @@ const runtime = {
 const gl = createGL(canvas);
 const r2d = new Renderer2D(gl);
 const r3d = new Renderer3D(gl);
-await clearSave();
 function resize() {
   const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
   runtime.dpr = dpr;
@@ -64,10 +63,16 @@ function tick(ts) {
     time.fpsCount = 0;
   }
 
+  // prepare frame (может быть пустым)
 
+
+  // ✅ ВОТ ТУТ: time.dt
   game.update(time.dt, time);
   game.render(time);
-  game.input.beginFrame();      
+
+  // clear edge events AFTER handling this frame
+  game.input.endFrame();
+
   requestAnimationFrame(tick);
 }
 

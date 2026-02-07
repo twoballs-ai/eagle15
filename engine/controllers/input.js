@@ -129,18 +129,16 @@ this.mouseY = (e.clientY - rect.top) * dpr;
     this.mouseDown[buttonName] = true;
   }
 
-  // ---- Frame boundary ----
-  beginFrame() {
-    this.keysPressed.clear();
-    this.mousePressed.left = false;
-    this.mousePressed.middle = false;
-    this.mousePressed.right = false;
-    this.wheelY = 0;
 
-    // UI click-outside uses this; it must be "this frame only"
-    this._lastPointerDownTarget = null;
-    this._lastPointerDownWasOnCanvas = false;
-  }
+endFrame() {
+  this.keysPressed.clear();
+  this.mousePressed.left = false;
+  this.mousePressed.middle = false;
+  this.mousePressed.right = false;
+  this.wheelY = 0;
+  this._lastPointerDownTarget = null;
+  this._lastPointerDownWasOnCanvas = false;
+}
 
   // ---- Reset (for blur/visibility) ----
   resetAll() {

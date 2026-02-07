@@ -1,5 +1,19 @@
 {
-  "dependencies": {
+  "scripts": {
+    "dev:web": "vite",
+    "build:web": "vite build",
+    "preview:web": "vite preview",
+    "dev": "npm run build:web && electron .",
+    "dist": "npm run build:web && electron-builder"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+    "dependencies": {
     "gl-matrix": "^3.4.4"
   }
+  
 }
+

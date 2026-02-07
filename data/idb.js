@@ -8,8 +8,6 @@ function openDB() {
 
     req.onupgradeneeded = () => {
       const db = req.result;
-
-      // единое хранилище сохранений (слоты)
       if (!db.objectStoreNames.contains("saves")) {
         db.createObjectStore("saves", { keyPath: "slot" });
       }
@@ -41,18 +39,17 @@ export async function idbGet(slot = "main") {
     });
 
     await txDone(tx);
-    return value; // {slot, version, updatedAt, data} | null
+    return value;
   } finally {
     db.close();
   }
 }
 
-export async function idbPut(slot = "main", payload) {
+export async function idbPut(payload) {
   const db = await openDB();
   try {
     const tx = db.transaction("saves", "readwrite");
     const store = tx.objectStore("saves");
-
     store.put(payload);
     await txDone(tx);
   } finally {
@@ -65,9 +62,28 @@ export async function idbDelete(slot = "main") {
   try {
     const tx = db.transaction("saves", "readwrite");
     const store = tx.objectStore("saves");
-
     store.delete(slot);
     await txDone(tx);
+  } finally {
+    db.close();
+  }
+}
+
+// ✅ список слотов
+export async function idbList() {
+  const db = await openDB();
+  try {
+    const tx = db.transaction("saves", "readonly");
+    const store = tx.objectStore("saves");
+
+    const req = store.getAll();
+    const all = await new Promise((resolve, reject) => {
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+
+    await txDone(tx);
+    return all; // [{slot, version, updatedAt, data, meta}, ...]
   } finally {
     db.close();
   }

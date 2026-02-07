@@ -120,4 +120,7 @@ this.bindings = bindings ?? {
 
     return domEl.contains(t);
   }
+  wasClickOnCanvas() {
+  return this.input.wasLastPointerDownOnCanvas?.() ?? false;
+}
 }
