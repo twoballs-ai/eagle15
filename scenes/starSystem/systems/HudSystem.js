@@ -10,28 +10,24 @@ export class HudSystem extends System {
     this.scope = null;
   }
 
-  enter() {
-    const ui = this.s.get("ui");
-    const hud = ui?.hud;
-    if (!hud) return;
+enter() {
+  console.log("[HudSystem] enter");
+  const ui = this.s.get("ui");
+  console.log("[HudSystem] ui, hud:", ui, ui?.hud);
 
-    this.scope = new HudScope(hud);
+  const hud = ui?.hud;
+  if (!hud) return;
 
-    // quest
-    this.scope.register(new QuestWidget({ id: "quest-widget" }), {
-      slot: "bottom-left",
-      order: 1,
-      enabled: true,
-    });
+  this.scope = new HudScope(hud);
 
-    // minimap (GL viewport внутри HUD rect)
-    this.scope.register(new MinimapWidget({ id: "minimap-widget" }), {
-      slot: "top-right",
-      order: 0,
-      enabled: true,
-      props: { size: 200, padding: 0 },
-    });
-  }
+  console.log("[HudSystem] register minimap");
+  this.scope.register(new MinimapWidget({ id: "minimap-widget" }), {
+    slot: "top-right",
+    order: 0,
+    enabled: true,
+    props: { size: 200, padding: 0 },
+  });
+}
 
   exit() {
     this.scope?.dispose();

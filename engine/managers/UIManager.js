@@ -18,9 +18,10 @@ export class UIManager {
     this.hud.update(game, scene, dt);
   }
 
-  render(game, scene) {
-    this.hud.render(game, scene);
-  }
+render(game, scene) {
+
+  this.hud.render(game, scene);
+}
 
   destroy() {
     this.hud.destroy();

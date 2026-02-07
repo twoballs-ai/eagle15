@@ -37,10 +37,11 @@ this.add(new CutsceneSystem(services, this.ctx));
     this.add(new PoiQuestSystem(services, this.ctx));
 
     this.add(new RelationIconsSystem(services, this.ctx));
-    this.add(new HudSystem(services, this.ctx));
+
+    this.add(new RenderSystem(services, this.ctx));
+        this.add(new HudSystem(services, this.ctx));
 
     this.add(new DebugOverlaySystem(services, this.ctx));
-    this.add(new RenderSystem(services, this.ctx));
 
   }
 }

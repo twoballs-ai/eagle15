@@ -198,15 +198,26 @@ export class HUDManager {
     }
   }
 
-  render(game, scene) {
-    // для GL-виджетов, которым нужен rect "где рисовать"
-    for (const rec of this.widgets.values()) {
-      if (!rec.enabled) continue;
-      rec.widget.render?.(game, scene, this.getSlotRect(rec.slot));
-    }
-  }
+render(game, scene) {
+  const canvasRect = game.canvas.getBoundingClientRect();
 
-  destroy() {
+  for (const rec of this.widgets.values()) {
+    if (!rec.enabled) continue;
+
+    const r = rec.wrap.getBoundingClientRect();
+
+    // rect в координатах CANVAS (CSS px)
+    const rect = {
+      x: r.left - canvasRect.left,
+      y: r.top  - canvasRect.top,
+      w: r.width,
+      h: r.height,
+    };
+
+    rec.widget.render?.(game, scene, rect);
+  }
+}
+stroy() {
     for (const rec of this.widgets.values()) {
       rec.widget.destroy?.();
       rec.wrap?.remove();

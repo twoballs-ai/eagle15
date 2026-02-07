@@ -131,31 +131,45 @@ this._overlay = new OverlayQuad(gl);
   }
 
   // ---- minimap / second pass: render into a screen-rect ----
-  beginViewportRect(view, x, y, w, h) {
-    const gl = this.gl;
+beginViewportRect(view, x, y, w, h) {
+  const gl = this.gl;
 
-    this._savedViewport = gl.getParameter(gl.VIEWPORT);
+  this._savedViewport = gl.getParameter(gl.VIEWPORT);
+  this._savedScissorBox = gl.getParameter(gl.SCISSOR_BOX);
+  this._savedScissorTest = gl.isEnabled(gl.SCISSOR_TEST);
 
-    const yBottom = view.h - (y + h);
-    gl.enable(gl.SCISSOR_TEST);
-    gl.viewport(x, yBottom, w, h);
-    gl.scissor(x, yBottom, w, h);
+  const yBottom = view.h - (y + h);
+  gl.enable(gl.SCISSOR_TEST);
+  gl.viewport(x, yBottom, w, h);
+  gl.scissor(x, yBottom, w, h);
+}
+
+endViewportRect() {
+  const gl = this.gl;
+
+  if (!this._savedScissorTest) gl.disable(gl.SCISSOR_TEST);
+  else gl.enable(gl.SCISSOR_TEST);
+
+  if (this._savedScissorBox) {
+    gl.scissor(
+      this._savedScissorBox[0],
+      this._savedScissorBox[1],
+      this._savedScissorBox[2],
+      this._savedScissorBox[3]
+    );
+    this._savedScissorBox = null;
   }
 
-  endViewportRect() {
-    const gl = this.gl;
-    gl.disable(gl.SCISSOR_TEST);
-
-    if (this._savedViewport) {
-      gl.viewport(
-        this._savedViewport[0],
-        this._savedViewport[1],
-        this._savedViewport[2],
-        this._savedViewport[3]
-      );
-      this._savedViewport = null;
-    }
+  if (this._savedViewport) {
+    gl.viewport(
+      this._savedViewport[0],
+      this._savedViewport[1],
+      this._savedViewport[2],
+      this._savedViewport[3]
+    );
+    this._savedViewport = null;
   }
+}
 
   // ---- models ----
   async loadGLB(url) {

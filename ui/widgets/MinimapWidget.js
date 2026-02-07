@@ -32,12 +32,9 @@ export class MinimapWidget {
     this.el.style.display = v ? "" : "none";
   }
 
-  render(game, scene, rect) {
-    // rect — слот HUD. Мы рисуем именно В ЭТОТ rect.
-    // Важно: не используем this._mini.draw(), чтобы не было второй логики позиционирования.
-    this._mini.drawIntoRect(game, scene, rect);
-  }
-
+render(game, scene, rect) {
+  this._mini.drawIntoRect(game, scene, rect);
+}
   destroy() {
     try { this.el?.remove(); } catch (_) {}
     this.el = null;

@@ -2,7 +2,7 @@ import { createGL } from "./engine/gl.js";
 import { Renderer2D } from "./engine/renderer2d.js";
 import { Renderer3D } from "./engine/renderer3d.js";
 import { Game } from "./game.js";
-
+import { installGLTraceFile } from "./engine/debug/glTrace.js";
 
 const canvas = document.getElementById("game");
 const statsEl = document.getElementById("stats");
@@ -17,6 +17,10 @@ const runtime = {
 };
 
 const gl = createGL(canvas);
+
+installGLTraceFile(gl, { logEvery: 1, name: "minimap-trace" });
+window.dumpTrace = () => gl.__trace?.download({ format: "text" });
+
 const r2d = new Renderer2D(gl);
 const r3d = new Renderer3D(gl);
 function resize() {
@@ -69,7 +73,7 @@ function tick(ts) {
   // ✅ ВОТ ТУТ: time.dt
   game.update(time.dt, time);
   game.render(time);
-
+gl.__trace?.nextFrame();
   // clear edge events AFTER handling this frame
   game.input.endFrame();
 

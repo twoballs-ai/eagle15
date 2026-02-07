@@ -1,12 +1,14 @@
 // ui/minimapSolarSystem.js
 export class MinimapSolarSystem {
   constructor({
-    size = 200,      // CSS px
-    padding = 12,    // CSS px
-    height = 900,    // высота камеры сверху (world units)
+    size = 200,
+    padding = 12,
+    height = 900,
     clearColor = [0.01, 0.02, 0.04, 1.0],
-    margin = 1.15,   // ✅ запас, чтобы система не упиралась в края
-    minOrthoSize = 300, // ✅ минимум масштаба (на случай очень маленьких систем)
+    margin = 1.15,
+    minOrthoSize = 300,
+    debug = true,          // ✅ флаг отладки
+    debugHold = false,     // ✅ если true — оставляем только фиолетовый+крест
   } = {}) {
     this.size = size;
     this.padding = padding;
@@ -14,136 +16,105 @@ export class MinimapSolarSystem {
     this.clearColor = clearColor;
     this.margin = margin;
     this.minOrthoSize = minOrthoSize;
+
+    this.debug = debug;
+    this.debugHold = debugHold;
   }
-drawIntoRect(game, scene, rect) {
-  const { gl, r3d, getView } = game;
-  if (!gl || !r3d || !scene?.system) return;
 
-  const view = getView();
-  const dpr = game.runtime?.dpr ?? 1;
+  // Рисуем миникарту ВНУТРИ rect HUD (rect в CSS coords, origin top-left)
+  drawIntoRect(game, scene, rectCss) {
+    const { gl, r3d } = game;
 
-  const sizePxW = Math.floor(rect.w * dpr);
-  const sizePxH = Math.floor(rect.h * dpr);
-  const xPx = Math.floor(rect.x * dpr);
-  const yPx = Math.floor((view.h - (rect.y + rect.h)) * dpr); 
-  // ↑ важно: WebGL viewport origin снизу, DOM rect сверху
+    const system = scene?.system ?? scene?.ctx?.system;
+    if (!gl || !r3d || !system) return;
 
-  r3d.beginViewportRect({ w: view.w * dpr, h: view.h * dpr }, xPx, yPx, sizePxW, sizePxH);
+    const viewPx =
+      game.getViewPx?.() ??
+      (() => {
+        const v = game.getView?.() ?? { w: 1, h: 1, dpr: 1 };
+        const dpr = v.dpr ?? 1;
+        return { w: Math.floor(v.w * dpr), h: Math.floor(v.h * dpr), dpr };
+      })();
 
-  gl.clearColor(...this.clearColor);
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    const dpr = viewPx.dpr ?? 1;
 
-  const planets = scene.system?.planets || [];
-  let maxOrbit = 0;
-  for (const p of planets) maxOrbit = Math.max(maxOrbit, p.orbitRadius || 0);
+    const xPx = Math.floor(rectCss.x * dpr);
+    const yPx = Math.floor(rectCss.y * dpr);
+    const wPx = Math.floor(rectCss.w * dpr);
+    const hPx = Math.floor(rectCss.h * dpr);
 
-  const orthoSize = Math.max(this.minOrthoSize, maxOrbit * this.margin);
+    if (wPx < 2 || hPx < 2) return;
 
-  const cx = 0, cz = 0;
+    // ✅ rect
+    r3d.beginViewportRect(viewPx, xPx, yPx, wPx, hPx);
 
-  const miniCam = {
-    eye: [cx, this.height, cz],
-    target: [cx, 0, cz],
-    up: [0, 0, -1],
-    ortho: true,
-    orthoSize,
-    near: 0.1,
-    far: 20000,
-  };
+    // ---------------- DEBUG PASS (фиолетовый + гарант гео) ----------------
+    if (this.debug) {
+      gl.disable(gl.BLEND);
+      gl.enable(gl.DEPTH_TEST);
+      gl.depthMask(true);
 
-  r3d.begin({ w: sizePxW, h: sizePxH }, miniCam);
+      // фиолетовый фон
+      gl.clearColor(1.0, 0.0, 0.8, 1.0);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-  if (scene.drawSystem3D) scene.drawSystem3D(r3d, { scaleMul: 2.2 });
-  if (scene.drawPoiDebug3D) scene.drawPoiDebug3D(r3d);
+      // простая ортокамера
+      r3d.begin(
+        { w: wPx, h: hPx, dpr },
+        {
+          eye: [0, 900, 0],
+          target: [0, 0, 0],
+          up: [0, 0, -1],
+          ortho: true,
+          orthoSize: 300,
+          near: 0.1,
+          far: 5000,
+        }
+      );
 
-  r3d.endViewportRect();
-}
-  draw(game, scene) {
-    const { gl, r3d, getView } = game;
-    if (!gl || !r3d || !scene?.system) return;
+      // гарант линии
+      r3d.drawCircleAt(0, 0.0, 0, 120, 64, [0, 1, 1, 1]);
+      r3d.drawCrossAt(0, 0.0, 0, 40, [1, 1, 1, 1]);
 
-    const view = getView();
-    const dpr = game.runtime?.dpr ?? 1;
+      // ✅ если хотим "заморозить" и проверить кто затирает — выходим тут
+      if (this.debugHold) {
+        r3d.endViewportRect();
+        return;
+      }
+    }
 
-    const sizePx = Math.floor(this.size * dpr);
-    const padPx = Math.floor(this.padding * dpr);
-
-    const x = view.w - padPx - sizePx; // top-right
-    const y = padPx;
-
-    // Рисуем в отдельный viewport + scissor
-    r3d.beginViewportRect(view, x, y, sizePx, sizePx);
-
-    // Чистим только миниокно
+    // ---------------- REAL MINIMAP PASS ----------------
     gl.clearColor(...this.clearColor);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    // ✅ вычисляем максимальную орбиту, чтобы влезла вся система
-const planets = scene.system?.planets || [];
-let maxOrbit = 0;
-for (const p of planets) maxOrbit = Math.max(maxOrbit, p.orbitRadius || 0);
+    const planets = system.planets || [];
+    let maxOrbit = 0;
+    for (const p of planets) maxOrbit = Math.max(maxOrbit, p.orbitRadius || 0);
 
-const orthoSize = Math.max(this.minOrthoSize, maxOrbit * this.margin);
+    const orthoSize = Math.max(this.minOrthoSize, maxOrbit * this.margin);
 
-const cx = 0;
-const cz = 0;
+    const cx = 0, cz = 0;
+    const miniCam = {
+      eye: [cx, this.height, cz],
+      target: [cx, 0, cz],
+      up: [0, 0, -1],
+      ortho: true,
+      orthoSize,
+      near: 0.1,
+      far: 20000,
+    };
 
-const miniCam = {
-  eye: [cx, this.height, cz],
-  target: [cx, 0, cz],
-  up: [0, 0, -1],
-  ortho: true,
-  orthoSize,   // ✅ НЕ *2
-  near: 0.1,
-  far: 20000,
-};
+    r3d.begin({ w: wPx, h: hPx, dpr }, miniCam);
 
-    // Квадратный view для корректного aspect
-    r3d.begin({ w: sizePx, h: sizePx }, miniCam);
+    // ✅ ВАЖНО: drawSystem3D у тебя в RenderSystem, а не в scene.
+    // Поэтому чаще всего тут НИЧЕГО не рисуется => чёрный.
+    // Для проверки — нарисуем хоть орбиту:
+    r3d.drawOrbit(200, 96, [1, 1, 1, 0.6], 0.12);
 
-    // Рисуем то же самое, что в мире: модели + орбиты
-    if (scene.drawSystem3D) scene.drawSystem3D(r3d, { scaleMul: 2.2 });;
+    // если ты добавишь методы на scene — заработает:
+    if (scene.drawSystem3D) scene.drawSystem3D(r3d, { scaleMul: 2.2 });
     if (scene.drawPoiDebug3D) scene.drawPoiDebug3D(r3d);
-    // if (scene.drawPlayerShip3D) scene.drawPlayerShip3D(r3d);
-// --- 2D overlay: ship icon (PNG) ---
-const ship = game.state.playerShip?.runtime;
-const tex = game.assets?.textures?.shipIcon;
 
-if (ship && tex) {
-  // world(x,z) -> minimap pixels inside sizePx x sizePx
-const half = orthoSize;
-
-let nx = (ship.x - cx) / (2 * half) + 0.5;
-let ny = (ship.z - cz) / (2 * half) + 0.5;
-
-// по желанию — clamp, чтобы иконка не улетала
-nx = Math.max(0.02, Math.min(0.98, nx));
-ny = Math.max(0.02, Math.min(0.98, ny));
-
-const px = (nx - 0.5) * sizePx;
-const py = (ny - 0.5) * sizePx;
-
-// ✅ 2D поверх 3D миникарты
-gl.disable(gl.DEPTH_TEST);
-gl.depthMask(false);
-gl.disable(gl.CULL_FACE);
-gl.enable(gl.BLEND);
-gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-  // рисуем в "пиксельных world coords": cam=(0,0), zoom=1
-  game.r2d.begin(sizePx, sizePx, 0, 0, 1);
-
-  // Важно: держим одну текстуру
-  game.r2d.useTexture(tex);
-
-  const iconSize = 26 * dpr;      // ✅ тюнится
-const rot = ship.yaw + Math.PI;      // если “не туда”, добавим ±Math.PI/2
-
-  game.r2d.quadRot(px, py, iconSize, iconSize, rot, 1, 1, 1, 1);
-  game.r2d.end();
-  gl.depthMask(true);
-gl.enable(gl.DEPTH_TEST);
-gl.enable(gl.CULL_FACE);
-}
     r3d.endViewportRect();
   }
 }

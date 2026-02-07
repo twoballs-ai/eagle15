@@ -1,3 +1,4 @@
+// scenes/starSystem/systems/RenderSystem.js
 import { System } from "../../../engine/core/lifecycle.js";
 import { getBasis } from "../../../assets/modelBasis.js";
 import { buildTracersXYZ } from "../../../gameplay/weapons/projectiles.js";
@@ -16,15 +17,20 @@ export class RenderSystem extends System {
     const gl = this.s.get("gl");
     const r3d = this.s.get("r3d");
     const getView = this.s.get("getView");
+    const getViewPx = this.s.get("getViewPx");
     const state = this.s.get("state");
 
-    const view = getView();
+    // ✅ ВСЕГДА px-view для viewport/scissor
+    const view =
+      (typeof getViewPx === "function" ? getViewPx() : null) ??
+      (typeof getView === "function" ? getView() : { w: 1, h: 1, dpr: 1 });
 
     gl.viewport(0, 0, view.w, view.h);
     gl.clearColor(0.02, 0.02, 0.04, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    const dpr = this.s.get("runtime")?.dpr ?? 1;
+    const dpr = view.dpr ?? (this.s.get("runtime")?.dpr ?? 1);
+
     const ship = state.playerShip?.runtime;
     const k = 0.002;
     const px = ship ? -ship.x * k : 0;
@@ -34,7 +40,9 @@ export class RenderSystem extends System {
 
     // ВАЖНО: все debug draw должны быть ПОСЛЕ begin()
     r3d.begin(view, this.ctx.cam3d);
-if (this.ctx.debug?.poiZones) this.drawPoiZones3D(r3d);
+
+    if (this.ctx.debug?.poiZones) this.drawPoiZones3D(r3d);
+
     // projectiles tracers
     this.drawProjectiles3D(r3d);
 
@@ -52,8 +60,8 @@ if (this.ctx.debug?.poiZones) this.drawPoiZones3D(r3d);
     const lines = this.ctx.enemyFire.getTracerLinesY(1.2);
     if (lines.length >= 6) r3d.drawLines(lines, [1.0, 0.35, 0.15, 0.9]);
 
-      this.drawAutopilotRoute3D(r3d);
- 
+    this.drawAutopilotRoute3D(r3d);
+
     if (this.ctx.debug?.colliders) {
       this.drawCollidersDebug3D(r3d);
     }
@@ -115,44 +123,37 @@ if (this.ctx.debug?.poiZones) this.drawPoiZones3D(r3d);
       });
     }
   }
-drawPoiZones3D(r3d) {
-  const def = this.ctx.poiDef;
-  const resolve = this.ctx.resolvePoiPos;
-  if (!def || !resolve) return;
 
-  // высота линий (у тебя корабли на y=0)
-  const y = 0.65;
+  drawPoiZones3D(r3d) {
+    const def = this.ctx.poiDef;
+    const resolve = this.ctx.resolvePoiPos;
+    if (!def || !resolve) return;
 
-  for (const poi of def) {
-    const pos = resolve(poi);
-    if (!pos) continue;
+    const y = 0.65;
 
-    // радиусы (если в poi нет radius/interactRadius — даём нормальные дефолты)
-    const rEnter = poi.radius ?? 520;                 // ✅ вход/событие
-    const rInteract = poi.interactRadius ?? Math.min(rEnter, 320); // ✅ подсказка/интеракт
+    for (const poi of def) {
+      const pos = resolve(poi);
+      if (!pos) continue;
 
-    // подсветка: если это текущий focus — рисуем ярче
-    const isFocus = this.ctx.poiFocus?.id === poi.id;
+      const rEnter = poi.radius ?? 520;
+      const rInteract = poi.interactRadius ?? Math.min(rEnter, 320);
 
-    const colEnter = isFocus
-      ? [1.0, 0.85, 0.25, 0.35]
-      : [1.0, 0.85, 0.25, 0.18];
+      const isFocus = this.ctx.poiFocus?.id === poi.id;
 
-    const colInteract = isFocus
-      ? [0.2, 0.9, 1.0, 0.45]
-      : [0.2, 0.9, 1.0, 0.22];
+      const colEnter = isFocus ? [1.0, 0.85, 0.25, 0.35] : [1.0, 0.85, 0.25, 0.18];
+      const colInteract = isFocus ? [0.2, 0.9, 1.0, 0.45] : [0.2, 0.9, 1.0, 0.22];
 
-    // 1) enter зона (жёлтая)
-    r3d.drawCircleAt(pos.x, y, pos.z, rEnter, 72, colEnter);
+      r3d.drawCircleAt(pos.x, y, pos.z, rEnter, 72, colEnter);
+      r3d.drawCircleAt(pos.x, y, pos.z, rInteract, 72, colInteract);
 
-    // 2) interact зона (голубая)
-    r3d.drawCircleAt(pos.x, y, pos.z, rInteract, 72, colInteract);
-
-    // 3) маркер центра (крест)
-    const crossSize = isFocus ? 14 : 10;
-    r3d.drawCrossAt(pos.x, y, pos.z, crossSize, isFocus ? [1,1,1,1] : [1.0, 0.85, 0.25, 0.85]);
+      const crossSize = isFocus ? 14 : 10;
+      r3d.drawCrossAt(
+        pos.x, y, pos.z, crossSize,
+        isFocus ? [1,1,1,1] : [1.0, 0.85, 0.25, 0.85]
+      );
+    }
   }
-}
+
   drawSystem3D(r3d, { scaleMul = 1.0 } = {}) {
     const assets = this.s.get("assets");
     if (!this.ctx.system) return;
@@ -208,12 +209,10 @@ drawPoiZones3D(r3d) {
     if (!r) return;
     if (r.targetX == null || r.targetZ == null) return;
 
-    // 1) target marker
     const tx = r.targetX, tz = r.targetZ;
     r3d.drawCrossAt(tx, 0.65, tz, 12, [0.2, 0.9, 1.0, 1.0]);
     r3d.drawCircleAt(tx, 0.65, tz, 16, 48, [0.2, 0.9, 1.0, 0.45]);
 
-    // 2) predicted path
     const rr = {
       ...r,
       vx: r.vx || 0,
@@ -253,12 +252,9 @@ drawPoiZones3D(r3d) {
 
     for (const c of coll.list) {
       if (c.alive === false) continue;
-
-      // как в старом: сейчас рисуем только ship
       if (c.kind !== "ship") continue;
 
       const col = [0.2, 1.0, 0.2, 0.35];
-
       const visMul = 1.5;
       const vr = c.r * visMul;
 
@@ -268,7 +264,7 @@ drawPoiZones3D(r3d) {
   }
 }
 
-// ===== local helpers (как в старом файле) =====
+// ===== local helpers =====
 
 function buildCirclePoints(center, r, axis = "XZ", seg = 64) {
   const [cx, cy, cz] = center;
