@@ -26,20 +26,26 @@ export class ShipStatsHUD {
         <div class="ssh-stats">
           <div class="ssh-row">
             <div class="ssh-label">БРОНЯ</div>
-            <div class="ssh-bar"><div class="ssh-fill" data-k="hp"></div></div>
-            <div class="ssh-val" data-k="hpText">0/0</div>
+            <div class="ssh-bar">
+              <div class="ssh-fill" data-k="hp"></div>
+              <div class="ssh-barText" data-k="hpText">0/0</div>
+            </div>
           </div>
 
           <div class="ssh-row">
             <div class="ssh-label">ЩИТЫ</div>
-            <div class="ssh-bar"><div class="ssh-fill" data-k="sh"></div></div>
-            <div class="ssh-val" data-k="shText">0/0</div>
+            <div class="ssh-bar">
+              <div class="ssh-fill" data-k="sh"></div>
+              <div class="ssh-barText" data-k="shText">0/0</div>
+            </div>
           </div>
 
           <div class="ssh-row">
             <div class="ssh-label">ЭНЕРГИЯ</div>
-            <div class="ssh-bar"><div class="ssh-fill" data-k="en"></div></div>
-            <div class="ssh-val" data-k="enText">0/0</div>
+            <div class="ssh-bar">
+              <div class="ssh-fill" data-k="en"></div>
+              <div class="ssh-barText" data-k="enText">0/0</div>
+            </div>
           </div>
         </div>
       </div>
@@ -57,7 +63,7 @@ export class ShipStatsHUD {
   z-index: 9999;
   pointer-events: none;
 
-  width: 380px;
+  width: 420px;
   padding: 10px 12px;
   border-radius: 12px;
 
@@ -136,32 +142,49 @@ export class ShipStatsHUD {
 
 #${id} .ssh-row{
   display: grid;
-  grid-template-columns: 64px 1fr 56px;
+  grid-template-columns: 64px 1fr;
   gap: 8px;
   align-items: center;
-  margin: 6px 0;
-}
-#${id} .ssh-label{ opacity: 0.85; white-space: nowrap; }
-#${id} .ssh-val{
-  text-align: right;
-  opacity: 0.9;
-  font-variant-numeric: tabular-nums;
+  margin: 7px 0;
 }
 
+#${id} .ssh-label{
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
+/* ✅ BAR: длиннее + текст поверх */
 #${id} .ssh-bar{
-  height: 8px;
-  border-radius: 6px;
+  position: relative;
+  height: 14px;               /* было 8px */
+  border-radius: 8px;
   overflow: hidden;
   background: rgba(255,255,255,0.10);
   border: 1px solid rgba(255,255,255,0.10);
 }
+
 #${id} .ssh-fill{
   height: 100%;
   width: 0%;
 }
+
 #${id} .ssh-fill[data-k="hp"]{ background: rgba(120,255,120,0.85); }
 #${id} .ssh-fill[data-k="sh"]{ background: rgba(80,200,255,0.85); }
 #${id} .ssh-fill[data-k="en"]{ background: rgba(255,220,120,0.85); }
+
+/* ✅ цифры "0/0" поверх полоски */
+#${id} .ssh-barText{
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .02em;
+  color: rgba(235,245,255,0.95);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.75);
+  mix-blend-mode: normal;
+}
       `;
       document.head.appendChild(st);
     }
@@ -178,9 +201,10 @@ export class ShipStatsHUD {
     this.fillSH = q('.ssh-fill[data-k="sh"]');
     this.fillEN = q('.ssh-fill[data-k="en"]');
 
-    this.hpText = q('[data-k="hpText"]');
-    this.shText = q('[data-k="shText"]');
-    this.enText = q('[data-k="enText"]');
+    // ✅ теперь тексты внутри баров
+    this.hpText = q('.ssh-barText[data-k="hpText"]');
+    this.shText = q('.ssh-barText[data-k="shText"]');
+    this.enText = q('.ssh-barText[data-k="enText"]');
 
     this._lastStats = "";
     this._lastPilot = "";
@@ -269,9 +293,9 @@ export class ShipStatsHUD {
     this.fillSH.style.width = `${Math.max(0, Math.min(1, sh01)) * 100}%`;
     this.fillEN.style.width = `${Math.max(0, Math.min(1, en01)) * 100}%`;
 
-    this.hpText.textContent = `${Math.round(hp)}/${Math.round(hpMax)}`;
-    this.shText.textContent = `${Math.round(sh)}/${Math.round(shMax)}`;
-    this.enText.textContent = `${Math.round(en)}/${Math.round(enMax)}`;
+    if (this.hpText) this.hpText.textContent = `${Math.round(hp)}/${Math.round(hpMax)}`;
+    if (this.shText) this.shText.textContent = `${Math.round(sh)}/${Math.round(shMax)}`;
+    if (this.enText) this.enText.textContent = `${Math.round(en)}/${Math.round(enMax)}`;
   }
 
   destroy() {

@@ -199,17 +199,17 @@ export class HUDManager {
   }
 
 render(game, scene) {
-  const canvasRect = game.canvas.getBoundingClientRect();
+  const surface = game.surface;
+  const { canvasCssRect } = surface.value;
 
   for (const rec of this.widgets.values()) {
     if (!rec.enabled) continue;
 
     const r = rec.wrap.getBoundingClientRect();
 
-    // rect в координатах CANVAS (CSS px)
     const rect = {
-      x: r.left - canvasRect.left,
-      y: r.top  - canvasRect.top,
+      x: r.left - canvasCssRect.x,
+      y: r.top  - canvasCssRect.y,
       w: r.width,
       h: r.height,
     };
@@ -217,7 +217,7 @@ render(game, scene) {
     rec.widget.render?.(game, scene, rect);
   }
 }
-stroy() {
+destroy() {
     for (const rec of this.widgets.values()) {
       rec.widget.destroy?.();
       rec.wrap?.remove();

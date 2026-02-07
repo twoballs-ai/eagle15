@@ -7,15 +7,6 @@ import { installGLTraceFile } from "./engine/debug/glTrace.js";
 const canvas = document.getElementById("game");
 const statsEl = document.getElementById("stats");
 
-const runtime = {
-  dpr: 1,
-  cssW: 0,
-  cssH: 0,
-  pxW: 0,
-  pxH: 0,
-  time: { last: 0, dt: 0, t: 0, fps: 0, fpsAcc: 0, fpsCount: 0 },
-};
-
 const gl = createGL(canvas);
 
 installGLTraceFile(gl, { logEvery: 1, name: "minimap-trace" });
@@ -23,24 +14,11 @@ window.dumpTrace = () => gl.__trace?.download({ format: "text" });
 
 const r2d = new Renderer2D(gl);
 const r3d = new Renderer3D(gl);
-function resize() {
-  const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
-  runtime.dpr = dpr;
 
-  runtime.cssW = window.innerWidth;
-  runtime.cssH = window.innerHeight;
-
-  runtime.pxW = Math.floor(runtime.cssW * dpr);
-  runtime.pxH = Math.floor(runtime.cssH * dpr);
-
-  canvas.width = runtime.pxW;
-  canvas.height = runtime.pxH;
-
-  gl.viewport(0, 0, runtime.pxW, runtime.pxH);
-}
-
-window.addEventListener("resize", resize);
-resize();
+// ✅ runtime теперь хранит только time/fps (не размеры!)
+const runtime = {
+  time: { last: 0, dt: 0, t: 0, fps: 0, fpsAcc: 0, fpsCount: 0 },
+};
 
 const game = await Game.create({
   canvas,
@@ -48,9 +26,18 @@ const game = await Game.create({
   r2d,
   r3d,
   statsEl,
-  getView: () => ({ w: runtime.cssW, h: runtime.cssH, dpr: runtime.dpr }),
-  getViewPx: () => ({ w: runtime.pxW, h: runtime.pxH, dpr: runtime.dpr }),
 });
+
+// ✅ resize больше не выставляет viewport и не держит pxW/pxH как истину
+function onResize() {
+  // попросим surface пересчитать drawing buffer
+  game.surface?.applyCanvasSize?.();
+  // метрики обновятся в Game.render() в том же кадре
+}
+
+window.addEventListener("resize", onResize);
+onResize();
+
 function tick(ts) {
   const time = runtime.time;
   if (!time.last) time.last = ts;
@@ -67,14 +54,10 @@ function tick(ts) {
     time.fpsCount = 0;
   }
 
-  // prepare frame (может быть пустым)
-
-
-  // ✅ ВОТ ТУТ: time.dt
   game.update(time.dt, time);
   game.render(time);
-gl.__trace?.nextFrame();
-  // clear edge events AFTER handling this frame
+
+  gl.__trace?.nextFrame();
   game.input.endFrame();
 
   requestAnimationFrame(tick);

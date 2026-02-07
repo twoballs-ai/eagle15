@@ -28,7 +28,6 @@ export class SystemMenu {
       { id: "settings", label: "Настройки" },
     ];
 
-    // Экраны (DOM/логика внутри самих экранов — см. ниже: mount/render)
     this.screens = {
       map: new MapScreen(services),
       quests: new QuestScreen(services),
@@ -44,8 +43,6 @@ export class SystemMenu {
     this._visible = false;
 
     this._pausedByMenu = false;
-
-    // чтобы экраны могли размонтироваться/монтироваться
     this._screenHost = null;
   }
 
@@ -111,13 +108,7 @@ export class SystemMenu {
       tabsHost.appendChild(btn);
     }
 
-    // close
     panel.querySelector('[data-id="closeBtn"]').addEventListener("click", () => this.close());
-
-    // click outside panel closes
-    root.addEventListener("mousedown", (e) => {
-      if (e.target === root) this.close();
-    });
 
     this._syncActiveTabUI();
   }
@@ -129,7 +120,6 @@ export class SystemMenu {
     this.isOpen = true;
     this._visible = true;
 
-    // pause
     if (this.services?.game?.setPaused) {
       this.services.game.setPaused(true);
       this._pausedByMenu = true;
@@ -168,23 +158,53 @@ export class SystemMenu {
     }, 160);
   }
 
-  toggle() {
-    this.isOpen ? this.close() : this.open();
-  }
-renderGL() {
-    if (!this.isOpen) return;
-    const scr = this.screens[this.activeTab];
-    scr?.renderGL?.();
-  }
-  // Вызывай из Game.update(): если Esc — открыть/закрыть. Возвращает true если “съели” инпут.
+  toggle() { this.isOpen ? this.close() : this.open(); }
+
+// ui/systemMenu/SystemMenu.js
+
   handleEngineInput(input, actions) {
-    const esc = !!actions?.pressed?.("cancel"); // у тебя cancel = Esc
-    if (esc) {
-      this.toggle();
-      return true;
+    const esc = !!actions?.pressed?.("cancel");
+    if (!esc) return this.isOpen;
+
+    const game = this.services?.game;
+    const scenes = this.services?.get?.("scenes") ?? this.services?.scenes;
+    const current = scenes?.current;
+
+    // ✅ 1) пока игра не стартовала — системное меню запрещено
+    if (!game?.started) {
+      // если вдруг было открыто — закроем
+      if (this.isOpen) this.close();
+      return false;
     }
-    return this.isOpen; // меню открыто => блокируем игровой инпут
+
+    // ✅ 2) запрещаем открывать системное меню поверх главного меню
+    // (главное меню у тебя отдельным UI, но это гарантирует поведение)
+    if (game?.mainMenu?._visible) {
+      if (this.isOpen) this.close();
+      return false;
+    }
+
+    // ✅ 3) разрешаем только на нужных сценах
+    // Подстрой под свои имена сцен:
+    // - GalaxyMapScene: name = "Galaxy Map" (у тебя было)
+    // - StarSystemScene: name = "Star System" или как у тебя названо
+    const sceneName = current?.name ?? "";
+    const allowed =
+      sceneName === "Galaxy Map" ||
+      sceneName === "Star System" ||
+      sceneName === "StarSystem" ||
+      sceneName === "System";
+
+    if (!allowed) {
+      if (this.isOpen) this.close();
+      return false;
+    }
+
+    // ✅ OK: toggle
+    this.toggle();
+    return true;
   }
+
 
   setTab(tabId) {
     if (!this.screens[tabId]) return;
@@ -201,26 +221,18 @@ renderGL() {
     this.screens[this.activeTab]?.update?.(dt);
   }
 
-  // ===== Screens mounting (DOM) =====
+  renderGL(game, scene) {
+    if (!this.isOpen) return;
+    const scr = this.screens?.[this.activeTab];
+    if (scr?.renderGL) scr.renderGL(game, scene);
+  }
 
   _mountActiveScreen() {
     const scr = this.screens[this.activeTab];
     if (!scr) return;
 
-    // очистим контейнер
     if (this._screenHost) this._screenHost.innerHTML = "";
-
-    // если экран умеет mount(host)
-    if (scr.mount) {
-      scr.mount(this._screenHost);
-    } else {
-      // fallback: просто заглушка
-      const stub = document.createElement("div");
-      stub.className = "sm-stub";
-      stub.textContent = `Экран "${this.activeTab}" пока без DOM-mount().`;
-      this._screenHost.appendChild(stub);
-    }
-
+    if (scr.mount) scr.mount(this._screenHost);
     scr.onOpen?.();
   }
 
@@ -250,31 +262,31 @@ renderGL() {
     st.textContent = `
       .sm-root{
         position:fixed; inset:0; z-index:2200;
-        display:flex; align-items:center; justify-content:center;
-        padding: 14px;
-        background:
-          radial-gradient(1200px 700px at 50% 22%, rgba(80,140,255,.16), rgba(0,0,0,.86)),
-          radial-gradient(900px 500px at 20% 70%, rgba(0,255,220,.06), transparent 60%),
-          radial-gradient(900px 500px at 80% 70%, rgba(255,120,220,.05), transparent 60%);
-        color:#e8f0ff;
-        font-family: system-ui, Segoe UI, Arial;
-        letter-spacing: .2px;
+        display:flex;
         opacity: 0;
         transform: translateY(6px);
         transition: opacity .16s ease, transform .16s ease;
+        pointer-events: auto;
+        background: rgb(6,8,12); /* ✅ НЕТ ПРОЗРАЧНОСТИ */
       }
       .sm-root.sm-visible{ opacity:1; transform: translateY(0px); }
 
+      /* ✅ Полноэкранная НЕпрозрачная панель */
       .sm-panel{
-        width:min(1280px, calc(100vw - 28px));
-        height:min(780px, calc(100vh - 28px));
-        border-radius: 16px;
+        width:100%;
+        height:100%;
+        border-radius: 0px;
         overflow:hidden;
         position:relative;
-        background: linear-gradient(180deg, rgba(10,14,24,.72), rgba(6,8,12,.90));
-        border: 1px solid rgba(160,200,255,.14);
-        box-shadow: 0 26px 90px rgba(0,0,0,.62), 0 0 0 1px rgba(0,0,0,.45) inset;
-        backdrop-filter: blur(12px);
+
+        background:
+          radial-gradient(1200px 700px at 50% 22%, rgba(80,140,255,.12), rgba(0,0,0,.88)),
+          radial-gradient(900px 500px at 20% 70%, rgba(0,255,220,.05), transparent 60%),
+          radial-gradient(900px 500px at 80% 70%, rgba(255,120,220,.04), transparent 60%),
+          linear-gradient(180deg, rgba(10,14,24,.92), rgba(6,8,12,.96));
+        border: 0px;
+        box-shadow: none;
+
         display:flex;
         flex-direction:column;
       }
@@ -299,8 +311,8 @@ renderGL() {
         flex: 0 0 auto;
       }
       .sm-logo svg{ width:24px; height:24px; display:block; }
-      .sm-title{ font-weight: 900; font-size: 16px; letter-spacing: .6px; line-height: 1; }
-      .sm-subtitle{ opacity:.66; font-size: 12px; }
+      .sm-title{ font-weight: 900; font-size: 16px; letter-spacing: .6px; line-height: 1; color:#e8f0ff; }
+      .sm-subtitle{ opacity:.66; font-size: 12px; color:#e8f0ff; }
 
       .sm-tabs{
         display:flex; gap:10px; align-items:center;
@@ -354,29 +366,23 @@ renderGL() {
         display:flex;
         padding: 12px;
       }
+
       .sm-content{
         flex: 1;
         border-radius: 14px;
         border: 1px solid rgba(160,200,255,.10);
-        background: rgba(0,0,0,.14);
+        background: rgba(0,0,0,.22);
         box-shadow: 0 18px 50px rgba(0,0,0,.30);
         padding: 12px;
         overflow: auto;
-      }
-
-      .sm-stub{
-        opacity:.8;
-        padding: 12px;
-        border-radius: 12px;
-        border: 1px dashed rgba(160,200,255,.14);
-        background: rgba(0,0,0,.10);
+        color:#e8f0ff;
       }
 
       .sm-scanline{
         position:absolute; inset:0;
         pointer-events:none;
         background: linear-gradient(180deg, transparent, rgba(0,255,220,.08), transparent);
-        opacity:.14;
+        opacity:.10;
         transform: translateY(-120%);
         animation: smScan 6.2s linear infinite;
         mix-blend-mode: screen;
@@ -388,7 +394,7 @@ renderGL() {
       .sm-noise{
         position:absolute; inset:0;
         pointer-events:none;
-        opacity:.08;
+        opacity:.06;
         background-image:
           repeating-linear-gradient(0deg, rgba(255,255,255,.03) 0px, rgba(255,255,255,.03) 1px, transparent 2px, transparent 4px),
           repeating-linear-gradient(90deg, rgba(255,255,255,.02) 0px, rgba(255,255,255,.02) 1px, transparent 2px, transparent 6px);

@@ -1,5 +1,5 @@
 // engine/managers/UIManager.js
-import { HUDManager } from "../../ui/hud/HUDManager.js";
+import { HUDManager } from "./HUDManager.js";
 import { GalaxyMapButton } from "../../ui/widgets/GalaxyMapButton.js";
 
 export class UIManager {

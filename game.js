@@ -26,43 +26,37 @@ import { loadSave, writeSave, makeSaveFromState, applySaveToState } from "./data
 import { createPilotProfile } from "./data/character/pilot.js";
 import { applyPilotModifiersToShipStats } from "./data/ship/applyPilotModifiers.js";
 import { SystemMenu } from "./ui/systemMenu/SystemMenu.js";
+
 import { SurfaceMetrics } from "./engine/runtime/SurfaceMetrics.js";
+
 export class Game {
   static async create(args) {
-    // ✅ НИЧЕГО не авто-стартуем.
-    // Главное меню само решит: Continue / Load / New.
     const savedMain = await loadSave("main");
-    const game = new Game(args, savedMain);
-    return game;
+    return new Game(args, savedMain);
   }
 
-  constructor({ canvas, gl, r2d, r3d, statsEl, getView, getViewPx }, savedMain) {
+  constructor({ canvas, gl, r2d, r3d, statsEl }, savedMain) {
     this.canvas = canvas;
     this.gl = gl;
-    
+
     this.r2d = r2d;
     this.r3d = r3d;
     this.statsEl = statsEl;
 
-    this.getView = getView;
-    this.getViewPx =
-      getViewPx ??
-      (() => {
-        const v = this.getView();
-        const dpr = v?.dpr ?? 1;
-        return { w: Math.floor(v.w * dpr), h: Math.floor(v.h * dpr), dpr };
-      });
+    // ✅ ЕДИНЫЙ ИСТОЧНИК ИСТИНЫ о поверхности
+    this.surface = new SurfaceMetrics({ canvas: this.canvas, gl: this.gl });
+    // сразу применим размер (первый кадр)
+    this.surface.applyCanvasSize();
+    this.surface.update();
 
     // === runtime flags ===
     this.started = false;
     this._assetsLoaded = false;
     this._autosaveTimer = null;
-    this._currentSaveSlot = null; // будет "main" или любой выбранный
+    this._currentSaveSlot = null;
 
-    // === core systems ===
+    // === core state ===
     this.state = createState(savedMain);
-    // если createState не применяет save сам — применяем тут:
-    // applySaveToState(this.state, savedMain);
 
     this.galaxy = createGalaxy(777, {
       ensureConnected: true,
@@ -70,7 +64,9 @@ export class Game {
       isolatedCount: 0,
     });
 
-    this.input = new Input({ canvas, getView: this.getView });
+    // ✅ Input пока оставляем как есть (он использует viewport CSS)
+    // Позже переведём на surface для точного mapping
+    this.input = new Input({ canvas: this.canvas, getView: () => this.getView() });
     this.actions = new Actions(this.input);
 
     this.assets = new AssetManager({ r2d, r3d });
@@ -82,6 +78,17 @@ export class Game {
     this.mainMenu = new MainMenu();
 
     this.bus = new EventBus();
+
+    // ✅ legacy совместимость: getView/getViewPx теперь вычисляются из surface
+    const getView = () => {
+      const v = this.surface.value;
+      return { w: v.canvasCssRect.w, h: v.canvasCssRect.h, dpr: v.dpr ?? 1 };
+    };
+    const getViewPx = () => {
+      const v = this.surface.value;
+      return { w: v.buffer.w, h: v.buffer.h, dpr: v.dpr ?? 1 };
+    };
+
     this.services = new Services({
       game: this,
       canvas: this.canvas,
@@ -89,8 +96,13 @@ export class Game {
       r2d: this.r2d,
       r3d: this.r3d,
       statsEl: this.statsEl,
-      getView: this.getView,
-      getViewPx: this.getViewPx,
+
+      // ✅ совместимость (но истина = surface)
+      getView,
+      getViewPx,
+
+      // ✅ истина
+      surface: this.surface,
 
       state: this.state,
       galaxy: this.galaxy,
@@ -104,19 +116,22 @@ export class Game {
       scenes: this.scenes,
       bus: this.bus,
     });
-this.systemMenu = new SystemMenu(this.services);
-    // === scenes ===
+
+    this.systemMenu = new SystemMenu(this.services);
+
+    // scenes
     this.sceneGalaxy = new GalaxyMapScene(this.services);
     this.sceneStar = new StarSystemScene(this.services);
 
-    // === UI flow ===
+    // UI flow
     this.createGameScreen.hide();
-this.createGameScreen.onBack = () => {
-  this.createGameScreen.hide();
-  this.mainMenu.show();
-};
+
+    this.createGameScreen.onBack = () => {
+      this.createGameScreen.hide();
+      this.mainMenu.show();
+    };
+
     this.createGameScreen.onStart = (cfg) => {
-      // Новая игра -> создаём пилота -> сохраняем в main -> входим
       this.startNewGame(cfg);
     };
 
@@ -134,56 +149,71 @@ this.createGameScreen.onBack = () => {
     };
 
     this.mainMenu.onOpenSettings = () => {
-      // пока заглушка: позже сделаем полноценный экран
       console.log("[MainMenu] Settings clicked");
       alert("Настройки сделаем следующим шагом (отдельный экран).");
     };
 
-    // ✅ показываем главное меню всегда
     this.mainMenu.show();
+  }
+
+  // ========= helpers (legacy API, derived from surface) =========
+  getView() {
+    const v = this.surface.value;
+    return { w: v.canvasCssRect.w, h: v.canvasCssRect.h, dpr: v.dpr ?? 1 };
+  }
+  getViewPx() {
+    const v = this.surface.value;
+    return { w: v.buffer.w, h: v.buffer.h, dpr: v.dpr ?? 1 };
   }
 
   // ========= GAME LOOP =========
 
-update(dt, time) {
-  // Esc -> toggle меню, и если оно открыто — блокируем инпут
-  const blocked = this.systemMenu.handleEngineInput(this.input, this.actions);
-  if (blocked) {
-    this.systemMenu.update(dt);
-    // важно: если блокируем, то не даём игре реагировать
-    return;
+  update(dt, time) {
+    const blocked = this.systemMenu.handleEngineInput(this.input, this.actions);
+    if (blocked) {
+      this.systemMenu.update(dt);
+      return;
+    }
+
+    if (this.actions.pressed("cancel")) {
+      this.menu.close();
+      this.state.ui.modalOpen = false;
+    }
+
+    this.ui.update(this, this.scenes.current, dt);
+    if (!this.started) return;
+
+    this.scenes.update(dt);
   }
 
-  // ... дальше твой текущий update
-  if (this.actions.pressed("cancel")) {
-    this.menu.close();
-    this.state.ui.modalOpen = false;
+  render(time) {
+    // ✅ 1) единственное место resize drawingBuffer
+    this.surface.applyCanvasSize();
+
+    // ✅ 2) обновили метрики (buffer/scale)
+    const s = this.surface.update();
+
+    // ✅ 3) единственное место viewport для главного прохода
+    this.gl.viewport(0, 0, s.buffer.w, s.buffer.h);
+
+    if (!this.started) return;
+
+    // 1) основной рендер сцены
+    this.scenes.render(time);
+
+    // 2) HUD/прочий UI (он может трогать GL)
+    this.ui.render(this, this.scenes.current);
+
+    // 3) ✅ МЕНЮ-КАРТА ПОСЛЕДНЕЙ (иначе её затирает ui.render)
+    this.systemMenu?.renderGL?.(this, this.scenes.current);
   }
-
-  this.ui.update(this, this.scenes.current, dt);
-  if (!this.started) return;
-  this.scenes.update(dt);
-}
-render(time) {
-  const vp = this.getViewPx();
-  this.gl.viewport(0, 0, vp.w, vp.h);
-
-
-  if (!this.started) return;
-
-  this.scenes.render(time);
-  this.systemMenu?.renderGL?.();
-  this.ui.render(this, this.scenes.current);
-}
-
 
   // ========= FLOW: NEW GAME =========
 
   async startNewGame(cfg) {
     this.started = true;
-    this._currentSaveSlot = "main"; // новая игра по умолчанию в main
+    this._currentSaveSlot = "main";
 
-    // 1) создаём пилота
     const pilot = createPilotProfile({
       id: "pilot_1",
       name: cfg.name,
@@ -196,37 +226,27 @@ render(time) {
 
     this.state.player = pilot;
 
-    // 2) выбранный класс корабля
-    this.state.playerShipClassId = cfg.shipClassId ?? this.state.playerShipClassId ?? "scout";
+    this.state.playerShipClassId =
+      cfg.shipClassId ?? this.state.playerShipClassId ?? "scout";
 
-    // 3) статы корабля + модификаторы пилота
     const shipBase =
       SHIP_CLASSES[this.state.playerShipClassId]?.baseStats ||
       SHIP_CLASSES.scout.baseStats;
 
     if (!this.state.playerShip) this.state.playerShip = { stats: { ...shipBase } };
-
     this.state.playerShip.stats = applyPilotModifiersToShipStats(shipBase, pilot.modifiers);
 
-    // 4) ассеты (один раз)
     await this._ensureAssetsLoaded();
-
-    // 5) первый сейв
     await writeSave(this._currentSaveSlot, makeSaveFromState(this.state));
 
-    // 6) автосейв
     this._enableAutosave();
 
-    // 7) UI закрыть
     this.createGameScreen.hide();
     this.mainMenu.hide();
 
-    // 8) вход в систему
     const startId = this.state.currentSystemId ?? (this.galaxy.systems[0]?.id ?? "sol");
     this.openStarSystem(startId);
   }
-
-  // ========= FLOW: LOAD GAME =========
 
   async loadAndEnter(slot = "main") {
     const saved = await loadSave(slot);
@@ -235,24 +255,17 @@ render(time) {
       return;
     }
 
-    // применяем в state
     applySaveToState(this.state, saved);
 
-    // flags
     this.started = true;
     this._currentSaveSlot = slot;
 
-    // ассеты
     await this._ensureAssetsLoaded();
-
-    // автосейв
     this._enableAutosave();
 
-    // UI закрыть
     this.createGameScreen.hide();
     this.mainMenu.hide();
 
-    // вход
     const startId = this.state.currentSystemId ?? (this.galaxy.systems[0]?.id ?? "sol");
     this.openStarSystem(startId);
   }

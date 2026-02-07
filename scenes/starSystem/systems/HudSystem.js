@@ -1,6 +1,6 @@
+// scenes/starSystem/systems/HudSystem.js
 import { System } from "../../../engine/core/lifecycle.js";
 import { HudScope } from "../../../ui/hud/HudScope.js";
-import { QuestWidget } from "../../../ui/widgets/QuestWidget.js";
 import { MinimapWidget } from "../../../ui/widgets/MinimapWidget.js";
 
 export class HudSystem extends System {
@@ -10,24 +10,20 @@ export class HudSystem extends System {
     this.scope = null;
   }
 
-enter() {
-  console.log("[HudSystem] enter");
-  const ui = this.s.get("ui");
-  console.log("[HudSystem] ui, hud:", ui, ui?.hud);
+  enter() {
+    const ui = this.s.get("ui");
+    const hud = ui?.hud;
+    if (!hud) return;
 
-  const hud = ui?.hud;
-  if (!hud) return;
+    this.scope = new HudScope(hud);
 
-  this.scope = new HudScope(hud);
-
-  console.log("[HudSystem] register minimap");
-  this.scope.register(new MinimapWidget({ id: "minimap-widget" }), {
-    slot: "top-right",
-    order: 0,
-    enabled: true,
-    props: { size: 200, padding: 0 },
-  });
-}
+    this.scope.register(new MinimapWidget({ id: "minimap", ctx: this.ctx }), {
+      slot: "top-right",
+      order: 10,
+      enabled: true,
+      props: { size: 180 },
+    });
+  }
 
   exit() {
     this.scope?.dispose();
