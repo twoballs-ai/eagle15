@@ -1,6 +1,6 @@
 // gameplay/combat/enemyFire.js
 // Простая стрельба врагов по игроку (hit-scan + трассер)
-
+import { applyShipDamage } from "./applyShipDamage.js";
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
 function dist2(ax, az, bx, bz) {
@@ -121,8 +121,7 @@ export function createEnemyFireSystem(opts = {}) {
         endZ = muzzleZ + tz * hitT;
 
         // применяем урон
-        applyDamage(playerShip.runtime, cfg.damage);
-      }
+applyShipDamage(playerShip.runtime, cfg.damage);      }
 
       // трассер
       state.tracers.push(makeTracer(muzzleX, muzzleZ, endX, endZ));
@@ -136,18 +135,6 @@ export function createEnemyFireSystem(opts = {}) {
     }
   }
 
-  function applyDamage(targetRuntime, dmg) {
-    // shields -> hp
-    const s = targetRuntime.shield ?? 0;
-    if (s > 0) {
-      const ds = Math.min(s, dmg);
-      targetRuntime.shield = s - ds;
-      dmg -= ds;
-    }
-    if (dmg > 0) {
-      targetRuntime.hp = Math.max(0, (targetRuntime.hp ?? 0) - dmg);
-    }
-  }
 
   // Возвращаем Float32Array для отрисовки линией (LINE_STRIP / LINES)
   function getTracerLinesY(y = 0.8) {

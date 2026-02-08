@@ -4,23 +4,40 @@ export function applyPilotModifiersToShipStats(stats, modifiers) {
   // работаем с копией
   const out = { ...stats };
 
-  // ADD (плоские прибавки)
-  if (modifiers.shipHullAdd) out.hull += modifiers.shipHullAdd;
-  if (modifiers.shipShieldsAdd) out.shields += modifiers.shipShieldsAdd;
-  if (modifiers.shipEnergyAdd) out.energy += modifiers.shipEnergyAdd;
-  if (modifiers.shipSpeedAdd) out.speed += modifiers.shipSpeedAdd;
+  // ✅ совместимость: hull -> armor
+  if (out.armor == null && out.hull != null) out.armor = out.hull;
 
-  // MUL (проценты: 0.05 = +5%)
-  if (modifiers.shipHullMul) out.hull *= (1 + modifiers.shipHullMul);
-  if (modifiers.shipShieldsMul) out.shields *= (1 + modifiers.shipShieldsMul);
-  if (modifiers.shipEnergyMul) out.energy *= (1 + modifiers.shipEnergyMul);
-  if (modifiers.shipSpeedMul) out.speed *= (1 + modifiers.shipSpeedMul);
+  // ---- ADD ----
+  const armorAdd = (modifiers.shipArmorAdd ?? modifiers.shipHullAdd ?? 0);
+  const shieldsAdd = (modifiers.shipShieldsAdd ?? 0);
+  const energyAdd = (modifiers.shipEnergyAdd ?? 0);
+  const speedAdd = (modifiers.shipSpeedAdd ?? 0);
 
-  // округления где нужно
-  out.hull = Math.round(out.hull);
-  out.shields = Math.round(out.shields);
-  out.energy = Math.round(out.energy);
-  out.speed = +out.speed.toFixed(3);
+  if (armorAdd) out.armor += armorAdd;
+  if (shieldsAdd) out.shields += shieldsAdd;
+  if (energyAdd) out.energy += energyAdd;
+  if (speedAdd) out.speed += speedAdd;
+
+  // ---- MUL (проценты) ----
+  const armorMul = (modifiers.shipArmorMul ?? modifiers.shipHullMul ?? 0);
+  const shieldsMul = (modifiers.shipShieldsMul ?? 0);
+  const energyMul = (modifiers.shipEnergyMul ?? 0);
+  const speedMul = (modifiers.shipSpeedMul ?? 0);
+
+  if (armorMul) out.armor *= (1 + armorMul);
+  if (shieldsMul) out.shields *= (1 + shieldsMul);
+  if (energyMul) out.energy *= (1 + energyMul);
+  if (speedMul) out.speed *= (1 + speedMul);
+
+  // округления
+  out.armor = Math.round(out.armor ?? 0);
+  out.shields = Math.round(out.shields ?? 0);
+  out.energy = Math.round(out.energy ?? 0);
+  out.speed = +Number(out.speed ?? 1).toFixed(3);
+
+  // можно держать hull как alias на время миграции
+  // out.hull = out.armor;
 
   return out;
 }
+

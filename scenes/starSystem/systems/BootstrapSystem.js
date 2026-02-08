@@ -87,11 +87,12 @@ export class BootstrapSystem extends System {
     const r = state.playerShip?.runtime;
     const stats = state.playerShip?.stats;
     if (r && stats) {
-      r.hpMax = Math.round(stats.hull);
-      r.hp = r.hp ?? r.hpMax;
+// ✅ armor/shield
+r.armorMax = Math.round(stats.armor ?? stats.hull ?? 0);
+r.armor = r.armor ?? r.armorMax;
 
-      r.shieldMax = Math.round(stats.shields);
-      r.shield = r.shield ?? r.shieldMax;
+r.shieldMax = Math.round(stats.shields ?? 0);
+r.shield = r.shield ?? r.shieldMax;
 
       r.energyMax = Math.round(stats.energy);
       r.energy = r.energy ?? r.energyMax;

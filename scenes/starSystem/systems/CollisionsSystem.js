@@ -7,6 +7,7 @@ import {
   projectileHits,
   LAYER,
 } from "../../../gameplay/collisions/colliders.js";
+import { applyShipDamage } from "../../../gameplay/combat/applyShipDamage.js";
 
 export class CollisionsSystem extends System {
   constructor(services, ctx) { super(services); this.ctx = ctx; }
@@ -30,9 +31,9 @@ export class CollisionsSystem extends System {
       const targetRuntime = h.target.ref;
       if (!targetRuntime) continue;
 
-      const dmg = this.ctx.projectiles.damage ?? 10;
-      targetRuntime.hp = (targetRuntime.hp ?? 100) - dmg;
-      if (bullet) bullet.alive = false;
+const dmg = this.ctx.projectiles.damage ?? 10;
+applyShipDamage(targetRuntime, dmg);
+if (bullet) bullet.alive = false;
     }
   }
 
