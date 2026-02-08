@@ -21,7 +21,7 @@ export class StarSystemScene extends Scene {
     super(services);
     this.name = "Star System";
     this.ctx = createStarSystemCtx(services);
-
+this.isGameplay = true;
     // порядок важен
     this.add(new TimeSystem(services, this.ctx));
     this.add(new BootstrapSystem(services, this.ctx));

@@ -1,131 +1,351 @@
 // engine/ui/systemMenu/screens/CraftScreen.js
+function el(tag, className, parent) {
+  const e = document.createElement(tag);
+  if (className) e.className = className;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
 export class CraftScreen {
   constructor(services) {
     this.services = services;
 
-    // MVP рецепты
-    this.recipes = [
-      {
-        id: "wirekit",
-        name: "Набор проводки",
-        inputs: [{ id: "wire", n: 2 }, { id: "tape", n: 1 }],
-        output: { id: "wirekit", n: 1 },
-      },
-      {
-        id: "fuelcell",
-        name: "Топливный элемент",
-        inputs: [{ id: "ore", n: 3 }, { id: "catalyst", n: 1 }],
-        output: { id: "fuelcell", n: 1 },
-      }
+    this.host = null;
+
+    this.selected = null;
+    this.station = "shipyard_bench";
+    this.log = [];
+
+    // DOM refs
+    this._listEl = null;
+    this._detailsEl = null;
+    this._invEl = null;
+    this._logEl = null;
+    this._stationEl = null;
+
+    this._styleEl = null;
+  }
+
+  _get(key) {
+    return (typeof this.services?.get === "function")
+      ? this.services.get(key)
+      : this.services?.[key];
+  }
+
+  _recipes() {
+    const crafting = this._get("crafting");
+    return crafting ? crafting.listRecipes() : [];
+  }
+
+  mount(host) {
+    this.host = host;
+    this._injectStyles();
+
+    host.innerHTML = "";
+
+    const root = el("div", "cs-root", host);
+
+    // header
+    const top = el("div", "cs-top", root);
+    el("div", "cs-title", top).textContent = "Крафт корабля (MVP)";
+    el("div", "cs-sub", top).textContent = "Рецепты → компоненты → модули. Всё в общий инвентарь.";
+
+    // station
+    const stationRow = el("div", "cs-stationRow", root);
+    el("div", "cs-label", stationRow).textContent = "Станция:";
+    this._stationEl = el("div", "cs-stations", stationRow);
+
+    const stations = [
+      { id: "shipyard_bench", label: "Сборочный док" },
+      { id: "fabricator", label: "Фабрикатор" },
+      { id: "smelter", label: "Плавильня" },
+      { id: "chem_reactor", label: "Химреактор" },
+      { id: "gas_compressor", label: "Компрессор" },
     ];
 
-    this.selected = this.recipes[0]?.id ?? null;
-
-    // MVP "инвентарь"
-    this.inv = new Map([
-      ["wire", 10],
-      ["tape", 4],
-      ["ore", 8],
-      ["catalyst", 1],
-    ]);
-
-    this.log = [];
-  }
-
-  _canCraft(r) {
-    for (const it of r.inputs) {
-      if ((this.inv.get(it.id) ?? 0) < it.n) return false;
-    }
-    return true;
-  }
-
-  _craft(r) {
-    if (!this._canCraft(r)) return false;
-    for (const it of r.inputs) this.inv.set(it.id, (this.inv.get(it.id) ?? 0) - it.n);
-    this.inv.set(r.output.id, (this.inv.get(r.output.id) ?? 0) + r.output.n);
-    this.log.unshift(`Скрафчено: ${r.name} (+${r.output.n})`);
-    this.log = this.log.slice(0, 6);
-    return true;
-  }
-
-  render(ui, rect, dt, mouse) {
-    ui.text(rect.x + 18, rect.y + 18, "Крафт (MVP)", { size: 16, color: "rgba(255,255,255,0.9)" });
-
-    const left = { x: rect.x + 18, y: rect.y + 52, w: 420, h: rect.h - 70 };
-    const right = { x: left.x + left.w + 14, y: left.y, w: rect.w - 36 - left.w - 14, h: left.h };
-
-    ui.rect(left.x, left.y, left.w, left.h, { fill: "rgba(0,0,0,0.22)", stroke: "rgba(255,255,255,0.08)", radius: 12 });
-    ui.rect(right.x, right.y, right.w, right.h, { fill: "rgba(0,0,0,0.22)", stroke: "rgba(255,255,255,0.08)", radius: 12 });
-
-    // список рецептов
-    ui.text(left.x + 14, left.y + 14, "Рецепты", { size: 13, color: "rgba(255,255,255,0.82)" });
-
-    let y = left.y + 44;
-    for (const r of this.recipes) {
-      const row = { x: left.x + 12, y, w: left.w - 24, h: 52 };
-      const hover = ui.hitRect(row.x, row.y, row.w, row.h, mouse.x, mouse.y);
-      const active = this.selected === r.id;
-
-      ui.rect(row.x, row.y, row.w, row.h, {
-        fill: active ? "rgba(255,255,255,0.12)" : (hover ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)"),
-        stroke: "rgba(255,255,255,0.08)",
-        radius: 10,
+    for (const st of stations) {
+      const b = el("button", "cs-stBtn", this._stationEl);
+      b.textContent = st.label;
+      b.addEventListener("click", () => {
+        this.station = st.id;
+        this.refresh();
       });
-      ui.text(row.x + 12, row.y + 16, r.name, { size: 13, color: "rgba(255,255,255,0.9)" });
+    }
+
+    // body columns
+    const body = el("div", "cs-body", root);
+
+    const left = el("div", "cs-panel", body);
+    el("div", "cs-panelTitle", left).textContent = "Рецепты";
+    this._listEl = el("div", "cs-list", left);
+
+    const right = el("div", "cs-panel", body);
+    this._detailsEl = el("div", "cs-details", right);
+
+    // bottom
+    const bottom = el("div", "cs-bottom", root);
+
+    const invBox = el("div", "cs-miniPanel", bottom);
+    el("div", "cs-miniTitle", invBox).textContent = "Инвентарь";
+    this._invEl = el("div", "cs-miniBody", invBox);
+
+    const logBox = el("div", "cs-miniPanel", bottom);
+    el("div", "cs-miniTitle", logBox).textContent = "Лог";
+    this._logEl = el("div", "cs-miniBody", logBox);
+
+    this.refresh();
+  }
+
+  onOpen() {
+    // когда вкладка открылась — обновим (на случай если инвентарь менялся)
+    this.refresh();
+  }
+
+  destroy() {
+    // DOM удалит SystemMenu, но стиль оставим один раз (норм)
+    this.host = null;
+  }
+
+  refresh() {
+    if (!this.host) return;
+
+    const recipes = this._recipes();
+    if (!this.selected && recipes[0]) this.selected = recipes[0].id;
+
+    // stations active state
+    if (this._stationEl) {
+      const btns = [...this._stationEl.querySelectorAll(".cs-stBtn")];
+      const stations = [
+        "shipyard_bench","fabricator","smelter","chem_reactor","gas_compressor"
+      ];
+      btns.forEach((b, i) => b.classList.toggle("is-active", stations[i] === this.station));
+    }
+
+    this._renderList(recipes);
+    this._renderDetails(recipes);
+    this._renderInv();
+    this._renderLog();
+  }
+
+  _canCraft(recipe) {
+    const crafting = this._get("crafting");
+    return crafting ? crafting.canCraft(recipe.id, { station: this.station }) : false;
+  }
+
+  _craft(recipe) {
+    const crafting = this._get("crafting");
+    if (!crafting) return;
+
+    const res = crafting.craft(recipe.id, { station: this.station });
+    if (!res.ok) {
+      const msg =
+        res.reason === "NO_MATS" ? "Не хватает материалов" :
+        res.reason === "NO_STATION" ? "Нужна станция" :
+        res.reason === "WRONG_STATION" ? "Другая станция" :
+        "Ошибка";
+      this.log.unshift(`✖ ${recipe.name}: ${msg}`);
+      this.log = this.log.slice(0, 8);
+      this.refresh();
+      return;
+    }
+
+    this.log.unshift(`✔ Скрафчено: ${recipe.name}`);
+    this.log = this.log.slice(0, 8);
+    this.refresh();
+  }
+
+  _renderList(recipes) {
+    if (!this._listEl) return;
+    this._listEl.innerHTML = "";
+
+    for (const r of recipes) {
+      const row = el("button", "cs-row", this._listEl);
+      row.classList.toggle("is-active", this.selected === r.id);
+
+      const left = el("div", "cs-rowLeft", row);
+      el("div", "cs-rowName", left).textContent = r.name;
+      el("div", "cs-rowStation", left).textContent = `станция: ${r.station ?? "—"}`;
 
       const ok = this._canCraft(r);
-      ui.text(row.x + row.w - 90, row.y + 16, ok ? "OK" : "НЕТ", { size: 13, color: ok ? "rgba(180,255,180,0.85)" : "rgba(255,180,180,0.85)" });
+      const badge = el("div", "cs-badge", row);
+      badge.textContent = ok ? "OK" : "НЕТ";
+      badge.classList.toggle("is-ok", ok);
 
-      if (mouse.justDown && hover) this.selected = r.id;
-
-      y += 60;
-    }
-
-    // детали + кнопка craft
-    const cur = this.recipes.find(r => r.id === this.selected);
-    if (cur) {
-      ui.text(right.x + 16, right.y + 14, cur.name, { size: 15, color: "rgba(255,255,255,0.92)" });
-
-      ui.text(right.x + 16, right.y + 48, "Нужно:", { size: 13, color: "rgba(255,255,255,0.82)" });
-      let yy = right.y + 72;
-      for (const it of cur.inputs) {
-        const have = this.inv.get(it.id) ?? 0;
-        ui.text(right.x + 18, yy, `• ${it.id}  ${have}/${it.n}`, { size: 13, color: "rgba(255,255,255,0.70)" });
-        yy += 20;
-      }
-
-      ui.text(right.x + 16, yy + 10, "Результат:", { size: 13, color: "rgba(255,255,255,0.82)" });
-      ui.text(right.x + 18, yy + 34, `• ${cur.output.id}  +${cur.output.n}`, { size: 13, color: "rgba(255,255,255,0.70)" });
-
-      // кнопка "Создать"
-      const btn = { x: right.x + 16, y: right.y + 160, w: 180, h: 40 };
-      const hover = ui.hitRect(btn.x, btn.y, btn.w, btn.h, mouse.x, mouse.y);
-      const can = this._canCraft(cur);
-
-      ui.rect(btn.x, btn.y, btn.w, btn.h, {
-        fill: can ? (hover ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.12)") : "rgba(255,255,255,0.06)",
-        stroke: "rgba(255,255,255,0.10)",
-        radius: 10,
+      row.addEventListener("click", () => {
+        this.selected = r.id;
+        this.refresh();
       });
-      ui.text(btn.x + 16, btn.y + 12, "Создать", { size: 14, color: can ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.45)" });
-
-      if (mouse.justDown && hover && can) this._craft(cur);
-
-      // лог
-      ui.text(right.x + 16, right.y + 220, "Лог:", { size: 13, color: "rgba(255,255,255,0.82)" });
-      let ly = right.y + 244;
-      for (const line of this.log) {
-        ui.text(right.x + 18, ly, `• ${line}`, { size: 12, color: "rgba(255,255,255,0.65)" });
-        ly += 18;
-      }
-
-      // инвентарь
-      ui.text(right.x + 16, right.y + right.h - 150, "Инвентарь (MVP):", { size: 13, color: "rgba(255,255,255,0.82)" });
-      let iy = right.y + right.h - 126;
-      for (const [k, v] of this.inv.entries()) {
-        ui.text(right.x + 18, iy, `• ${k}: ${v}`, { size: 12, color: "rgba(255,255,255,0.65)" });
-        iy += 18;
-      }
     }
+  }
+
+  _renderDetails(recipes) {
+    if (!this._detailsEl) return;
+    this._detailsEl.innerHTML = "";
+
+    const cur = recipes.find(r => r.id === this.selected);
+    if (!cur) {
+      this._detailsEl.textContent = "Нет рецептов.";
+      return;
+    }
+
+    el("div", "cs-h1", this._detailsEl).textContent = cur.name;
+
+    const req = el("div", "cs-muted", this._detailsEl);
+    req.textContent = `Требуемая станция: ${cur.station ?? "—"} • Выбрана: ${this.station}`;
+
+    el("div", "cs-h2", this._detailsEl).textContent = "Нужно:";
+    const ul = el("div", "cs-ul", this._detailsEl);
+
+    const inv = this._get("inventory");
+    for (const it of cur.inputs) {
+      const have = inv ? inv.get(it.id) : 0;
+      const li = el("div", "cs-li", ul);
+      li.classList.toggle("is-ok", have >= it.n);
+      li.textContent = `• ${it.id}: ${have}/${it.n}`;
+    }
+
+    el("div", "cs-h2", this._detailsEl).textContent = "Результат:";
+    el("div", "cs-li", this._detailsEl).textContent = `• ${cur.output.id}  +${cur.output.n}`;
+
+    const actions = el("div", "cs-actions", this._detailsEl);
+
+    const can = this._canCraft(cur);
+
+    const b1 = el("button", "cs-actionBtn", actions);
+    b1.textContent = "Создать";
+    b1.disabled = !can;
+    b1.addEventListener("click", () => this._craft(cur));
+
+    const hint = el("div", "cs-hint", this._detailsEl);
+    hint.textContent = "Модули/компоненты попадают в общий инвентарь. Дальше подключим автодокрафт зависимостей.";
+  }
+
+  _renderInv() {
+    if (!this._invEl) return;
+    const inv = this._get("inventory");
+    const list = inv ? inv.entriesSorted() : [];
+
+    this._invEl.innerHTML = list.length ? "" : "<div class='cs-muted'>Пусто</div>";
+    for (let i = 0; i < Math.min(list.length, 18); i++) {
+      const [k, v] = list[i];
+      el("div", "cs-miniRow", this._invEl).textContent = `• ${k}: ${v}`;
+    }
+  }
+
+  _renderLog() {
+    if (!this._logEl) return;
+    this._logEl.innerHTML = this.log.length ? "" : "<div class='cs-muted'>—</div>";
+    for (const line of this.log) {
+      el("div", "cs-miniRow", this._logEl).textContent = `• ${line}`;
+    }
+  }
+
+  _injectStyles() {
+    if (this._styleEl) return;
+
+    const st = document.createElement("style");
+    st.id = "craftScreenStyles";
+    st.textContent = `
+      .cs-root{ display:flex; flex-direction:column; gap:12px; }
+      .cs-top{ padding:10px 12px; border:1px solid rgba(160,200,255,.10); border-radius:12px; background: rgba(0,0,0,.18); }
+      .cs-title{ font-weight:900; font-size:16px; color:#e8f0ff; }
+      .cs-sub{ opacity:.7; font-size:12px; margin-top:4px; }
+
+      .cs-stationRow{ display:flex; align-items:center; gap:10px; padding:6px 4px; }
+      .cs-label{ opacity:.8; font-size:13px; min-width:70px; }
+      .cs-stations{ display:flex; flex-wrap:wrap; gap:8px; }
+      .cs-stBtn{
+        padding:8px 10px; border-radius:12px;
+        border:1px solid rgba(160,200,255,.12);
+        background: rgba(0,0,0,.18);
+        color:#eaf3ff;
+        cursor:pointer;
+        font-weight:850;
+        font-size:12px;
+      }
+      .cs-stBtn.is-active{
+        border-color: rgba(0,255,220,.22);
+        background: linear-gradient(90deg, rgba(0,255,220,.10), rgba(0,0,0,.18));
+      }
+
+      .cs-body{ display:grid; grid-template-columns: 420px 1fr; gap:12px; min-height:420px; }
+      .cs-panel{
+        border-radius:14px;
+        border:1px solid rgba(160,200,255,.10);
+        background: rgba(0,0,0,.18);
+        padding:12px;
+      }
+      .cs-panelTitle{ font-weight:900; margin-bottom:10px; opacity:.9; }
+      .cs-list{ display:flex; flex-direction:column; gap:8px; }
+
+      .cs-row{
+        display:flex; align-items:center; justify-content:space-between; gap:10px;
+        padding:10px 10px;
+        border-radius:12px;
+        border:1px solid rgba(160,200,255,.10);
+        background: rgba(255,255,255,.04);
+        cursor:pointer;
+        color:#eaf3ff;
+        text-align:left;
+      }
+      .cs-row:hover{ background: rgba(255,255,255,.07); }
+      .cs-row.is-active{ background: rgba(255,255,255,.12); border-color: rgba(0,255,220,.14); }
+
+      .cs-rowLeft{ display:flex; flex-direction:column; gap:4px; }
+      .cs-rowName{ font-weight:900; font-size:13px; }
+      .cs-rowStation{ opacity:.65; font-size:12px; }
+
+      .cs-badge{
+        min-width:44px;
+        text-align:center;
+        padding:6px 10px;
+        border-radius:12px;
+        border:1px solid rgba(160,200,255,.14);
+        background: rgba(0,0,0,.22);
+        opacity:.9;
+        font-weight:900;
+        font-size:12px;
+      }
+      .cs-badge.is-ok{ border-color: rgba(160,255,160,.22); color: rgba(190,255,190,.95); }
+
+      .cs-details{ display:flex; flex-direction:column; gap:10px; }
+      .cs-h1{ font-weight:950; font-size:16px; }
+      .cs-h2{ font-weight:900; opacity:.9; margin-top:6px; }
+      .cs-muted{ opacity:.65; font-size:12px; }
+      .cs-ul{ display:flex; flex-direction:column; gap:6px; }
+      .cs-li{ opacity:.85; font-size:13px; }
+      .cs-li.is-ok{ color: rgba(190,255,190,.92); }
+
+      .cs-actions{ display:flex; gap:10px; margin-top:8px; }
+      .cs-actionBtn{
+        padding:10px 12px;
+        border-radius:12px;
+        border:1px solid rgba(160,200,255,.14);
+        background: rgba(0,0,0,.18);
+        color:#eaf3ff;
+        cursor:pointer;
+        font-weight:900;
+      }
+      .cs-actionBtn:disabled{
+        opacity:.45;
+        cursor:not-allowed;
+      }
+
+      .cs-hint{ opacity:.65; font-size:12px; margin-top:6px; }
+
+      .cs-bottom{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+      .cs-miniPanel{
+        border-radius:14px;
+        border:1px solid rgba(160,200,255,.10);
+        background: rgba(0,0,0,.18);
+        padding:12px;
+        min-height:140px;
+      }
+      .cs-miniTitle{ font-weight:900; margin-bottom:8px; opacity:.9; }
+      .cs-miniBody{ display:flex; flex-direction:column; gap:4px; }
+      .cs-miniRow{ opacity:.78; font-size:12px; }
+    `;
+    document.head.appendChild(st);
+    this._styleEl = st;
   }
 }

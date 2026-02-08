@@ -28,7 +28,9 @@ import { applyPilotModifiersToShipStats } from "./data/ship/applyPilotModifiers.
 import { SystemMenu } from "./ui/systemMenu/SystemMenu.js";
 
 import { SurfaceMetrics } from "./engine/runtime/SurfaceMetrics.js";
-
+import { Inventory } from "./gameplay/inventory/Inventory.js";
+import { Crafting } from "./gameplay/inventory/Crafting.js";
+import { shipRecipes } from "./data/crafting/shipRecipes.js";
 export class Game {
   static async create(args) {
     const savedMain = await loadSave("main");
@@ -38,7 +40,8 @@ export class Game {
   constructor({ canvas, gl, r2d, r3d, statsEl }, savedMain) {
     this.canvas = canvas;
     this.gl = gl;
-
+this.__id = Math.random().toString(16).slice(2);
+console.log("[Game:new]", this.__id);
     this.r2d = r2d;
     this.r3d = r3d;
     this.statsEl = statsEl;
@@ -118,7 +121,21 @@ export class Game {
     });
 
     this.systemMenu = new SystemMenu(this.services);
+this.inventory = new Inventory([
+  ["oxygen", 40],
+  ["iron_ore", 30],
+  ["copper_ore", 30],
+  ["silicon_dust", 30],
+  ["polymer_slurry", 20],
+]);
 
+this.crafting = new Crafting({
+  inventory: this.inventory,
+  recipes: shipRecipes,
+});
+
+this.services.set("inventory", this.inventory);
+this.services.set("crafting", this.crafting);
     // scenes
     this.sceneGalaxy = new GalaxyMapScene(this.services);
     this.sceneStar = new StarSystemScene(this.services);
@@ -168,23 +185,25 @@ export class Game {
 
   // ========= GAME LOOP =========
 
-  update(dt, time) {
-    const blocked = this.systemMenu.handleEngineInput(this.input, this.actions);
-    if (blocked) {
-      this.systemMenu.update(dt);
-      return;
-    }
+update(dt, time) {
+  const esc = this.actions.pressed("cancel");
 
-    if (this.actions.pressed("cancel")) {
-      this.menu.close();
-      this.state.ui.modalOpen = false;
-    }
-
-    this.ui.update(this, this.scenes.current, dt);
-    if (!this.started) return;
-
-    this.scenes.update(dt);
+  const blocked = this.systemMenu.handleEngineInputEsc(esc);
+  if (blocked) {
+    this.systemMenu.update(dt);
+    return;
   }
+
+  if (esc) {
+    this.menu.close();
+    this.state.ui.modalOpen = false;
+  }
+
+  this.ui.update(this, this.scenes.current, dt);
+  if (!this.started) return;
+
+  this.scenes.update(dt);
+}
 
   render(time) {
     // ✅ 1) единственное место resize drawingBuffer

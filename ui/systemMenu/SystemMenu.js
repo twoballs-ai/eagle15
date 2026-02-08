@@ -3,37 +3,40 @@ import { MapScreen } from "./screens/MapScreen.js";
 import { QuestScreen } from "./screens/QuestScreen.js";
 import { CraftScreen } from "./screens/CraftScreen.js";
 import { SettingsScreen } from "./screens/SettingsScreen.js";
-
+import { InventoryScreen } from "./screens/InventoryScreen.js";
 const TAB_ICONS = {
   map: "🗺️",
   quests: "📜",
   craft: "🛠️",
+  inventory: "🎒",
   settings: "⚙",
 };
-
 function apply(el, styles) { Object.assign(el.style, styles); }
 
 export class SystemMenu {
   constructor(services, opts = {}) {
     this.services = services;
 
+    this.__id = Math.random().toString(16).slice(2);
+
     this.id = opts.id ?? "systemMenuUI";
     this.isOpen = false;
 
     this.activeTab = "map";
-    this.tabs = [
-      { id: "map",      label: "Карта" },
-      { id: "quests",   label: "Квесты" },
-      { id: "craft",    label: "Крафт" },
-      { id: "settings", label: "Настройки" },
-    ];
-
-    this.screens = {
-      map: new MapScreen(services),
-      quests: new QuestScreen(services),
-      craft: new CraftScreen(services),
-      settings: new SettingsScreen(services),
-    };
+this.tabs = [
+  { id: "map",      label: "Карта" },
+  { id: "quests",   label: "Квесты" },
+  { id: "craft",    label: "Крафт" },
+  { id: "inventory",label: "Инвентарь" },
+  { id: "settings", label: "Настройки" },
+];
+this.screens = {
+  map: new MapScreen(services),
+  quests: new QuestScreen(services),
+  craft: new CraftScreen(services),
+  inventory: new InventoryScreen(services),
+  settings: new SettingsScreen(services),
+};
 
     this.root = null;
     this.panel = null;
@@ -44,6 +47,17 @@ export class SystemMenu {
 
     this._pausedByMenu = false;
     this._screenHost = null;
+
+    // ✅ корректный лог (через _get)
+    const game = this._get("game");
+    console.log("[SystemMenu:new]", this.__id, "gameId=", game?.__id);
+  }
+
+  // ✅ единый доступ к сервисам (supports Services.get + plain object)
+  _get(key) {
+    return (typeof this.services?.get === "function")
+      ? this.services.get(key)
+      : this.services?.[key];
   }
 
   mount() {
@@ -120,15 +134,19 @@ export class SystemMenu {
     this.isOpen = true;
     this._visible = true;
 
-    if (this.services?.game?.setPaused) {
-      this.services.game.setPaused(true);
+    const game = this._get("game");
+    const state = this._get("state");
+
+    // ✅ пауза
+    if (game?.setPaused) {
+      game.setPaused(true);
       this._pausedByMenu = true;
-    } else if (this.services?.state) {
-      this.services.state.paused = true;
+    } else if (state) {
+      state.paused = true;
       this._pausedByMenu = true;
     }
 
-    if (this.services?.state?.ui) this.services.state.ui.modalOpen = true;
+    if (state?.ui) state.ui.modalOpen = true;
 
     this.root.style.display = "flex";
     requestAnimationFrame(() => this.root.classList.add("sm-visible"));
@@ -144,13 +162,16 @@ export class SystemMenu {
 
     this._unmountActiveScreen();
 
+    const game = this._get("game");
+    const state = this._get("state");
+
     if (this._pausedByMenu) {
-      if (this.services?.game?.setPaused) this.services.game.setPaused(false);
-      else if (this.services?.state) this.services.state.paused = false;
+      if (game?.setPaused) game.setPaused(false);
+      else if (state) state.paused = false;
       this._pausedByMenu = false;
     }
 
-    if (this.services?.state?.ui) this.services.state.ui.modalOpen = false;
+    if (state?.ui) state.ui.modalOpen = false;
 
     this.root.classList.remove("sm-visible");
     setTimeout(() => {
@@ -160,51 +181,40 @@ export class SystemMenu {
 
   toggle() { this.isOpen ? this.close() : this.open(); }
 
-// ui/systemMenu/SystemMenu.js
-
-  handleEngineInput(input, actions) {
-    const esc = !!actions?.pressed?.("cancel");
+  // ✅ вызывай это из Game.update(), передавая esc один раз
+  handleEngineInputEsc(esc) {
     if (!esc) return this.isOpen;
 
-    const game = this.services?.game;
-    const scenes = this.services?.get?.("scenes") ?? this.services?.scenes;
+    const game = this._get("game");
+    const scenes = this._get("scenes");
     const current = scenes?.current;
 
-    // ✅ 1) пока игра не стартовала — системное меню запрещено
-    if (!game?.started) {
-      // если вдруг было открыто — закроем
+    // started
+    const started = !!game?.started;
+
+    // main menu visible?
+    const mm = game?.mainMenu;
+    const mmEl = mm?.el ?? mm?.root ?? null;
+    const mmVisible =
+      (mmEl && mmEl.style && mmEl.style.display !== "none" && mmEl.style.visibility !== "hidden") ||
+      (typeof mm?.isOpen === "boolean" ? mm.isOpen : false) ||
+      (typeof mm?._visible === "boolean" ? mm._visible : false);
+
+    // allowed scene
+    const sceneName = current?.name ?? "(none)";
+    const allowed = new Set(["Galaxy Map", "Star System", "StarSystem", "System"]);
+    const sceneAllowed = allowed.has(sceneName);
+
+    console.log("[SystemMenu/cancel]", this.__id, "gameId=", game?.__id, { started, mmVisible, sceneName, sceneAllowed });
+
+    if (!started || mmVisible || !sceneAllowed) {
       if (this.isOpen) this.close();
       return false;
     }
 
-    // ✅ 2) запрещаем открывать системное меню поверх главного меню
-    // (главное меню у тебя отдельным UI, но это гарантирует поведение)
-    if (game?.mainMenu?._visible) {
-      if (this.isOpen) this.close();
-      return false;
-    }
-
-    // ✅ 3) разрешаем только на нужных сценах
-    // Подстрой под свои имена сцен:
-    // - GalaxyMapScene: name = "Galaxy Map" (у тебя было)
-    // - StarSystemScene: name = "Star System" или как у тебя названо
-    const sceneName = current?.name ?? "";
-    const allowed =
-      sceneName === "Galaxy Map" ||
-      sceneName === "Star System" ||
-      sceneName === "StarSystem" ||
-      sceneName === "System";
-
-    if (!allowed) {
-      if (this.isOpen) this.close();
-      return false;
-    }
-
-    // ✅ OK: toggle
     this.toggle();
     return true;
   }
-
 
   setTab(tabId) {
     if (!this.screens[tabId]) return;
@@ -267,11 +277,10 @@ export class SystemMenu {
         transform: translateY(6px);
         transition: opacity .16s ease, transform .16s ease;
         pointer-events: auto;
-        background: rgb(6,8,12); /* ✅ НЕТ ПРОЗРАЧНОСТИ */
+        background: rgb(6,8,12);
       }
       .sm-root.sm-visible{ opacity:1; transform: translateY(0px); }
 
-      /* ✅ Полноэкранная НЕпрозрачная панель */
       .sm-panel{
         width:100%;
         height:100%;

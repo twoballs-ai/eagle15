@@ -31,6 +31,20 @@ console.log("[STATE] createState(save):", save);
     ui: { menuOpen: false, modalOpen: false },
     currentSystemId: null,
     selectedSystemId: null,
+inventoryCapacity: 100,
+inventorySlots: Array.from({ length: 100 }, (_, i) => {
+  // стартовый тест: первые слоты заполнены
+  const seed = [
+    ["oxygen", 40],
+    ["iron_ore", 30],
+    ["copper_ore", 30],
+    ["silicon_dust", 30],
+    ["polymer_slurry", 20],
+  ];
+  if (i < seed.length) return { id: seed[i][0], n: seed[i][1] };
+  return null;
+}),
+
   };
 
   return applySaveToState(state, save);
