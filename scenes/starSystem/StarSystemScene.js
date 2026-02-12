@@ -14,7 +14,7 @@ import { RelationIconsSystem } from "./systems/RelationIconsSystem.js";
 import { HudSystem } from "./systems/HudSystem.js";
 import { RenderSystem } from "./systems/RenderSystem.js";
 import { DebugOverlaySystem } from "./systems/DebugOverlaySystem.js";
-
+import { NpcInteractionSystem } from "../../gameplay/interaction/NpcInteractionSystem.js";
 
 export class StarSystemScene extends Scene {
   constructor(services) {
@@ -29,7 +29,7 @@ this.add(new CutsceneSystem(services, this.ctx));
     this.add(new CameraInputSystem(services, this.ctx));
     this.add(new ShipControlSystem(services, this.ctx));
     this.add(new EnemyAISystem(services, this.ctx));
-
+this.add(new NpcInteractionSystem(services, this.ctx));
     this.add(new EnemyFireSystem(services, this.ctx));
     this.add(new ProjectilesSystem(services, this.ctx));
 

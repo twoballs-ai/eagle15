@@ -27,8 +27,8 @@ export class ShipStatsHUD {
           <div class="ssh-row">
             <div class="ssh-label">БРОНЯ</div>
             <div class="ssh-bar">
-              <div class="ssh-fill" data-k="hp"></div>
-              <div class="ssh-barText" data-k="hpText">0/0</div>
+              <div class="ssh-fill" data-k="armor"></div>
+              <div class="ssh-barText" data-k="armorText">0/0</div>
             </div>
           </div>
 
@@ -168,7 +168,7 @@ export class ShipStatsHUD {
   width: 0%;
 }
 
-#${id} .ssh-fill[data-k="hp"]{ background: rgba(120,255,120,0.85); }
+#${id} .ssh-fill[data-k="armor"]{ background: rgba(120,255,120,0.85); }
 #${id} .ssh-fill[data-k="sh"]{ background: rgba(80,200,255,0.85); }
 #${id} .ssh-fill[data-k="en"]{ background: rgba(255,220,120,0.85); }
 
@@ -197,12 +197,12 @@ export class ShipStatsHUD {
     this.pilotRaceClassEl = q('[data-k="pilotRaceClass"]');
     this.pilotSubEl = q('[data-k="pilotSub"]');
 
-    this.fillHP = q('.ssh-fill[data-k="hp"]');
+    this.fillarmor = q('.ssh-fill[data-k="armor"]');
     this.fillSH = q('.ssh-fill[data-k="sh"]');
     this.fillEN = q('.ssh-fill[data-k="en"]');
 
     // ✅ теперь тексты внутри баров
-    this.hpText = q('.ssh-barText[data-k="hpText"]');
+    this.armorText = q('.ssh-barText[data-k="armorText"]');
     this.shText = q('.ssh-barText[data-k="shText"]');
     this.enText = q('.ssh-barText[data-k="enText"]');
 
@@ -274,26 +274,26 @@ export class ShipStatsHUD {
     }
     this.setVisible(true);
 
-    const hp = shipRuntime.hp ?? 0;
-    const hpMax = shipRuntime.hpMax ?? 0;
+    const armor = shipRuntime.armor ?? 0;
+    const armorMax = shipRuntime.armorMax ?? 0;
     const sh = shipRuntime.shield ?? 0;
     const shMax = shipRuntime.shieldMax ?? 0;
     const en = shipRuntime.energy ?? 0;
     const enMax = shipRuntime.energyMax ?? 0;
 
-    const stamp = [hp, hpMax, sh, shMax, en, enMax].join("|");
+    const stamp = [armor, armorMax, sh, shMax, en, enMax].join("|");
     if (stamp === this._lastStats) return;
     this._lastStats = stamp;
 
-    const hp01 = hpMax > 0 ? hp / hpMax : 0;
+    const armor01 = armorMax > 0 ? armor / armorMax : 0;
     const sh01 = shMax > 0 ? sh / shMax : 0;
     const en01 = enMax > 0 ? en / enMax : 0;
 
-    this.fillHP.style.width = `${Math.max(0, Math.min(1, hp01)) * 100}%`;
+    this.fillarmor.style.width = `${Math.max(0, Math.min(1, armor01)) * 100}%`;
     this.fillSH.style.width = `${Math.max(0, Math.min(1, sh01)) * 100}%`;
     this.fillEN.style.width = `${Math.max(0, Math.min(1, en01)) * 100}%`;
 
-    if (this.hpText) this.hpText.textContent = `${Math.round(hp)}/${Math.round(hpMax)}`;
+    if (this.armorText) this.armorText.textContent = `${Math.round(armor)}/${Math.round(armorMax)}`;
     if (this.shText) this.shText.textContent = `${Math.round(sh)}/${Math.round(shMax)}`;
     if (this.enText) this.enText.textContent = `${Math.round(en)}/${Math.round(enMax)}`;
   }

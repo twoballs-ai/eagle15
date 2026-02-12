@@ -2,7 +2,7 @@ import { RACES } from "./races.js";
 import { CLASSES } from "./classes.js";
 import { SPECIALIZATIONS } from "./specializations.js";
 
-export function createCharacter({
+export function createNPC({
   id,
   name,
   raceId,
@@ -22,39 +22,17 @@ export function createCharacter({
     throw new Error(`Specialization ${spec.id} does not match class ${classId}`);
   }
 
-  const stats = {
-    hp: race.stats.hp + (cls.baseStats.hp || 0),
-    stamina: race.stats.stamina + (cls.baseStats.stamina || 0),
-    energy: race.stats.energy + (cls.baseStats.energy || 0),
-    speed: race.stats.speed,
-  };
-
-  if (spec?.statModifiers) {
-    for (const k in spec.statModifiers) {
-      stats[k] = (stats[k] || 0) + spec.statModifiers[k];
-    }
-  }
-
   return {
     id,
     name,
-
     raceId,
     classId,
     specializationId,
-
     factionId,
     factionRankId,
     reputation,
-
-    stats,
-    abilities: [
-      ...cls.abilities,
-      ...(spec?.abilities || []),
-    ],
-
+    abilities: [...cls.abilities, ...(spec?.abilities || [])],
     controller: "ai",
     alive: true,
   };
-
 }
