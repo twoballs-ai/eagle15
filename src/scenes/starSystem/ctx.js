@@ -7,12 +7,13 @@ import { createContentRegistry } from "../../data/content/index.js";
 import { createColliderSystem } from "../../gameplay/collisions/colliders.js";
 import { createProjectileSystem } from "../../gameplay/weapons/projectiles.js";
 import { RelationIconsOverlay } from "../../ui/relationIconsOverlay.js";
-import { createEnemyFireSystem } from "../../gameplay/combat/enemyFire.js";
+import { createEnemyFireModule } from "../../gameplay/combat/enemyFire.js";
 
 import { LetterboxOverlay } from "../../ui/letterboxOverlay.js";
 import { CutsceneCaption } from "../../ui/cutsceneCaption.js";
 import { CutscenePlayer } from "../../gameplay/cutscene/cutscenePlayer.js";
 import { ActState } from "../../gameplay/story/ActState.js";
+import { EnemyDialogWidget } from "../../ui/EnemyDialogWidget.js";
 export function createStarSystemCtx(services) {
   const gl = services.get("gl");
   const canvas = services.get("canvas");
@@ -78,8 +79,10 @@ export function createStarSystemCtx(services) {
       hitRadius: 6,
       spread: 0.01,
     }),
-
-    enemyFire: createEnemyFireSystem({
+ui: {
+  enemyDialog: new EnemyDialogWidget(),
+},
+    enemyFire: createEnemyFireModule({
       range: 520,
       fireRate: 1.2,
       damage: 18,

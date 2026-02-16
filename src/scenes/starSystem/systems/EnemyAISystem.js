@@ -12,6 +12,8 @@ export class EnemyAISystem extends System {
     for (const ship of ships) {
       if (ship === state.playerShip) continue;
       if (!ship?.runtime) continue;
+const detectRadius = 400;
+
 
       const isEnemy = ship.isEnemy || ship.factionId === "pirates";
       if (!isEnemy) continue;
@@ -39,6 +41,21 @@ export class EnemyAISystem extends System {
 
       r.x += r.vx * dt;
       r.z += r.vz * dt;
+
+      
+if (ship.aiState === "idle") {
+  const dx = player.x - r.x;
+  const dz = player.z - r.z;
+  const dist = Math.hypot(dx, dz);
+
+  if (dist < detectRadius && !ship.dialogShown) {
+    ship.aiState = "dialog";
+    ship.dialogShown = true;
+
+    this.ctx.ui?.enemyDialog?.open(ship);
+    continue; // НЕ двигаться
+  }
+}
     }
   }
 }

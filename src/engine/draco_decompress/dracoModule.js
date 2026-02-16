@@ -9,7 +9,7 @@ export async function getDracoDecoderModule() {
   _promise = (async () => {
     // draco_decoder.js expects to run as classic script and will define DracoDecoderModule factory.
     // We'll load it dynamically by injecting a script tag.
-    await loadScript("./assets/draco/draco_decoder.js");
+    await loadScript("./src/assets/draco/draco_decoder.js");
 
     if (typeof window.DracoDecoderModule !== "function") {
       throw new Error("[Draco] DracoDecoderModule factory not found on window.");

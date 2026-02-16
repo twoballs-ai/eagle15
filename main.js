@@ -1,8 +1,8 @@
-import { createGL } from "./engine/gl.js";
-import { Renderer2D } from "./engine/renderer2d.js";
-import { Renderer3D } from "./engine/renderer3d.js";
-import { Game } from "./game.js";
-import { installGLTraceFile } from "./engine/debug/glTrace.js";
+import { createGL } from "./src/engine/gl.js";
+import { Renderer2D } from "./src/engine/renderer2d.js";
+import { Renderer3D } from "./src/engine/renderer3d.js";
+import { Game } from "./src/game.js";
+import { installGLTraceFile } from "./src/engine/debug/glTrace.js";
 
 const canvas = document.getElementById("game");
 const statsEl = document.getElementById("stats");

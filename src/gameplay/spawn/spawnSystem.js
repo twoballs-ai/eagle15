@@ -98,8 +98,9 @@ export function spawnSystemActors({ galaxySeed, systemId, playerFactionId = "uni
         ship.runtime.x = sp.x + ox;
         ship.runtime.z = sp.z + oz;
         ship.runtime.yaw = rng() * Math.PI * 2;
-        ship.isEnemy = isEnemy;
-
+        ship.aiState = "idle"; 
+        ship.dialogShown = false;
+        ship.hasGreeted = false;
         characters.push(npc);
         ships.push(ship);
       }

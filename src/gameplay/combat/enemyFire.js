@@ -34,7 +34,7 @@ function makeTracer(x0, z0, x1, z1, life = 0.08) {
   return { x0, z0, x1, z1, life, lifeMax: life };
 }
 
-export function createEnemyFireSystem(opts = {}) {
+export function createEnemyFireModule(opts = {}) {
   const state = {
     tracers: [],
   };
@@ -58,8 +58,7 @@ export function createEnemyFireSystem(opts = {}) {
       if (!ship?.runtime) continue;
 
       // стреляют только враги
-      const isEnemy = ship.isEnemy || ship.factionId === "pirates";
-      if (!isEnemy) continue;
+if (ship.aiState !== "combat") continue;
 
       const r = ship.runtime;
 

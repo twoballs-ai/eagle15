@@ -15,7 +15,6 @@ import { HudSystem } from "./systems/HudSystem.js";
 import { RenderSystem } from "./systems/RenderSystem.js";
 import { DebugOverlaySystem } from "./systems/DebugOverlaySystem.js";
 import { NpcInteractionSystem } from "../../gameplay/interaction/NpcInteractionSystem.js";
-
 export class StarSystemScene extends Scene {
   constructor(services) {
     super(services);

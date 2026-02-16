@@ -1,4 +1,4 @@
-import { System } from "../../../engine/core/lifecycle.js";
+import { System } from "../../engine/core/lifecycle.js";
 
 export class NpcInteractionSystem extends System {
   constructor(services, ctx) {
