@@ -1,44 +1,34 @@
-import { createGL } from "./src/engine/gl.js";
-import { Renderer2D } from "./src/engine/renderer2d.js";
-import { Renderer3D } from "./src/engine/renderer3d.js";
-import { Game } from "./src/game.js";
-import { installGLTraceFile } from "./src/engine/debug/glTrace.js";
+import { createGL } from "@/engine/gl.js";
+import { Renderer2D } from "@/engine/renderer2d.js";
+import { Renderer3D } from "@/engine/renderer3d.js";
+import { Game } from "@/game.js";
+import { installGLTraceFile } from "@/engine/debug/glTrace.js";
 
 const canvas = document.getElementById("game");
 const statsEl = document.getElementById("stats");
 
 const gl = createGL(canvas);
-
 installGLTraceFile(gl, { logEvery: 1, name: "minimap-trace" });
 window.dumpTrace = () => gl.__trace?.download({ format: "text" });
 
 const r2d = new Renderer2D(gl);
 const r3d = new Renderer3D(gl);
 
-// ✅ runtime теперь хранит только time/fps (не размеры!)
 const runtime = {
   time: { last: 0, dt: 0, t: 0, fps: 0, fpsAcc: 0, fpsCount: 0 },
 };
 
-const game = await Game.create({
-  canvas,
-  gl,
-  r2d,
-  r3d,
-  statsEl,
-});
+let game; // ❗ вынесли глобально
 
-// ✅ resize больше не выставляет viewport и не держит pxW/pxH как истину
 function onResize() {
-  // попросим surface пересчитать drawing buffer
-  game.surface?.applyCanvasSize?.();
-  // метрики обновятся в Game.render() в том же кадре
+  game?.surface?.applyCanvasSize?.();
 }
 
 window.addEventListener("resize", onResize);
-onResize();
 
 function tick(ts) {
+  if (!game) return; // пока не создан, ждём
+
   const time = runtime.time;
   if (!time.last) time.last = ts;
 
@@ -63,4 +53,15 @@ function tick(ts) {
   requestAnimationFrame(tick);
 }
 
-requestAnimationFrame(tick);
+(async () => {
+  game = await Game.create({
+    canvas,
+    gl,
+    r2d,
+    r3d,
+    statsEl,
+  });
+
+  onResize();
+  requestAnimationFrame(tick); // ❗ стартуем цикл после инициализации
+})();

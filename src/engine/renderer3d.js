@@ -1,6 +1,6 @@
 // engine/renderer3d.js
 import { mat4 } from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index.js";
-import { loadGLBModel } from "../assets/glbLoader.js";
+import { loadGLBModel } from "../assets_folder/glbLoader.js";
 import { ModelRenderer } from "./renderer/modelRenderer.js";
 import { Starfield } from "./renderer/starfield.js";
 import { GalaxySpiral } from "./renderer/galaxySpiral.js";

@@ -1,8 +1,8 @@
 // scenes/starSystem/systems/RenderSystem.js
 import { System } from "../../../engine/core/lifecycle.js";
-import { getBasis } from "../../../assets/modelBasis.js";
+import { getBasis } from "../../../assets_folder/modelBasis.js";
 import { buildTracersXYZ } from "../../../gameplay/weapons/projectiles.js";
-import { ASSETS } from "../../../assets/manifest.js";
+import { ASSETS } from "../../../assets_folder/manifest.js";
 
 import { stepShipMovement } from "../../../gameplay/shipMovement.js";
 import { getAutopilotControls } from "../../../gameplay/shipController.js";
