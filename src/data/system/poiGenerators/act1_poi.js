@@ -1,3 +1,13 @@
+import { getWorldPoiForSystem } from "../../content/world/poi/poiBySystem.js";
+
+
+function hashSystemId(systemId) {
+  const str = String(systemId);
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+  return h;
+}
+
 // Генерит POI первого акта на базе твоего createStarSystem() результата.
 // Планетные POI привязаны к planetId (p.id), статичные — детерминированные x/z.
 
@@ -26,7 +36,7 @@ function pickPlanetIds(system) {
 }
 
 export function createAct1Poi(seed, systemId, system) {
-  const rand = mulberry32((seed ^ systemId) + 0xA11C7);
+  const rand = mulberry32((seed ^ hashSystemId(systemId)) + 0xA11C7);
 
   const { a, b, c } = pickPlanetIds(system);
 
@@ -46,7 +56,7 @@ export function createAct1Poi(seed, systemId, system) {
   const beacon  = pickPoint(R * 0.70, R * 0.95);
 
   // Радиусы — пока примерные (потом подгоним на шаге 3)
-  return [
+  const basePoi = [
     // Планетные
     {
       id: "poi_planet_a",
@@ -108,4 +118,6 @@ export function createAct1Poi(seed, systemId, system) {
       onEnter: "event_beacon_hint",
     },
   ];
+
+  return [...basePoi, ...getWorldPoiForSystem(systemId)];
 }

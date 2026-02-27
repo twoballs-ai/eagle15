@@ -4,8 +4,18 @@ import { createShip } from "../../data/ship/ship.js";
 import { isHostile } from "../../data/faction/factionRelationsUtil.js";
 import { getSpawnPointsForSystem } from "../../data/system/spawnPointsBySystem.js";
 import { SPAWN_TABLES } from "../../data/system/spawnTables.js";
+import { resolveWorldSpawnDirectives } from "../../data/content/world/spawns/worldSpawns.js";
+import { getAct1SpawnOverride } from "../../data/content/acts/act1/spawns.js";
 
-// простой детерминированный RNG
+function hashString(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h | 0;
+}
+
 function mulberry32(seed) {
   let t = seed >>> 0;
   return function () {
@@ -25,15 +35,15 @@ function pick(rng, arr) {
 }
 
 function pickSpawnPoint(rng, points, preferredTypes) {
-  const filtered = points.filter(p => preferredTypes.includes(p.type));
+  const filtered = points.filter((p) => preferredTypes.includes(p.type));
   const pool = filtered.length ? filtered : points;
 
   let sum = 0;
-  for (const p of pool) sum += (p.weight ?? 1);
+  for (const p of pool) sum += p.weight ?? 1;
 
   let r = rng() * sum;
   for (const p of pool) {
-    r -= (p.weight ?? 1);
+    r -= p.weight ?? 1;
     if (r <= 0) return p;
   }
   return pool[pool.length - 1];
@@ -43,28 +53,52 @@ function makeId(prefix, n) {
   return `${prefix}_${n}_${Math.floor(Math.random() * 1e9)}`;
 }
 
-// Главная функция: возвращает { characters, ships, spawnPoints }
-export function spawnSystemActors({ galaxySeed, systemId, playerFactionId = "union" }) {
-  const seed = (galaxySeed * 1000003 + systemId * 9176) | 0;
+function mergeSpawnTuning(...layers) {
+  const out = {};
+  for (const layer of layers) {
+    if (!layer) continue;
+    for (const [factionKey, tuning] of Object.entries(layer)) {
+      const prev = out[factionKey] ?? { groupsDelta: 0, perGroupDelta: 0 };
+      out[factionKey] = {
+        groupsDelta: prev.groupsDelta + (tuning?.groupsDelta ?? 0),
+        perGroupDelta: prev.perGroupDelta + (tuning?.perGroupDelta ?? 0),
+      };
+    }
+  }
+  return out;
+}
+
+export function spawnSystemActors({
+  galaxySeed,
+  systemId,
+  playerFactionId = "union",
+  spawnAlertLevel = "ambient",
+  actId = "act1",
+} = {}) {
+  const sid = String(systemId);
+  const seed = (Math.imul(galaxySeed | 0, 1000003) ^ hashString(sid)) | 0;
   const rng = mulberry32(seed);
 
-  const spawnPoints = getSpawnPointsForSystem(systemId);
+  const spawnPoints = getSpawnPointsForSystem(sid);
   const characters = [];
   const ships = [];
 
   const tables = [SPAWN_TABLES.pirates, SPAWN_TABLES.traders, SPAWN_TABLES.neutral];
+  const worldTuning = resolveWorldSpawnDirectives({ alertLevel: spawnAlertLevel });
+  const actTuning = actId === "act1" ? getAct1SpawnOverride(sid) : null;
+  const spawnTuning = mergeSpawnTuning(worldTuning, actTuning);
 
   let charN = 0;
   let shipN = 0;
 
   for (const table of tables) {
     const isEnemy = table.factionId === "pirates" || isHostile(playerFactionId, table.factionId);
+    const tuning = spawnTuning[table.factionId] ?? { groupsDelta: 0, perGroupDelta: 0 };
 
-    const groups = randInt(rng, table.groupsMin, table.groupsMax);
+    const groups = Math.max(0, randInt(rng, table.groupsMin, table.groupsMax) + tuning.groupsDelta);
 
     for (let g = 0; g < groups; g++) {
-      const count = randInt(rng, table.perGroupMin, table.perGroupMax);
-
+      const count = Math.max(1, randInt(rng, table.perGroupMin, table.perGroupMax) + tuning.perGroupDelta);
       const sp = pickSpawnPoint(rng, spawnPoints, table.preferredPointTypes);
 
       for (let i = 0; i < count; i++) {
@@ -74,18 +108,16 @@ export function spawnSystemActors({ galaxySeed, systemId, playerFactionId = "uni
         const charId = makeId("npc", ++charN);
         const shipId = makeId("ship", ++shipN);
 
-        // создаём NPC отдельно от игрока
         const npc = createNPC({
           id: charId,
           name: isEnemy ? `Raider-${charN}` : `Pilot-${charN}`,
-          raceId: pick(rng, ["human", "synth"]), // можно рандомизировать
-          classId: "soldier",                    // фиксированная для NPC
+          raceId: pick(rng, ["human", "synth"]),
+          classId: "soldier",
           factionId: table.factionId,
           factionRankId: isEnemy ? "outsider" : "member",
           reputation: 0,
         });
 
-        // создаём корабль NPC
         const ship = createShip({
           id: shipId,
           name: isEnemy ? `Raider Ship ${shipN}` : `Civic Ship ${shipN}`,
@@ -98,7 +130,7 @@ export function spawnSystemActors({ galaxySeed, systemId, playerFactionId = "uni
         ship.runtime.x = sp.x + ox;
         ship.runtime.z = sp.z + oz;
         ship.runtime.yaw = rng() * Math.PI * 2;
-        ship.aiState = "idle"; 
+        ship.aiState = "idle";
         ship.dialogShown = false;
         ship.hasGreeted = false;
         characters.push(npc);
