@@ -1,107 +1,190 @@
 import { System } from "../../engine/core/lifecycle.js";
+import { projectWorldToScreen } from "../math/project.js";
+import { getFactionRelation } from "../../data/faction/factionRelationsUtil.js";
+
+const PASSING_DISTANCE = 280;
 
 export class NpcInteractionSystem extends System {
   constructor(services, ctx) {
     super(services);
     this.ctx = ctx;
-    // this.dialogMenu = services.get("dialogMenu"); // твой ContextMenu
   }
 
-  update(dt) {
-    const input = this.s.get("input");
+  update() {
     const actions = this.s.get("actions");
     const state = this.s.get("state");
+    const getViewPx = this.s.get("getViewPx");
+    const r3d = this.s.get("r3d");
+
     const ships = state.ships || [];
-    const player = state.playerShip?.runtime;
+    const playerShip = state.playerShip;
+    const player = playerShip?.runtime;
     if (!player) return;
 
+    const vp = r3d.getVP?.();
+    if (!vp) return;
+
+    const playerFaction = state.playerShip?.factionId ?? state.player?.factionId ?? "player";
+    const viewPx = (typeof getViewPx === "function" ? getViewPx() : null) ?? { w: 1, h: 1, dpr: 1 };
+
+    if (actions.take("clickAlt")) {
+      const mouse = this.s.get("input").getMouse();
+      const clickedShip = this.getShipAtMouse(ships, mouse.x, mouse.y, vp, viewPx, playerShip);
+      if (clickedShip) {
+        this.openShipDialog(clickedShip, playerFaction);
+        return;
+      }
+    }
+
     for (const ship of ships) {
-      if (!ship.runtime) continue;
+      if (!ship?.runtime || ship === playerShip) continue;
 
-      // --- 1) Обработка правого клика ---
-      if (actions.take("clickAlt")) {
-        const { x: mx, y: my } = input.getMouse();
-        const clickedShip = this.getShipAtMouse([ship], mx, my);
-        if (clickedShip) this.handleShipInteraction(clickedShip, mx, my);
-      }
+      const dist = this.getDistance(player, ship.runtime);
+      if (dist > (ship.talkRadius ?? PASSING_DISTANCE)) continue;
+      if (!this.isInFrontOfPlayer(player, ship.runtime)) continue;
 
-      // --- 2) Авто-триггер по приближению для врагов и NPC ---
-      if ((ship.talkType === "enemy" || ship.talkType === "npc") && ship.talkRadius) {
-        const dx = player.x - ship.runtime.x;
-        const dz = player.z - ship.runtime.z;
-        const dist = Math.hypot(dx, dz);
+      const now = performance.now();
+      if (now < (ship.nextAutoDialogAt ?? 0)) continue;
 
-        if (dist <= ship.talkRadius) {
-          // конвертируем мировые координаты в экранные для меню
-          const screen = this.worldToScreen(ship.runtime.x, ship.runtime.y, ship.runtime.z, this.ctx.followCam);
-          this.handleShipInteraction(ship, screen.x, screen.y);
-        }
-      }
+      this.openShipDialog(ship, playerFaction);
+      ship.nextAutoDialogAt = now + 18000;
+      return;
     }
   }
 
-  // --- Метод для открытия меню ---
-handleShipInteraction(ship, x, y) {
-  if (!ship) return;
+  openShipDialog(ship, playerFaction) {
+    const relation = getFactionRelation(playerFaction, ship.factionId);
+    const dialog = this.ctx.ui?.enemyDialog;
+    if (!dialog) return;
 
-  // временно отключаем меню
-  // if (!this.dialogMenu) return;
+    if (dialog.currentShip?.id === ship.id) return;
 
-  if (ship.talkType === "npc") {
-    console.log("Диалог с NPC:", ship.name);
-    // this.dialogMenu?.open({
-    //   x, y,
-    //   title: ship.name ?? "NPC",
-    //   items: [
-    //     { label: "Поговорить", onClick: () => this.talkToNpc(ship) },
-    //     { label: "Торговля", onClick: () => this.tradeWithNpc(ship) },
-    //   ],
-    // });
-  } else if (ship.talkType === "enemy") {
-    console.log("Взаимодействие с врагом:", ship.name);
-    // this.dialogMenu?.open({
-    //   x, y,
-    //   title: ship.name ?? "Враг",
-    //   items: [
-    //     { label: "Угрожать", onClick: () => this.threatenEnemy(ship) },
-    //     { label: "Отступить", onClick: () => this.ignoreEnemy(ship) },
-    //   ],
-    // });
+    const options = this.getInteractionOptions(ship, relation);
+    dialog.open({
+      ship,
+      title: `${ship.name ?? "Неизвестный корабль"} · ${this.relationLabel(relation)}`,
+      text: options.text,
+      actions: options.actions,
+    });
   }
-}
 
-  getShipAtMouse(ships, mouseX, mouseY) {
-    const cam = this.ctx.followCam;
+  getInteractionOptions(ship, relation) {
+    if (relation === "hostile") {
+      return {
+        text: "Ты в зоне нашего контроля. Либо откупись, либо сдавайся.",
+        actions: [
+          {
+            label: "Откупиться",
+            onClick: () => {
+              ship.aiState = "idle";
+              ship.nextAutoDialogAt = performance.now() + 30000;
+            },
+          },
+          {
+            label: "Сдаться",
+            onClick: () => {
+              ship.aiState = "idle";
+              ship.nextAutoDialogAt = performance.now() + 45000;
+            },
+          },
+          {
+            label: "Отказаться",
+            onClick: () => {
+              ship.aiState = "combat";
+            },
+          },
+        ],
+      };
+    }
+
+    const random = Math.random();
+    const neutralText =
+      random < 0.35
+        ? "Нейтральный капитан предлагает поторговать редкими товарами."
+        : random < 0.7
+          ? "Попутный корабль готов обменяться ресурсами."
+          : "Проходящий пилот предлагает мини-контракт на быстрый рейс.";
+
+    return {
+      text: neutralText,
+      actions: [
+        {
+          label: "Торговать",
+          onClick: () => {
+            ship.aiState = "idle";
+          },
+        },
+        {
+          label: "Обменяться",
+          onClick: () => {
+            ship.aiState = "idle";
+          },
+        },
+        {
+          label: "Взять миниквест",
+          onClick: () => {
+            this.ctx.lastLog = `Новый миниквест от ${ship.name ?? "пилота"}`;
+            ship.aiState = "idle";
+          },
+        },
+        {
+          label: "Игнорировать",
+          onClick: () => {
+            ship.aiState = "idle";
+            ship.nextAutoDialogAt = performance.now() + 12000;
+          },
+        },
+      ],
+    };
+  }
+
+  relationLabel(relation) {
+    if (relation === "hostile") return "Враг";
+    if (relation === "ally") return "Союзник";
+    return "Нейтральный";
+  }
+
+  getShipAtMouse(ships, mouseX, mouseY, vp, viewPx, playerShip) {
+    let best = null;
+    let bestDist = Infinity;
+
     for (const ship of ships) {
-      if (!ship.runtime) continue;
-      const screen = this.worldToScreen(ship.runtime.x, ship.runtime.y, ship.runtime.z, cam);
+      if (!ship?.runtime || ship === playerShip) continue;
+      const screen = projectWorldToScreen(
+        ship.runtime.x,
+        (ship.runtime.y ?? 0) + 12,
+        ship.runtime.z,
+        vp,
+        viewPx,
+      );
+      if (!screen) continue;
+
       const dx = mouseX - screen.x;
       const dy = mouseY - screen.y;
-      if (Math.hypot(dx, dy) < (ship.radiusScreen ?? 20)) return ship;
+      const radius = ship.radiusScreen ?? 24;
+      const d = Math.hypot(dx, dy);
+      if (d <= radius && d < bestDist) {
+        best = ship;
+        bestDist = d;
+      }
     }
-    return null;
+
+    return best;
   }
 
-  // Преобразование мировых координат в экранные
-  worldToScreen(x, y, z, cam) {
-    // TODO: подставь свою реальную матрицу камеры
-    return { x, y }; // заглушка, чтобы компилировалось
+  getDistance(a, b) {
+    return Math.hypot((a.x ?? 0) - (b.x ?? 0), (a.z ?? 0) - (b.z ?? 0));
   }
 
-  // --- Методы действий ---
-  talkToNpc(ship) {
-    console.log("Начать диалог с NPC", ship.name);
-  }
+  isInFrontOfPlayer(player, targetRuntime) {
+    const fx = Math.sin(player.yaw ?? 0);
+    const fz = -Math.cos(player.yaw ?? 0);
 
-  tradeWithNpc(ship) {
-    console.log("Открыть торговлю с NPC", ship.name);
-  }
+    const tx = (targetRuntime.x ?? 0) - (player.x ?? 0);
+    const tz = (targetRuntime.z ?? 0) - (player.z ?? 0);
+    const len = Math.hypot(tx, tz) || 1;
 
-  threatenEnemy(ship) {
-    console.log("Угрожаем врагу", ship.name);
-  }
-
-  ignoreEnemy(ship) {
-    console.log("Игнорируем врага", ship.name);
+    const dot = (fx * tx + fz * tz) / len;
+    return dot > -0.15;
   }
 }
