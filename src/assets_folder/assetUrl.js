@@ -6,8 +6,8 @@ const BUNDLED_ASSET_URLS = import.meta.glob("./**/*", {
 });
 
 function getAbsoluteBaseUrl() {
-  if (typeof window !== "undefined" && window.location?.origin) {
-    return new URL(BASE_URL, window.location.origin);
+  if (typeof window !== "undefined" && window.location?.href) {
+    return new URL(BASE_URL, window.location.href);
   }
 
   return new URL(BASE_URL, "http://localhost");
