@@ -115,5 +115,5 @@ export const SYSTEM_DEFS = {
 
 // Удобный хелпер (можно импортить где угодно)
 export function getSystemDef(systemId) {
-  return SYSTEM_DEFS[String(systemId)] ?? null;
+  return SYSTEM_DEFS[String(systemId).toLowerCase()] ?? null;
 }

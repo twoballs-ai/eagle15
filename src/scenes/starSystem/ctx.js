@@ -1,7 +1,7 @@
 import { EngineFlame } from "../../engine/renderer/engineFlame.js";
 
 import { QuestStateV2 } from "../../gameplay/quest/QuestStateV2.js";
-import { StoryManager } from "../../gameplay/story/StoryManager.js";
+import { StoryManager } from "../../engine/managers/StoryManager.js";
 import { createContentRegistry } from "../../data/content/index.js";
 
 import { createColliderSystem } from "../../gameplay/collisions/colliders.js";

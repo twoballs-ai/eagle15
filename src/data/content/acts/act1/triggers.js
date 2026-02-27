@@ -3,21 +3,21 @@ import { C } from "../../../../gameplay/story/storyConditions.js";
 import { A } from "../../../../gameplay/story/storyActions.js";
 
 export const ACT1_TRIGGERS = {
-  onSystemEnter: [
-    {
-      id: "t:act1:start_main_on_sys0",
-      match: C.and(
-        C.inSystem(0),
-        C.not(C.questActive("q:act1:repair_ship")),
-        C.not(C.questCompleted("q:act1:repair_ship"))
-      ),
-      run: A.seq(
-        A.startQuest("q:act1:repair_ship", { priority: true }),
-        A.playCutsceneOnce("cs:act1:intro", "csPlayed:act1:intro"),
-        A.log("Цель: восстановить системы корабля и найти маяк.")
-      ),
-    },
-  ],
+onSystemEnter: [
+  {
+    id: "t:act1:start_main_on_sys0",
+    match: C.and(
+      C.inSystem("sol"),   // 0 как число, а не "0"
+      C.not(C.questActive("q:act1:repair_ship")),
+      C.not(C.questCompleted("q:act1:repair_ship"))
+    ),
+    run: A.seq(
+      A.startQuest("q:act1:repair_ship", { priority: true }),
+      A.playCutsceneOnce("cs:act1:intro", "csPlayed:act1:intro"),
+      A.log("Цель: восстановить системы корабля и найти маяк.")
+    ),
+  },
+],
 
   onPoiEnter: [
     {

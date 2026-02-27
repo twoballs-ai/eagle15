@@ -1,10 +1,14 @@
 {
+  "name": "lost_jump",
+  "version": "1.0.0",
   "scripts": {
     "dev:web": "vite",
     "build:web": "vite build",
     "preview:web": "vite preview",
     "dev": "npm run build:web && electron .",
-    "dist": "npm run build:web && electron-builder"
+    "dist": "npm run build:web && electron-builder",
+    "android": "npm run build:web && npx cap copy && npx cap open android",
+    "android:build": "npm run build:web && npx cap copy"
   },
   "devDependencies": {
     "electron": "^31.0.0",

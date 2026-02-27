@@ -16,22 +16,22 @@ export class BootstrapSystem extends System {
   }
 
   enter(systemId) {
-  const galaxy = this.s.get("galaxy");
-  const state = this.s.get("state");
+    const galaxy = this.s.get("galaxy");
+    const state = this.s.get("state");
 
-  const sid = String(systemId);
-  this.ctx.systemId = sid;
+    const sid = String(systemId);
+    this.ctx.systemId = sid;
 
-  // ✅ было: galaxy.systems[systemId]
-  const sys = galaxy.getSystem?.(sid) ?? null;
+    // ✅ было: galaxy.systems[systemId]
+    const sys = galaxy.getSystem?.(sid) ?? null;
 
-  if (!sys) {
-    console.error("[BootstrapSystem] system not found:", sid);
-    // чтобы не падало — выходим мягко
-    return;
-  }
+    if (!sys) {
+      console.error("[BootstrapSystem] system not found:", sid);
+      // чтобы не падало — выходим мягко
+      return;
+    }
 
-  this.ctx.system = createStarSystem(galaxy.seed, sys.id);
+    this.ctx.system = createStarSystem(galaxy.seed, sys.id);
 
     // bounds
     const planets = this.ctx.system?.planets || [];
@@ -71,24 +71,24 @@ export class BootstrapSystem extends System {
       ship.runtime.targetX = null;
       ship.runtime.targetZ = null;
     }
-
+    console.log("ENTER SYSTEM:", sid);
     // spawn NPC
     const spawned = spawnSystemActors({
       galaxySeed: galaxy.seed,
       systemId: sid, // ✅ строка
       playerFactionId: state.player?.factionId ?? "union",
     });
-state.ships.forEach(ship => {
-  if (!ship) return;
+    state.ships.forEach((ship) => {
+      if (!ship) return;
 
-  if (ship.factionId === "pirates") {
-    ship.talkType = "enemy"; // враг
-  } else {
-    ship.talkType = "npc";   // нейтральный NPC / торговец
-    ship.dialogText = ["Привет, странник!", "Хочешь взглянуть на товары?"];
-    ship.talkRadius = 240; // радиус, в котором открывается диалог
-  }
-});
+      if (ship.factionId === "pirates") {
+        ship.talkType = "enemy"; // враг
+      } else {
+        ship.talkType = "npc"; // нейтральный NPC / торговец
+        ship.dialogText = ["Привет, странник!", "Хочешь взглянуть на товары?"];
+        ship.talkRadius = 240; // радиус, в котором открывается диалог
+      }
+    });
     state.characters = spawned.characters;
     state.ships = [state.playerShip, ...spawned.ships].filter(Boolean);
     this.ctx.spawnPoints = spawned.spawnPoints;
@@ -97,12 +97,12 @@ state.ships.forEach(ship => {
     const r = state.playerShip?.runtime;
     const stats = state.playerShip?.stats;
     if (r && stats) {
-// ✅ armor/shield
-r.armorMax = Math.round(stats.armor ?? stats.hull ?? 0);
-r.armor = r.armor ?? r.armorMax;
+      // ✅ armor/shield
+      r.armorMax = Math.round(stats.armor ?? stats.hull ?? 0);
+      r.armor = r.armor ?? r.armorMax;
 
-r.shieldMax = Math.round(stats.shields ?? 0);
-r.shield = r.shield ?? r.shieldMax;
+      r.shieldMax = Math.round(stats.shields ?? 0);
+      r.shield = r.shield ?? r.shieldMax;
 
       r.energyMax = Math.round(stats.energy);
       r.energy = r.energy ?? r.energyMax;
@@ -125,7 +125,8 @@ r.shield = r.shield ?? r.shieldMax;
     this.shipHud.update(state.playerShip?.runtime);
 
     // quest line last log (без падений)
-    this.ctx.lastLog = this.ctx.quest?.log?.at?.(-1)?.text ?? this.ctx.lastLog ?? "";
+    this.ctx.lastLog =
+      this.ctx.quest?.log?.at?.(-1)?.text ?? this.ctx.lastLog ?? "";
 
     // story hook
     this.ctx.story?.onSystemEnter?.({ systemId: sid, ctx: this.ctx });

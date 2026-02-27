@@ -1,4 +1,3 @@
-// gameplay/story/StoryManager.js
 export class StoryManager {
   constructor({ quest, act, cutscenePlayer, contentRegistry }) {
     this.quest = quest;             // QuestStateV2

@@ -5,6 +5,7 @@
 const OFFSET = { x: 0, z: -260 }; // <-- сдвигай z: -260..-500 если надо дальше от "ближнего края"
 
 const CLUSTERS_RAW = [
+  
   { id: 0, x: -900, z: -520, name: "Argo" },
   { id: 1, x: -350, z: -560, name: "Vela" },
   { id: 2, x:  250, z: -540, name: "Orion" },
@@ -20,6 +21,7 @@ const CLUSTERS_RAW = [
 ];
 
 const SYSTEMS_RAW = [
+  { id: "sol", x: 0, z: -800, size: 14, name: "Sol", clusterId: 0, kind: "system" },
   // Cluster 0 Argo
   { id: "argo-hub", x: -900, z: -520, size: 13, name: "Argo Hub", clusterId: 0, kind: "relay" },
   { id: "argo-1",   x: -760, z: -610, size: 11, name: "Argo-1",   clusterId: 0, kind: "system" },
@@ -84,6 +86,7 @@ const SYSTEMS_RAW = [
 const LINKS = [
   // --- IN-CLUSTER LANES (звезда через hub + 1 локальная) ---
   // Argo
+  { a: "sol", b: "argo-hub", kind: "lane" },
   { a: "argo-1", b: "argo-hub", kind: "lane" },
   { a: "argo-2", b: "argo-hub", kind: "lane" },
   { a: "argo-3", b: "argo-hub", kind: "lane" },
