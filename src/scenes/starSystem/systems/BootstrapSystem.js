@@ -4,16 +4,12 @@ import { createStarSystem } from "../../../data/starSystem.js";
 import { createAct1Poi } from "../../../data/system/poiGenerators/act1_poi.js";
 import { PoiRuntimeOrbit } from "../../../gameplay/poi/poiRuntimeOrbit.js";
 import { spawnSystemActors } from "../../../gameplay/spawn/spawnSystem.js";
-import { ShipStatsHUD } from "../../../ui/shipStatsHud.js";
-import { RACES } from "../../../data/character/races.js";
-import { CLASSES } from "../../../data/character/classes.js";
 import { getSpawnAlertLevelFromQuests } from "../../../gameplay/story/actRules.js";
 
 export class BootstrapSystem extends System {
   constructor(services, ctx) {
     super(services);
     this.ctx = ctx;
-    this.shipHud = null;
   }
 
   enter(systemId) {
@@ -112,20 +108,6 @@ export class BootstrapSystem extends System {
 
       r.maxSpeed = 260 * (stats.speed ?? 1.0);
     }
-
-    // HUD pilot
-    if (!this.shipHud) this.shipHud = new ShipStatsHUD();
-
-    const p = state.player;
-    this.shipHud.setPilot({
-      name: p?.name ?? "—",
-      raceName: RACES[p?.raceId]?.name ?? p?.raceId ?? "",
-      className: CLASSES[p?.classId]?.name ?? p?.classId ?? "",
-      avatarUrl: p?.avatarUrl ?? "",
-      sub: "Пилот",
-    });
-
-    this.shipHud.update(state.playerShip?.runtime);
 
     // quest line last log (без падений)
     this.ctx.lastLog =
