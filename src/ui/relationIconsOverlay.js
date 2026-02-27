@@ -17,6 +17,7 @@ export class RelationIconsOverlay {
 
     // pool элементов по id сущности
     this.items = new Map();
+    this.setVisible(true);
 
     // стили один раз
     if (!document.getElementById("rel-icons-style")) {
@@ -38,6 +39,15 @@ export class RelationIconsOverlay {
       `;
       document.head.appendChild(style);
     }
+  }
+
+  setVisible(v) {
+    this.el.style.display = v ? "block" : "none";
+  }
+
+  clear() {
+    for (const [, node] of this.items) node.remove();
+    this.items.clear();
   }
 
   _ensureItem(id) {
@@ -91,7 +101,7 @@ export class RelationIconsOverlay {
   }
 
   destroy() {
+    this.clear();
     this.el.remove();
-    this.items.clear();
   }
 }
