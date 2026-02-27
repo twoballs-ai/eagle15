@@ -38,6 +38,7 @@ export class NpcInteractionSystem extends System {
 
     for (const ship of ships) {
       if (!ship?.runtime || ship === playerShip) continue;
+      if (ship.alive === false || ship.runtime.dead) continue;
 
       const dist = this.getDistance(player, ship.runtime);
       if (dist > (ship.talkRadius ?? PASSING_DISTANCE)) continue;
@@ -150,6 +151,7 @@ export class NpcInteractionSystem extends System {
 
     for (const ship of ships) {
       if (!ship?.runtime || ship === playerShip) continue;
+      if (ship.alive === false || ship.runtime.dead) continue;
       const screen = projectWorldToScreen(
         ship.runtime.x,
         (ship.runtime.y ?? 0) + 12,

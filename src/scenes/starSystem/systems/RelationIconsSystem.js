@@ -33,6 +33,7 @@ export class RelationIconsSystem extends System {
     for (const ship of ships) {
       if (!ship?.runtime) continue;
       if (ship === state.playerShip) continue;
+      if (ship.alive === false || ship.runtime.dead) continue;
 
       const rel = getFactionRelation(playerFaction, ship.factionId);
       const relation = rel === "hostile" ? "hostile" : rel === "ally" ? "ally" : "neutral";

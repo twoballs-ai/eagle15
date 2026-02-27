@@ -16,14 +16,20 @@ export class EnemyAISystem extends System {
     const playerFaction = playerShip?.factionId ?? state.player?.factionId ?? "player";
 
     const ships = state.ships || [];
-    for (const ship of ships) {
+
+    const aliveShips = ships.filter((ship) => {
+      if (!ship) return false;
+      if (ship === playerShip) return true;
+      if (!ship.runtime) return false;
+      if (ship.alive === false || ship.runtime.dead) return false;
+      return true;
+    });
+
+    if (aliveShips.length !== ships.length) state.ships = aliveShips;
+
+    for (const ship of aliveShips) {
       if (ship === playerShip) continue;
       if (!ship?.runtime) continue;
-      if (ship.runtime.dead) {
-        ship.alive = false;
-        continue;
-      }
-
       const hostile = !!ship.isEnemy || isHostile(playerFaction, ship.factionId);
       if (!hostile) continue;
 

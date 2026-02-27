@@ -120,14 +120,17 @@ console.log("[Game:new]", this.__id);
       bus: this.bus,
     });
 
-    this.systemMenu = new SystemMenu(this.services);
-this.inventory = new Inventory([
-  ["oxygen", 40],
-  ["iron_ore", 30],
-  ["copper_ore", 30],
-  ["silicon_dust", 30],
-  ["polymer_slurry", 20],
-]);
+this.systemMenu = new SystemMenu(this.services);
+this.inventory = new Inventory({
+  capacity: 100,
+  slots: [
+    { id: "oxygen", n: 40 },
+    { id: "iron_ore", n: 30 },
+    { id: "copper_ore", n: 30 },
+    { id: "silicon_dust", n: 30 },
+    { id: "polymer_slurry", n: 20 },
+  ],
+});
 
 this.crafting = new Crafting({
   inventory: this.inventory,

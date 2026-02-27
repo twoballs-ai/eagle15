@@ -1,9 +1,18 @@
-// engine/ui/systemMenu/screens/QuestScreen.js
+function el(tag, className, parent) {
+  const e = document.createElement(tag);
+  if (className) e.className = className;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
 export class QuestScreen {
   constructor(services) {
     this.services = services;
+    this.host = null;
+    this._styleEl = null;
+    this._listEl = null;
+    this._detailsEl = null;
 
-    // MVP-данные
     this.quests = [
       { id: "q1", title: "Сигнал в астероидном поясе", status: "Активен", desc: "Найти источник сигнала. Проверить POI A." },
       { id: "q2", title: "Починка гиперблока", status: "Неактивен", desc: "Нужно 3 компонента и доступ к верфи." },
@@ -11,55 +20,78 @@ export class QuestScreen {
     this.selected = this.quests[0]?.id ?? null;
   }
 
-  render(ui, rect, dt, mouse) {
-    ui.text(rect.x + 18, rect.y + 18, "Квесты / Миссии (MVP)", { size: 16, color: "rgba(255,255,255,0.9)" });
+  mount(host) {
+    this.host = host;
+    this._injectStyles();
+    host.innerHTML = "";
 
-    const listRect = { x: rect.x + 18, y: rect.y + 52, w: 360, h: rect.h - 70 };
-    const infoRect = { x: listRect.x + listRect.w + 14, y: listRect.y, w: rect.w - 36 - listRect.w - 14, h: listRect.h };
+    const root = el("div", "qs-root", host);
+    const top = el("div", "qs-top", root);
+    el("div", "qs-title", top).textContent = "Квесты / Миссии";
+    el("div", "qs-sub", top).textContent = "Активные и доступные задачи пилота.";
 
-    ui.rect(listRect.x, listRect.y, listRect.w, listRect.h, {
-      fill: "rgba(0,0,0,0.22)", stroke: "rgba(255,255,255,0.08)", radius: 12,
-    });
-    ui.rect(infoRect.x, infoRect.y, infoRect.w, infoRect.h, {
-      fill: "rgba(0,0,0,0.22)", stroke: "rgba(255,255,255,0.08)", radius: 12,
-    });
+    const body = el("div", "qs-body", root);
+    this._listEl = el("div", "qs-list", body);
+    this._detailsEl = el("div", "qs-details", body);
 
-    // список
-    let y = listRect.y + 14;
+    this.refresh();
+  }
+
+  onOpen() { this.refresh(); }
+  destroy() { this.host = null; }
+
+  refresh() {
+    if (!this._listEl || !this._detailsEl) return;
+
+    this._listEl.innerHTML = "";
     for (const q of this.quests) {
-      const row = { x: listRect.x + 12, y, w: listRect.w - 24, h: 56 };
-      const hover = ui.hitRect(row.x, row.y, row.w, row.h, mouse.x, mouse.y);
-      const active = this.selected === q.id;
-
-      ui.rect(row.x, row.y, row.w, row.h, {
-        fill: active ? "rgba(255,255,255,0.12)" : (hover ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)"),
-        stroke: "rgba(255,255,255,0.08)",
-        radius: 10,
+      const row = el("button", "qs-row", this._listEl);
+      row.classList.toggle("is-active", this.selected === q.id);
+      el("div", "qs-rowTitle", row).textContent = q.title;
+      el("div", "qs-rowStatus", row).textContent = q.status;
+      row.addEventListener("click", () => {
+        this.selected = q.id;
+        this.refresh();
       });
-
-      ui.text(row.x + 12, row.y + 10, q.title, { size: 13, color: "rgba(255,255,255,0.9)" });
-      ui.text(row.x + 12, row.y + 30, q.status, { size: 12, color: "rgba(255,255,255,0.65)" });
-
-      if (mouse.justDown && hover) this.selected = q.id;
-
-      y += 64;
     }
 
-    // детали
-    const cur = this.quests.find(q => q.id === this.selected);
-    if (cur) {
-      ui.text(infoRect.x + 16, infoRect.y + 14, cur.title, { size: 15, color: "rgba(255,255,255,0.92)" });
-      ui.text(infoRect.x + 16, infoRect.y + 40, `Статус: ${cur.status}`, { size: 12, color: "rgba(255,255,255,0.7)" });
-
-      ui.text(infoRect.x + 16, infoRect.y + 74, "Описание:", { size: 13, color: "rgba(255,255,255,0.85)" });
-      ui.text(infoRect.x + 16, infoRect.y + 98, cur.desc, {
-        size: 13, color: "rgba(255,255,255,0.70)", lineHeight: 18
-      });
-
-      ui.text(infoRect.x + 16, infoRect.y + 150, "Цели (MVP):", { size: 13, color: "rgba(255,255,255,0.85)" });
-      ui.text(infoRect.x + 16, infoRect.y + 174, "• Найти POI A\n• Подойти к объекту\n• Активировать сканер",
-        { size: 13, color: "rgba(255,255,255,0.70)", lineHeight: 18 }
-      );
+    this._detailsEl.innerHTML = "";
+    const cur = this.quests.find((q) => q.id === this.selected);
+    if (!cur) {
+      this._detailsEl.textContent = "Пока нет доступных квестов.";
+      return;
     }
+
+    el("div", "qs-h1", this._detailsEl).textContent = cur.title;
+    el("div", "qs-muted", this._detailsEl).textContent = `Статус: ${cur.status}`;
+    el("div", "qs-h2", this._detailsEl).textContent = "Описание";
+    el("div", "qs-text", this._detailsEl).textContent = cur.desc;
+    el("div", "qs-h2", this._detailsEl).textContent = "Цели";
+    el("div", "qs-text", this._detailsEl).textContent = "• Найти POI A\n• Подойти к объекту\n• Активировать сканер";
+  }
+
+  _injectStyles() {
+    if (this._styleEl) return;
+    const st = document.createElement("style");
+    st.textContent = `
+      .qs-root{display:flex;flex-direction:column;gap:12px}
+      .qs-top{padding:10px 12px;border:1px solid rgba(160,200,255,.10);border-radius:12px;background:rgba(0,0,0,.18)}
+      .qs-title{font-weight:900;font-size:16px;color:#e8f0ff}
+      .qs-sub{opacity:.7;font-size:12px;margin-top:4px}
+      .qs-body{display:grid;grid-template-columns:360px 1fr;gap:12px;min-height:420px}
+      .qs-list,.qs-details{border-radius:14px;border:1px solid rgba(160,200,255,.10);background:rgba(0,0,0,.18);padding:12px}
+      .qs-list{display:flex;flex-direction:column;gap:8px}
+      .qs-row{padding:10px;border-radius:12px;border:1px solid rgba(160,200,255,.10);background:rgba(255,255,255,.04);color:#eaf3ff;text-align:left;cursor:pointer}
+      .qs-row.is-active{background:rgba(255,255,255,.12);border-color:rgba(0,255,220,.14)}
+      .qs-rowTitle{font-weight:900;font-size:13px}
+      .qs-rowStatus{opacity:.65;font-size:12px;margin-top:4px}
+      .qs-details{display:flex;flex-direction:column;gap:10px}
+      .qs-h1{font-weight:950;font-size:16px}
+      .qs-h2{font-weight:900;opacity:.9;margin-top:4px}
+      .qs-muted{opacity:.65;font-size:12px}
+      .qs-text{white-space:pre-line;opacity:.85;font-size:13px;line-height:1.45}
+    `;
+    document.head.appendChild(st);
+    this._styleEl = st;
   }
 }

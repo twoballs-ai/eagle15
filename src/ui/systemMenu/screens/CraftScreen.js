@@ -205,7 +205,10 @@ export class CraftScreen {
     }
 
     el("div", "cs-h2", this._detailsEl).textContent = "Результат:";
-    el("div", "cs-li", this._detailsEl).textContent = `• ${cur.output.id}  +${cur.output.n}`;
+    const outs = Array.isArray(cur.outputs) ? cur.outputs : [cur.output].filter(Boolean);
+    for (const out of outs) {
+      el("div", "cs-li", this._detailsEl).textContent = `• ${out.id}  +${out.n}`;
+    }
 
     const actions = el("div", "cs-actions", this._detailsEl);
 
