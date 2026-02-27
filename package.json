@@ -21,5 +21,7 @@
     "@capacitor/cli": "^7.5.0",
     "@capacitor/core": "^8.1.0",
     "gl-matrix": "^3.4.4"
-  }
+  },
+  "description": "Lost Jump game client",
+  "author": "Lost Jump Team"
 }
