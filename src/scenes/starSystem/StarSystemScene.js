@@ -35,9 +35,10 @@ this.add(new NpcInteractionSystem(services, this.ctx));
     this.add(new CollisionsSystem(services, this.ctx));
     this.add(new PoiQuestSystem(services, this.ctx));
 
-    this.add(new RelationIconsSystem(services, this.ctx));
-
     this.add(new RenderSystem(services, this.ctx));
+    // Иконки отношений должны считать проекцию после того,
+    // как RenderSystem обновил VP матрицу на текущий кадр.
+    this.add(new RelationIconsSystem(services, this.ctx));
         this.add(new HudSystem(services, this.ctx));
 
     this.add(new DebugOverlaySystem(services, this.ctx));

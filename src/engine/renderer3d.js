@@ -107,6 +107,13 @@ this._overlay = new OverlayQuad(gl);
     const gl = this.gl;
     const aspect = view.w / view.h;
 
+    // Важно для изоляции разных сцен/проходов:
+    // сбрасываем потенциально "грязные" флаги от предыдущего рендера.
+    gl.disable(gl.SCISSOR_TEST);
+    gl.disable(gl.BLEND);
+    gl.depthMask(true);
+    gl.colorMask(true, true, true, true);
+
     const proj = mat4.create();
 
     // ORTHO (если camera.ortho === true)

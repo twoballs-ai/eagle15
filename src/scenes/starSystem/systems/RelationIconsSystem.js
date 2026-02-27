@@ -17,9 +17,11 @@ export class RelationIconsSystem extends System {
   render() {
     const state = this.s.get("state");
     const getView = this.s.get("getView");
+    const getViewPx = this.s.get("getViewPx");
     const r3d = this.s.get("r3d");
 
     const view = getView();
+    const viewPx = (typeof getViewPx === "function" ? getViewPx() : null) ?? view;
     const vp = r3d.getVP?.();
     if (!vp) return;
 
@@ -36,17 +38,20 @@ export class RelationIconsSystem extends System {
       const relation = rel === "hostile" ? "hostile" : rel === "ally" ? "ally" : "neutral";
 
       const wx = ship.runtime.x;
-      const wy = 20;
+      const wy = (ship.runtime.y ?? 0) + 18;
       const wz = ship.runtime.z;
 
-      const s = projectWorldToScreen(wx, wy, wz, vp, view);
+      const s = projectWorldToScreen(wx, wy, wz, vp, viewPx);
       if (!s) {
         entities.push({ id: ship.id, relation, visible: false, x: 0, y: 0 });
         continue;
       }
 
-      const visible = s.x >= -50 && s.x <= view.w + 50 && s.y >= -50 && s.y <= view.h + 50;
-      entities.push({ id: ship.id, relation, visible, x: s.x, y: s.y });
+      const dpr = viewPx.dpr ?? 1;
+      const cssX = s.x / dpr;
+      const cssY = s.y / dpr;
+      const visible = cssX >= -50 && cssX <= view.w + 50 && cssY >= -50 && cssY <= view.h + 50;
+      entities.push({ id: ship.id, relation, visible, x: cssX, y: cssY });
     }
 
     this.ctx.relIcons.update({ view, entities });
