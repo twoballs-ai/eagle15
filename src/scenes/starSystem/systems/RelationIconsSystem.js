@@ -5,6 +5,15 @@ import { getFactionRelation } from "../../../data/faction/factionRelationsUtil.j
 export class RelationIconsSystem extends System {
   constructor(services, ctx) { super(services); this.ctx = ctx; }
 
+  enter() {
+    this.ctx.relIcons?.setVisible?.(true);
+  }
+
+  exit() {
+    this.ctx.relIcons?.clear?.();
+    this.ctx.relIcons?.setVisible?.(false);
+  }
+
   render() {
     const state = this.s.get("state");
     const getView = this.s.get("getView");
