@@ -4,11 +4,13 @@ import { QuestScreen } from "./screens/QuestScreen.js";
 import { CraftScreen } from "./screens/CraftScreen.js";
 import { SettingsScreen } from "./screens/SettingsScreen.js";
 import { InventoryScreen } from "./screens/InventoryScreen.js";
+import { MarketScreen } from "./screens/MarketScreen.js";
 const TAB_ICONS = {
   map: "🗺️",
   quests: "📜",
   craft: "🛠️",
   inventory: "🎒",
+  market: "💱",
   settings: "⚙",
 };
 function apply(el, styles) { Object.assign(el.style, styles); }
@@ -28,6 +30,7 @@ this.tabs = [
   { id: "quests",   label: "Квесты" },
   { id: "craft",    label: "Крафт" },
   { id: "inventory",label: "Инвентарь" },
+  { id: "market",   label: "Рынок" },
   { id: "settings", label: "Настройки" },
 ];
 this.screens = {
@@ -35,6 +38,7 @@ this.screens = {
   quests: new QuestScreen(services),
   craft: new CraftScreen(services),
   inventory: new InventoryScreen(services),
+  market: new MarketScreen(services),
   settings: new SettingsScreen(services),
 };
 

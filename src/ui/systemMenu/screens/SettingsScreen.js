@@ -8,7 +8,7 @@ function el(tag, className, parent) {
 export class SettingsScreen {
   constructor(services) {
     this.services = services;
-    this.settings = { music: true, sfx: true, invertMouse: false, quality: 2 };
+    this.settings = { music: true, sfx: true, invertMouse: false, devMode: false, quality: 2 };
     this._loaded = false;
     this.host = null;
     this._styleEl = null;
@@ -60,6 +60,7 @@ export class SettingsScreen {
     mkToggle("Музыка", "music");
     mkToggle("Звуки", "sfx");
     mkToggle("Инверсия мыши", "invertMouse");
+    mkToggle("Режим разработчика", "devMode");
 
     const quality = el("div", "st-quality", panel);
     quality.textContent = "Качество:";

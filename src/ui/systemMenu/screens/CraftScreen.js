@@ -142,6 +142,7 @@ export class CraftScreen {
         res.reason === "NO_MATS" ? "Не хватает материалов" :
         res.reason === "NO_STATION" ? "Нужна станция" :
         res.reason === "WRONG_STATION" ? "Другая станция" :
+        res.reason === "NO_SPACE" ? "Нет места в инвентаре" :
         "Ошибка";
       this.log.unshift(`✖ ${recipe.name}: ${msg}`);
       this.log = this.log.slice(0, 8);

@@ -13,9 +13,11 @@ export class MapScreen {
 
     this._btnSystem = null;
     this._stubEl = null;
+    this._devBox = null;
 
     // ✅ отдельный canvas для карты (внутри меню)
     this._mapCanvas = null;
+    this._devBox = null;
     this._renderer = null;
   }
 
@@ -160,6 +162,10 @@ export class MapScreen {
     });
     right.appendChild(this.hintEl);
 
+    this._devBox = document.createElement("div");
+    apply(this._devBox, { marginTop: "12px" });
+    right.appendChild(this._devBox);
+
     root.appendChild(left);
     root.appendChild(right);
     host.appendChild(root);
@@ -181,6 +187,7 @@ export class MapScreen {
     this.hintEl = null;
 
     this._mapCanvas = null;
+    this._devBox = null;
   }
 
   renderGL(game, scene) {
@@ -210,5 +217,55 @@ export class MapScreen {
     this.hintEl.textContent =
       `mode: system\n` +
       `planets: ${ctx?.system?.planets?.length ?? 0}\n`;
+
+    this._renderDevTools(ctx);
+  }
+
+  _renderDevTools(ctx) {
+    if (!this._devBox) return;
+    const game = this.services.get("game");
+    const sid = ctx?.systemId ?? this.services.get("state")?.currentSystemId;
+
+    let devMode = false;
+    try {
+      const raw = localStorage.getItem("ga_settings");
+      devMode = !!(raw && JSON.parse(raw)?.devMode);
+    } catch (_) {}
+
+    if (!devMode) {
+      this._devBox.innerHTML = "<div style=\"opacity:.5;font-size:12px\">Включите \"Режим разработчика\" в настройках.</div>";
+      return;
+    }
+
+    this._devBox.innerHTML = "";
+    const cap = document.createElement("div");
+    cap.textContent = "Dev: генератор системы";
+    apply(cap, { fontWeight: "900", marginBottom: "8px" });
+    this._devBox.appendChild(cap);
+
+    const makeBtn = (label, onClick) => {
+      const b = document.createElement("button");
+      b.textContent = label;
+      apply(b, {
+        width: "100%",
+        marginBottom: "8px",
+        padding: "8px 10px",
+        borderRadius: "10px",
+        border: "1px solid rgba(160,200,255,.14)",
+        background: "rgba(0,0,0,.18)",
+        color: "#eaf3ff",
+        cursor: "pointer",
+      });
+      b.addEventListener("click", onClick);
+      return b;
+    };
+
+    this._devBox.appendChild(makeBtn("Перегенерировать звезду + планеты", () => {
+      if (sid && game?.regenerateCurrentSystem) game.regenerateCurrentSystem({ randomizeStar: true, randomizePlanets: true, systemId: sid });
+    }));
+
+    this._devBox.appendChild(makeBtn("Больше планет (6-10)", () => {
+      if (sid && game?.regenerateCurrentSystem) game.regenerateCurrentSystem({ systemId: sid, randomizeStar: true, randomizePlanets: true, randomCountRange: { min: 6, max: 10 } });
+    }));
   }
 }
