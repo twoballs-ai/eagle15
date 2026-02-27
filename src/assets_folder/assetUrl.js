@@ -1,5 +1,13 @@
 const BASE_URL = import.meta.env.BASE_URL || "/";
 
+function getAbsoluteBaseUrl() {
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return new URL(BASE_URL, window.location.origin);
+  }
+
+  return new URL(BASE_URL, "http://localhost");
+}
+
 export function resolveAssetUrl(assetPath) {
   const raw = String(assetPath ?? "").trim();
   if (!raw) return raw;
@@ -9,5 +17,5 @@ export function resolveAssetUrl(assetPath) {
   }
 
   const normalizedPath = raw.replace(/^\/+/, "");
-  return new URL(normalizedPath, BASE_URL).toString();
+  return new URL(normalizedPath, getAbsoluteBaseUrl()).toString();
 }
