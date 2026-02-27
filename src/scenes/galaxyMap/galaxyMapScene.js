@@ -48,6 +48,9 @@ export class GalaxyMapScene extends Scene {
     };
 
     this._baseOrthoSize = 900;
+
+    // Переиспользуем буферы, чтобы не создавать Float32Array в каждом кадре.
+    this._tmpLinkPts = new Float32Array(6);
   }
 
   enter() {
@@ -223,34 +226,43 @@ items: [
     // вуаль для читаемости карты
     r3d.drawOverlay([0.0, 0.0, 0.0, 0.42]);
 
-// гиперкоридоры
-for (const l of galaxy.links) {
-  const a = galaxy.getSystem?.(l.a) ?? null;
-  const b = galaxy.getSystem?.(l.b) ?? null;
-  if (!a || !b) continue;
+    // гиперкоридоры
+    const linePts = this._tmpLinkPts;
+    for (const l of galaxy.links) {
+      const a = galaxy.getSystem?.(l.a) ?? null;
+      const b = galaxy.getSystem?.(l.b) ?? null;
+      if (!a || !b) continue;
 
-  const y = 0.0;
-  const pts = new Float32Array([a.x, y, a.z, b.x, y, b.z]);
+      const y = 0.0;
+      linePts[0] = a.x;
+      linePts[1] = y;
+      linePts[2] = a.z;
+      linePts[3] = b.x;
+      linePts[4] = y;
+      linePts[5] = b.z;
 
-  // 1) подложка
-  r3d.drawLines(
-    pts,
-    l.kind === "relay"
-      ? [0.25, 0.95, 1.0, 0.35]
-      : [0.3, 0.5, 0.8, 0.22],
-  );
+      // 1) подложка
+      r3d.drawLines(
+        linePts,
+        l.kind === "relay"
+          ? [0.25, 0.95, 1.0, 0.35]
+          : [0.3, 0.5, 0.8, 0.22],
+      );
 
-  // 2) ядро
-  r3d.drawLines(
-    pts,
-    l.kind === "relay"
-      ? [0.6, 1.0, 1.0, 0.85]
-      : [0.65, 0.85, 1.0, 0.65],
-  );
-}
+      // 2) ядро
+      r3d.drawLines(
+        linePts,
+        l.kind === "relay"
+          ? [0.6, 1.0, 1.0, 0.85]
+          : [0.65, 0.85, 1.0, 0.65],
+      );
+    }
     // системы
     const selectedId = state.selectedSystemId;
     const currentId = state.currentSystemId;
+
+    const ringSegments = cam2d.zoom >= 1.25 ? 96 : 64;
+    const accentSegments = cam2d.zoom >= 1.25 ? 96 : 72;
 
     for (const s of galaxy.systems) {
       const isSelected = s.id === selectedId;
@@ -264,11 +276,11 @@ for (const l of galaxy.links) {
       const ringT = baseR * 0.22;
       const strokeT = ringT * 1.55;
 
-const col = [0.90, 0.25, 0.22, 0.42 * fade]; 
+      const col = [0.90, 0.25, 0.22, 0.42 * fade]; 
       // stroke (чёрный контур)
-      r3d.drawRingAt(s.x, y, s.z, ringR, strokeT, 128, [0, 0, 0, 0.52 * fade]);
+      r3d.drawRingAt(s.x, y, s.z, ringR, strokeT, ringSegments, [0, 0, 0, 0.52 * fade]);
       // цвет
-      r3d.drawRingAt(s.x, y, s.z, ringR, ringT, 128, col);
+      r3d.drawRingAt(s.x, y, s.z, ringR, ringT, ringSegments, col);
 
       // крест
       if (s.kind === "relay") {
@@ -279,10 +291,10 @@ const col = [0.90, 0.25, 0.22, 0.42 * fade];
 
       // current / selected (толстые кольца)
       if (isCurrent) {
-        r3d.drawRingAt(s.x, y, s.z, baseR * 1.45, baseR * 0.18, 128, [0.25, 1.0, 0.35, 0.35]);
+        r3d.drawRingAt(s.x, y, s.z, baseR * 1.45, baseR * 0.18, accentSegments, [0.25, 1.0, 0.35, 0.35]);
       }
       if (isSelected) {
-        r3d.drawRingAt(s.x, y, s.z, baseR * 1.75, baseR * 0.20, 128, [1.0, 0.80, 0.25, 0.45]);
+        r3d.drawRingAt(s.x, y, s.z, baseR * 1.75, baseR * 0.20, accentSegments, [1.0, 0.80, 0.25, 0.45]);
       }
     }
   }

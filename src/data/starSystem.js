@@ -1,6 +1,6 @@
 // data/starSystem.js
 import { PLANET_MODELS } from "./models/planetModels.js";
-import { ASSETS } from "../assets/manifest.js";
+import { ASSETS } from "../assets_folder/manifest.js";
 import { getSystemDef } from "./system/systemDefs.js";
 
 // ✅ Генерация "внутренности" звёздной системы (звезда + планеты)

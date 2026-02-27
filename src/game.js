@@ -13,7 +13,7 @@ import { UIManager } from "./engine/managers/UIManager.js";
 import { GalaxyMapScene } from "./scenes/galaxyMap/galaxyMapScene.js";
 import { StarSystemScene } from "./scenes/starSystem/StarSystemScene.js";
 
-import { ASSETS } from "./assets/manifest.js";
+import { ASSETS } from "./assets_folder/manifest.js";
 import { ContextMenu } from "./ui/contextMenu.js";
 import { CreateGameScreen } from "./ui/CreateGameScreen.js";
 import { MainMenu } from "./ui/mainMenu.js";

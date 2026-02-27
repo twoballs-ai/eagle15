@@ -1,5 +1,5 @@
 // engine/dracoModule.js
-// Loads Draco decoder JS+WASM (from assets/draco/) and exposes decoder module.
+// Loads Draco decoder JS+WASM (from public/assets_folder/draco/) and exposes decoder module.
 
 let _promise = null;
 
@@ -7,18 +7,17 @@ export async function getDracoDecoderModule() {
   if (_promise) return _promise;
 
   _promise = (async () => {
-    // draco_decoder.js expects to run as classic script and will define DracoDecoderModule factory.
-    // We'll load it dynamically by injecting a script tag.
-    await loadScript("./src/assets/draco/draco_decoder.js");
+    // Загружаем draco_decoder.js из public/assets_folder/draco/
+    await loadScript("./assets_folder/draco/draco_decoder.js");
 
     if (typeof window.DracoDecoderModule !== "function") {
       throw new Error("[Draco] DracoDecoderModule factory not found on window.");
     }
 
-    // Tell Draco where to find the wasm file
+    // Указываем Draco где найти wasm файл
     const module = await window.DracoDecoderModule({
       locateFile: (path) => {
-        if (path.endsWith(".wasm")) return "./assets/draco/draco_decoder.wasm";
+        if (path.endsWith(".wasm")) return "./assets_folder/draco/draco_decoder.wasm";
         return path;
       },
     });

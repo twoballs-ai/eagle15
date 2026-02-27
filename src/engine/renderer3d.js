@@ -1,6 +1,6 @@
 // engine/renderer3d.js
 import { mat4 } from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index.js";
-import { loadGLBModel } from "../assets/glbLoader.js";
+import { loadGLBModel } from "../assets_folder/glbLoader.js";
 import { ModelRenderer } from "./renderer/modelRenderer.js";
 import { Starfield } from "./renderer/starfield.js";
 import { GalaxySpiral } from "./renderer/galaxySpiral.js";
@@ -73,6 +73,7 @@ export class Renderer3D {
 
     // temp orbit buffer (xyz * 256)
     this._orbit = new Float32Array(3 * 256);
+    this._crossPts = new Float32Array(12);
 this._rings = new ThickRings(gl, { maxSegments: 256 });
 this._extrudedRings = new ExtrudedRings(gl, { maxSegments: 256 });
 this._overlay = new OverlayQuad(gl);
@@ -354,10 +355,11 @@ drawGalaxySpiral(view, camera, dpr = 1, timeSec = 0, tiltMul = 1.0) {
   }
 
   drawCrossAt(x, y, z, size = 10, colorRGBA = [0.2, 0.9, 1.0, 1.0]) {
-    const pts = new Float32Array([
-      x - size, y, z,   x + size, y, z,
-      x, y, z - size,   x, y, z + size,
-    ]);
+    const pts = this._crossPts;
+    pts[0] = x - size; pts[1] = y; pts[2] = z;
+    pts[3] = x + size; pts[4] = y; pts[5] = z;
+    pts[6] = x; pts[7] = y; pts[8] = z - size;
+    pts[9] = x; pts[10] = y; pts[11] = z + size;
     this.drawLines(pts, colorRGBA);
   }
 
