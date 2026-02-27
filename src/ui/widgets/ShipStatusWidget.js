@@ -41,7 +41,10 @@ export class ShipStatusWidget {
           <div data-k="pilot" style="font-size:13px;font-weight:700;letter-spacing:.03em;">ПИЛОТ —</div>
           <div data-k="meta" style="font-size:11px;opacity:.72;margin-top:2px;">Корабль в норме</div>
         </div>
-        <div data-k="weapon" style="font-size:10px;letter-spacing:.08em;opacity:.75;">ОРУЖИЕ: ИМПУЛЬС</div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+          <div data-k="weapon" style="font-size:10px;letter-spacing:.08em;opacity:.75;">ОРУЖИЕ: ИМПУЛЬС</div>
+          <div data-k="credits" style="font-size:11px;font-weight:700;color:#9fffc7;letter-spacing:.03em;">₡ 0</div>
+        </div>
       </div>
 
       <div style="display:grid;gap:8px;">
@@ -77,6 +80,7 @@ export class ShipStatusWidget {
     this.$shieldText = el.querySelector('[data-k="shieldText"]');
     this.$energyText = el.querySelector('[data-k="energyText"]');
     this.$weapon = el.querySelector('[data-k="weapon"]');
+    this.$credits = el.querySelector('[data-k="credits"]');
   }
 
   setVisible(v) {
@@ -115,6 +119,7 @@ export class ShipStatusWidget {
       energy,
       energyMax,
       weaponName,
+      state?.credits ?? 0,
     ].join("|");
 
     if (stamp === this._lastStamp) return;
@@ -123,6 +128,7 @@ export class ShipStatusWidget {
     this.$pilot.textContent = `ПИЛОТ ${player?.name ?? "—"}`;
     this.$meta.textContent = `${player?.raceId ?? "—"} • ${player?.classId ?? "—"}`;
     if (this.$weapon) this.$weapon.textContent = `ОРУЖИЕ: ${weaponName.toUpperCase()} (G)`;
+    if (this.$credits) this.$credits.textContent = `₡ ${Math.max(0, Math.floor(state?.credits ?? 0))}`;
 
     this.$armor.style.width = `${pct(armor, armorMax)}%`;
     this.$shield.style.width = `${pct(shield, shieldMax)}%`;
