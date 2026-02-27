@@ -34,6 +34,8 @@ export class HUDManager {
       boxSizing: "border-box",
     });
 
+    this._initFrame();
+
     // --- slots (как areas в верстке) ---
     this.slots = new Map();     // name -> el
     this.widgets = new Map();   // id -> record
@@ -41,6 +43,55 @@ export class HUDManager {
     this._initDefaultSlots();
     this.setTheme(theme);
     this._installResizeObserver();
+  }
+
+  _initFrame() {
+    const frame = ensureEl("hud-cosmo-frame", this.root);
+    apply(frame, {
+      position: "absolute",
+      inset: "10px",
+      borderRadius: "18px",
+      border: "1px solid rgba(110, 196, 255, 0.32)",
+      boxShadow: "inset 0 0 32px rgba(64, 132, 189, 0.2), 0 0 40px rgba(0, 0, 0, 0.35)",
+      background: "radial-gradient(circle at 50% -12%, rgba(85,165,235,0.12), transparent 36%), radial-gradient(circle at 50% 112%, rgba(85,165,235,0.08), transparent 34%)",
+      pointerEvents: "none",
+      zIndex: "0",
+    });
+
+    const corners = ["top-left", "top-right", "bottom-left", "bottom-right"];
+    for (const pos of corners) {
+      const corner = ensureEl(`hud-cosmo-corner-${pos}`, frame);
+      apply(corner, {
+        position: "absolute",
+        width: "120px",
+        height: "120px",
+        border: "2px solid rgba(142, 215, 255, 0.52)",
+        borderRadius: "20px",
+        opacity: "0.75",
+      });
+
+      if (pos.includes("top")) corner.style.top = "-1px";
+      if (pos.includes("bottom")) corner.style.bottom = "-1px";
+      if (pos.includes("left")) corner.style.left = "-1px";
+      if (pos.includes("right")) corner.style.right = "-1px";
+
+      if (pos === "top-left") {
+        corner.style.borderRight = "none";
+        corner.style.borderBottom = "none";
+      }
+      if (pos === "top-right") {
+        corner.style.borderLeft = "none";
+        corner.style.borderBottom = "none";
+      }
+      if (pos === "bottom-left") {
+        corner.style.borderRight = "none";
+        corner.style.borderTop = "none";
+      }
+      if (pos === "bottom-right") {
+        corner.style.borderLeft = "none";
+        corner.style.borderTop = "none";
+      }
+    }
   }
 
   _initDefaultSlots() {
@@ -52,6 +103,7 @@ export class HUDManager {
         flexDirection: "column",
         gap: "10px",
         pointerEvents: "none",
+        zIndex: "2",
         ...styles,
       });
       this.slots.set(name, el);
