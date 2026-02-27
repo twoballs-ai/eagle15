@@ -275,7 +275,7 @@ this.screens = {
     st.id = "systemMenuUIStyles";
     st.textContent = `
       .sm-root{
-        position:fixed; inset:0; z-index:2200;
+        position:fixed; inset:0; z-index:2000001;
         display:flex;
         opacity: 0;
         transform: translateY(6px);
