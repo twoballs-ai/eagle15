@@ -8,7 +8,7 @@ import { getSystemDef } from "./system/systemDefs.js";
 // - фиксированные планеты (из SYSTEM_DEFS[systemId])
 // - + детерминированные рандомные (min/max)
 // - systemId может быть строкой (и должен быть строкой)
-export function createStarSystem(seed, systemId) {
+export function createStarSystem(seed, systemId, opts = {}) {
   const id = String(systemId);
   const def = getSystemDef(id);
 
@@ -23,8 +23,9 @@ export function createStarSystem(seed, systemId) {
   const mixed = (seed >>> 0) ^ hashString(id) ^ sysSeed;
   const rand = mulberry32(mixed);
 
+  const starRadiusMul = opts?.randomizeStar === false ? 1 : (Number.isFinite(opts?.starRadiusMul) ? opts.starRadiusMul : 1);
   const star = {
-    radius: (40 + rand() * 30) * SCALE,
+    radius: (40 + rand() * 30) * SCALE * starRadiusMul,
     color: [1.0, 0.9, 0.6],
   };
 
@@ -35,7 +36,9 @@ export function createStarSystem(seed, systemId) {
   const planetsCfg = def?.planets ?? null;
 
   const fixed = Array.isArray(planetsCfg?.fixed) ? planetsCfg.fixed : [];
-  const randomCount = resolveRandomCount(planetsCfg?.randomCount, rand);
+  const randomCount = opts?.randomizePlanets === false
+    ? 0
+    : resolveRandomCount(opts?.randomCountRange ?? planetsCfg?.randomCount, rand);
 
   const planets = [];
 

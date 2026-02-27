@@ -31,6 +31,10 @@ export class Crafting {
 
     // output может быть один или массив
     const outs = Array.isArray(r.outputs) ? r.outputs : [r.output].filter(Boolean);
+    if (!this.inv.canGain(outs)) {
+      this.inv.gain(r.inputs);
+      return { ok: false, reason: "NO_SPACE" };
+    }
     this.inv.gain(outs);
 
     return { ok: true, recipe: r, outputs: outs };
@@ -51,10 +55,12 @@ export class Crafting {
     }
     if (!isFinite(max) || max <= 0) return { ok: false, reason: "NO_MATS", n: 0 };
 
+    let done = 0;
     for (let i = 0; i < max; i++) {
       const res = this.craft(recipeId, ctx);
       if (!res.ok) break;
+      done++;
     }
-    return { ok: true, n: max };
+    return { ok: done > 0, n: done };
   }
 }

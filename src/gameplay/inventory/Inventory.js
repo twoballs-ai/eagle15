@@ -96,6 +96,26 @@ export class Inventory {
     return false;
   }
 
+
+  canGain(outputs) {
+    const probe = this.backend.slots.map((s) => (s ? { id: s.id, n: s.n } : null));
+    const addProbe = (itemId, n) => {
+      if (n <= 0) return true;
+      for (let i = 0; i < probe.length; i++) {
+        const s = probe[i];
+        if (s && s.id === itemId) { s.n += n; return true; }
+      }
+      for (let i = 0; i < probe.length; i++) {
+        if (!probe[i]) { probe[i] = { id: itemId, n }; return true; }
+      }
+      return false;
+    };
+    for (const it of outputs) {
+      if (!addProbe(it.id, it.n)) return false;
+    }
+    return true;
+  }
+
   gain(outputs) {
     for (const it of outputs) {
       const ok = this.add(it.id, it.n);

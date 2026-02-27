@@ -28,7 +28,13 @@ export class BootstrapSystem extends System {
       return;
     }
 
-    this.ctx.system = createStarSystem(galaxy.seed, sys.id);
+    const devGen = state.devGenerator?.[sid] ?? null;
+    const systemSeed = Number.isFinite(devGen?.seed) ? devGen.seed : galaxy.seed;
+    this.ctx.system = createStarSystem(systemSeed, sys.id, {
+      randomizeStar: devGen?.randomizeStar,
+      randomizePlanets: devGen?.randomizePlanets,
+      randomCountRange: devGen?.randomCountRange,
+    });
 
     // bounds
     const planets = this.ctx.system?.planets || [];

@@ -26,6 +26,7 @@ import { loadSave, writeSave, makeSaveFromState, applySaveToState } from "./data
 import { createPilotProfile } from "./data/character/pilot.js";
 import { applyPilotModifiersToShipStats } from "./data/ship/applyPilotModifiers.js";
 import { SystemMenu } from "./ui/systemMenu/SystemMenu.js";
+import { getMarketPrice } from "./data/economy/marketPrices.js";
 
 import { SurfaceMetrics } from "./engine/runtime/SurfaceMetrics.js";
 import { Inventory } from "./gameplay/inventory/Inventory.js";
@@ -122,15 +123,12 @@ console.log("[Game:new]", this.__id);
 
 this.systemMenu = new SystemMenu(this.services);
 this.inventory = new Inventory({
-  capacity: 100,
-  slots: [
-    { id: "oxygen", n: 40 },
-    { id: "iron_ore", n: 30 },
-    { id: "copper_ore", n: 30 },
-    { id: "silicon_dust", n: 30 },
-    { id: "polymer_slurry", n: 20 },
-  ],
+  capacity: this.state.inventoryCapacity ?? 100,
+  slots: this.state.inventorySlots ?? [],
 });
+
+this.state.inventoryCapacity = this.inventory.capacity();
+this.state.inventorySlots = this.inventory.backend.slots;
 
 this.crafting = new Crafting({
   inventory: this.inventory,
@@ -139,6 +137,7 @@ this.crafting = new Crafting({
 
 this.services.set("inventory", this.inventory);
 this.services.set("crafting", this.crafting);
+this.services.set("marketPrice", getMarketPrice);
     // scenes
     this.sceneGalaxy = new GalaxyMapScene(this.services);
     this.sceneStar = new StarSystemScene(this.services);
@@ -311,6 +310,22 @@ update(dt, time) {
   openGalaxyMap() {
     if (!this.started) return;
     this.scenes.set(this.sceneGalaxy);
+  }
+
+
+  regenerateCurrentSystem({ systemId, randomizeStar = true, randomizePlanets = true, randomCountRange = null } = {}) {
+    const sid = String(systemId ?? this.state.currentSystemId ?? "");
+    if (!sid) return;
+
+    this.state.devGenerator = this.state.devGenerator ?? {};
+    this.state.devGenerator[sid] = {
+      seed: (Math.random() * 0xffffffff) >>> 0,
+      randomizeStar: !!randomizeStar,
+      randomizePlanets: !!randomizePlanets,
+      randomCountRange: randomCountRange ?? null,
+    };
+
+    this.openStarSystem(sid);
   }
 
   // ========= ASSETS =========
