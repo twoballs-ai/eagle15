@@ -52,6 +52,7 @@ export class RenderSystem extends System {
     // ships
     this.drawPlayerShip3D(r3d);
     this.drawOtherShips3D(r3d);
+    this.drawNpcFov3D(r3d);
 
     // flame
     this.ctx.flame.draw(r3d.getVP(), dpr);
@@ -111,6 +112,7 @@ export class RenderSystem extends System {
     for (const ship of ships) {
       if (ship === state.playerShip) continue;
       if (!ship?.runtime) continue;
+      if (ship.alive === false || ship.runtime.dead) continue;
 
       const r = ship.runtime;
       r3d.drawModel(shipModel, {
@@ -122,6 +124,41 @@ export class RenderSystem extends System {
         emissive: ship.isEnemy || ship.factionId === "pirates" ? 0.3 : 0.0,
       });
     }
+  }
+
+
+  drawNpcFov3D(r3d) {
+    const state = this.s.get("state");
+    const ships = state.ships || [];
+    const halfFov = Math.acos(this.ctx.enemyFire.cfg.fireArcCos ?? 0.25);
+    const range = this.ctx.enemyFire.cfg.range ?? 520;
+
+    const pts = [];
+
+    for (const ship of ships) {
+      if (ship === state.playerShip) continue;
+      if (!ship?.runtime) continue;
+      if (ship.alive === false || ship.runtime.dead) continue;
+      if (ship.aiState !== "combat") continue;
+
+      const r = ship.runtime;
+      const base = r.yaw ?? 0;
+      const left = base - halfFov;
+      const right = base + halfFov;
+
+      const lx = r.x + Math.sin(left) * range;
+      const lz = r.z - Math.cos(left) * range;
+      const rx = r.x + Math.sin(right) * range;
+      const rz = r.z - Math.cos(right) * range;
+
+      pts.push(
+        r.x, 0.7, r.z, lx, 0.7, lz,
+        r.x, 0.7, r.z, rx, 0.7, rz,
+        lx, 0.7, lz, rx, 0.7, rz,
+      );
+    }
+
+    if (pts.length >= 6) r3d.drawLines(new Float32Array(pts), [1.0, 0.2, 0.2, 0.45]);
   }
 
   drawPoiZones3D(r3d) {

@@ -3,6 +3,7 @@ import { stepShipMovement } from "../../../gameplay/shipMovement.js";
 import { raycastToGround } from "../../../gameplay/cameraRay.js";
 import { getShipControls, getAutopilotControls } from "../../../gameplay/shipController.js";
 import { tryFire } from "../../../gameplay/weapons/projectiles.js";
+import { getWeaponPreset, WEAPON_PRESETS } from "../../../gameplay/weapons/weaponPresets.js";
 
 export class ShipControlSystem extends System {
   constructor(services, ctx) {
@@ -20,31 +21,33 @@ export class ShipControlSystem extends System {
     const getViewPx = this.s.get("getViewPx"); // ✅ добавили
 
     const ship = state.playerShip;
-    if (!this._dumped) {
-      this._dumped = true;
-      console.log("[ShipControlSystem] state keys:", Object.keys(state || {}));
-      console.log("[ShipControlSystem] state:", state);
-    }
     if (!ship?.runtime) return;
 
     const r = ship.runtime;
 
+    if (actions.pressed("cycleWeapon")) {
+      const next = (this.ctx.weapons.currentIndex + 1) % WEAPON_PRESETS.length;
+      this.ctx.weapons.currentIndex = next;
+    }
+
     // FIRE
     const wantFire = actions.down("fire");
-    tryFire(this.ctx.projectiles, r, ship.id, dt, wantFire, {
-      teamId: ship.factionId ?? "player",
-    });
+    const weapon = getWeaponPreset(this.ctx.weapons.currentIndex);
 
-    if ((this._t = (this._t ?? 0) + dt) > 0.5) {
-      this._t = 0;
-      console.log(
-        "ctrl dt", dt,
-        "x", r?.x, "z", r?.z,
-        "vx", r?.vx, "vz", r?.vz,
-        "accel", r?.accel, "turnSpeed", r?.turnSpeed, "maxSpeed", r?.maxSpeed,
-        "W", actions.down("moveForward"),
-        "th", r?.throttleValue
-      );
+    if (weapon && wantFire) {
+      for (let i = 0; i < weapon.pellets; i++) {
+        const side = weapon.pellets > 1 ? (i - (weapon.pellets - 1) * 0.5) * 1.2 : 0;
+        const fired = tryFire(this.ctx.projectiles, r, ship.id, dt, true, {
+          teamId: ship.factionId ?? "player",
+          damage: weapon.damage,
+          bulletSpeed: weapon.bulletSpeed,
+          bulletLife: weapon.bulletLife,
+          spread: weapon.spread,
+          fireCooldown: weapon.fireCooldown,
+          muzzleSide: side,
+        });
+        if (!fired) break;
+      }
     }
 
     // ✅ set target on left click (FIX: px<->css mismatch)

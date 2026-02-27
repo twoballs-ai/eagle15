@@ -30,6 +30,7 @@ export function createProjectileSystem(opts = {}) {
     // runtime
     t: 0,
     cooldownT: 0,
+    cooldownByOwner: new Map(),
     nextId: 1, // ✅ уникальные id для пуль
     list: [],  // {id,x,z,vx,vz,life,ownerId,teamId,alive}
   };
@@ -43,17 +44,24 @@ export function tryFire(system, shipRuntime, shipId, dt, wantFire, extra = {}) {
   system.t += dt;
   system.cooldownT = Math.max(0, system.cooldownT - dt);
 
+  const ownerKey = shipId ?? "__global";
+  const ownerCd = Math.max(0, (system.cooldownByOwner.get(ownerKey) ?? 0) - dt);
+  system.cooldownByOwner.set(ownerKey, ownerCd);
+
   if (!wantFire) return false;
-  if (system.cooldownT > 0) return false;
+  if (ownerCd > 0) return false;
   if (system.list.length >= system.max) return false;
 
-  system.cooldownT = system.fireCooldown;
+  const fireCooldown = extra.fireCooldown ?? system.fireCooldown;
+  system.cooldownT = fireCooldown;
+  system.cooldownByOwner.set(ownerKey, fireCooldown);
 
   // направление по yaw
   const yaw = shipRuntime.yaw ?? 0;
 
   // небольшой разброс
-  const jitter = system.spread > 0 ? (Math.random() * 2 - 1) * system.spread : 0;
+  const bulletSpread = extra.spread ?? system.spread;
+  const jitter = bulletSpread > 0 ? (Math.random() * 2 - 1) * bulletSpread : 0;
   const y = yaw + jitter;
 
   const fx = Math.sin(y);
@@ -72,9 +80,9 @@ export function tryFire(system, shipRuntime, shipId, dt, wantFire, extra = {}) {
   system.list.push({
     id: system.nextId++,      // ✅ стабильный id
     x: x0, z: z0,
-    vx: fx * system.bulletSpeed,
-    vz: fz * system.bulletSpeed,
-    life: system.bulletLife,
+    vx: fx * (extra.bulletSpeed ?? system.bulletSpeed),
+    vz: fz * (extra.bulletSpeed ?? system.bulletSpeed),
+    life: extra.bulletLife ?? system.bulletLife,
     ownerId: shipId,
     teamId: extra.teamId ?? null, // ✅ для friendly fire
     alive: true,                  // ✅ чтобы colliders могли убивать пулю

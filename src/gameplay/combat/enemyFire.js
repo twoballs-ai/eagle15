@@ -56,9 +56,10 @@ export function createEnemyFireModule(opts = {}) {
     for (const ship of (ships || [])) {
       if (ship === playerShip) continue;
       if (!ship?.runtime) continue;
+      if (ship.alive === false || ship.runtime.dead) continue;
 
       // стреляют только враги
-if (ship.aiState !== "combat") continue;
+      if (ship.aiState !== "combat") continue;
 
       const r = ship.runtime;
 
@@ -120,7 +121,8 @@ if (ship.aiState !== "combat") continue;
         endZ = muzzleZ + tz * hitT;
 
         // применяем урон
-applyShipDamage(playerShip.runtime, cfg.damage);      }
+        applyShipDamage(playerShip.runtime, cfg.damage);
+      }
 
       // трассер
       state.tracers.push(makeTracer(muzzleX, muzzleZ, endX, endZ));

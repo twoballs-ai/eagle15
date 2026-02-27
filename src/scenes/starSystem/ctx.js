@@ -8,6 +8,7 @@ import { createColliderSystem } from "../../gameplay/collisions/colliders.js";
 import { createProjectileSystem } from "../../gameplay/weapons/projectiles.js";
 import { RelationIconsOverlay } from "../../ui/relationIconsOverlay.js";
 import { createEnemyFireModule } from "../../gameplay/combat/enemyFire.js";
+import { WEAPON_PRESETS } from "../../gameplay/weapons/weaponPresets.js";
 
 import { LetterboxOverlay } from "../../ui/letterboxOverlay.js";
 import { CutsceneCaption } from "../../ui/cutsceneCaption.js";
@@ -79,6 +80,10 @@ export function createStarSystemCtx(services) {
       hitRadius: 6,
       spread: 0.01,
     }),
+    weapons: {
+      available: WEAPON_PRESETS,
+      currentIndex: 0,
+    },
 ui: {
   enemyDialog: new EnemyDialogWidget(),
 },
