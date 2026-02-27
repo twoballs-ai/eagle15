@@ -41,7 +41,7 @@ export class ShipStatusWidget {
           <div data-k="pilot" style="font-size:13px;font-weight:700;letter-spacing:.03em;">ПИЛОТ —</div>
           <div data-k="meta" style="font-size:11px;opacity:.72;margin-top:2px;">Корабль в норме</div>
         </div>
-        <div style="font-size:10px;letter-spacing:.16em;opacity:.7;">SHIP STATUS</div>
+        <div data-k="weapon" style="font-size:10px;letter-spacing:.08em;opacity:.75;">ОРУЖИЕ: ИМПУЛЬС</div>
       </div>
 
       <div style="display:grid;gap:8px;">
@@ -76,6 +76,7 @@ export class ShipStatusWidget {
     this.$armorText = el.querySelector('[data-k="armorText"]');
     this.$shieldText = el.querySelector('[data-k="shieldText"]');
     this.$energyText = el.querySelector('[data-k="energyText"]');
+    this.$weapon = el.querySelector('[data-k="weapon"]');
   }
 
   setVisible(v) {
@@ -83,7 +84,7 @@ export class ShipStatusWidget {
     this.el.style.display = v ? "" : "none";
   }
 
-  update(game) {
+  update(game, scene) {
     const state = game?.state;
     const ship = state?.playerShip?.runtime;
     const player = state?.player;
@@ -101,6 +102,8 @@ export class ShipStatusWidget {
     const energy = ship.energy ?? 0;
     const energyMax = ship.energyMax ?? 0;
 
+    const weaponName = scene?.ctx?.weapons?.available?.[scene?.ctx?.weapons?.currentIndex]?.name ?? "Импульс";
+
     const stamp = [
       player?.name ?? "",
       player?.raceId ?? "",
@@ -111,6 +114,7 @@ export class ShipStatusWidget {
       shieldMax,
       energy,
       energyMax,
+      weaponName,
     ].join("|");
 
     if (stamp === this._lastStamp) return;
@@ -118,6 +122,7 @@ export class ShipStatusWidget {
 
     this.$pilot.textContent = `ПИЛОТ ${player?.name ?? "—"}`;
     this.$meta.textContent = `${player?.raceId ?? "—"} • ${player?.classId ?? "—"}`;
+    if (this.$weapon) this.$weapon.textContent = `ОРУЖИЕ: ${weaponName.toUpperCase()} (G)`;
 
     this.$armor.style.width = `${pct(armor, armorMax)}%`;
     this.$shield.style.width = `${pct(shield, shieldMax)}%`;

@@ -19,6 +19,10 @@ export class EnemyAISystem extends System {
     for (const ship of ships) {
       if (ship === playerShip) continue;
       if (!ship?.runtime) continue;
+      if (ship.runtime.dead) {
+        ship.alive = false;
+        continue;
+      }
 
       const hostile = !!ship.isEnemy || isHostile(playerFaction, ship.factionId);
       if (!hostile) continue;
@@ -30,6 +34,7 @@ export class EnemyAISystem extends System {
       const dist = Math.hypot(dx, dz);
 
       if (dist > 1200) {
+        ship.aiState = "idle";
         r.vx *= 0.98;
         r.vz *= 0.98;
         continue;
@@ -40,6 +45,8 @@ export class EnemyAISystem extends System {
         r.vz *= 0.92;
         continue;
       }
+
+      ship.aiState = "combat";
 
       const nx = dx / (dist || 1);
       const nz = dz / (dist || 1);

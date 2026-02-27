@@ -31,9 +31,10 @@ export class CollisionsSystem extends System {
       const targetRuntime = h.target.ref;
       if (!targetRuntime) continue;
 
-const dmg = this.ctx.projectiles.damage ?? 10;
-applyShipDamage(targetRuntime, dmg);
-if (bullet) bullet.alive = false;
+      const dmg = bullet?.damage ?? this.ctx.projectiles.damage ?? 10;
+      applyShipDamage(targetRuntime, dmg);
+      if ((targetRuntime.armor ?? 0) <= 0) targetRuntime.dead = true;
+      if (bullet) bullet.alive = false;
     }
   }
 
@@ -48,6 +49,7 @@ if (bullet) bullet.alive = false;
 
     for (const s of ships) {
       if (!s?.runtime) continue;
+      if (s.runtime.dead) s.alive = false;
       if (s.alive === false) continue;
 
       const isPlayer = s === playerShip;

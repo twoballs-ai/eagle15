@@ -17,6 +17,7 @@ this.bindings = bindings ?? {
 
   // стрельба
   fire: { keys: ["Space"] },
+  cycleWeapon: { keys: ["KeyG"] },
 
   // движение (корабль)
   moveForward: { keys: ["KeyW", "ArrowUp"] },
