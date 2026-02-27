@@ -16,6 +16,10 @@ export class Inventory {
 
   capacity() { return this.backend.capacity; }
 
+  get(itemId) {
+    return this.countOf(itemId);
+  }
+
   getSlot(i) { return this.backend.slots[i] ?? null; }
 
   setSlot(i, itemOrNull) {
@@ -108,5 +112,9 @@ export class Inventory {
       map.set(s.id, (map.get(s.id) ?? 0) + (s.n ?? 0));
     }
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }
+
+  entriesSorted() {
+    return this.entriesAggregatedSorted();
   }
 }
