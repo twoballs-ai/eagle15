@@ -30,6 +30,8 @@ export class HUDManager {
       pointerEvents: "none",
       // удобно для масштабирования/темы
       fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+      padding: "18px",
+      boxSizing: "border-box",
     });
 
     // --- slots (как areas в верстке) ---
@@ -56,13 +58,13 @@ export class HUDManager {
       return el;
     };
 
-    mkSlot("top-left",     { left: "12px", top: "12px", alignItems: "flex-start" });
-    mkSlot("top-center",   { left: "50%", top: "12px", transform: "translateX(-50%)", alignItems: "center" });
-    mkSlot("top-right",    { right: "12px", top: "12px", alignItems: "flex-end" });
+    mkSlot("top-left",     { left: "18px", top: "18px", alignItems: "flex-start" });
+    mkSlot("top-center",   { left: "50%", top: "18px", transform: "translateX(-50%)", alignItems: "center" });
+    mkSlot("top-right",    { right: "18px", top: "18px", alignItems: "flex-end" });
 
-    mkSlot("bottom-left",  { left: "12px", bottom: "12px", alignItems: "flex-start" });
-    mkSlot("bottom-center",{ left: "50%", bottom: "12px", transform: "translateX(-50%)", alignItems: "center" });
-    mkSlot("bottom-right", { right: "12px", bottom: "12px", alignItems: "flex-end" });
+    mkSlot("bottom-left",  { left: "18px", bottom: "18px", alignItems: "flex-start" });
+    mkSlot("bottom-center",{ left: "50%", bottom: "18px", transform: "translateX(-50%)", alignItems: "center" });
+    mkSlot("bottom-right", { right: "18px", bottom: "18px", alignItems: "flex-end" });
 
     mkSlot("center",       { left: "50%", top: "50%", transform: "translate(-50%,-50%)", alignItems: "center" });
   }

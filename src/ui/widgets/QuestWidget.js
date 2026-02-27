@@ -14,20 +14,21 @@ export class QuestWidget {
 
     apply(el, {
       pointerEvents: "none",
-      whiteSpace: "pre-line",
-      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-      fontSize: "13px",
+      fontFamily: "Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif",
+      fontSize: "12px",
       lineHeight: "1.25",
       color: "rgba(235, 245, 255, 0.95)",
       textShadow: "0 1px 2px rgba(0,0,0,0.65)",
-      background: "rgba(0,0,0,0.25)",
-      border: "1px solid rgba(255,255,255,0.12)",
-      borderRadius: "10px",
-      padding: "10px 12px",
-      maxWidth: "420px",
+      background: "linear-gradient(180deg, rgba(18,25,39,0.88), rgba(7,12,20,0.86))",
+      border: "1px solid rgba(130, 195, 255, 0.22)",
+      borderRadius: "16px",
+      padding: "12px",
+      width: "380px",
+      boxShadow: "0 12px 32px rgba(0,0,0,0.45)",
+      backdropFilter: "blur(8px)",
     });
 
-    el.textContent = "HUDManager OK ✅";
+    el.textContent = "Загрузка миссий…";
   }
 
   setVisible(v) {
@@ -66,23 +67,24 @@ update(game, scene, dt) {
     const dx = (focus.worldX ?? 0) - shipR.x;
     const dz = (focus.worldZ ?? 0) - shipR.z;
     const dist = Math.sqrt(dx * dx + dz * dz);
-    focusLine = `\nДистанция: ${dist.toFixed(0)}m`;
+    focusLine = `<br>Дистанция: ${dist.toFixed(0)}m`;
   }
 
   const text =
-    `АКТ: ${actId}\n` +
-    `\n` +
-    `АКТИВНЫЕ КВЕСТЫ:\n` +
-    (lines.length ? lines.join("\n") : "—") +
-    `\n\n` +
-    `Рядом: ${ctx.poiHint || "—"}` +
-    focusLine +
-    `\n\n` +
-    `Событие: ${ctx.lastLog || "—"}`;
+    `<div style="font-size:10px;letter-spacing:.14em;opacity:.72;margin-bottom:8px;">MISSION CONTROL · ACT ${actId}</div>` +
+    `<div style="display:grid;gap:6px;">` +
+    (lines.length
+      ? lines
+          .slice(0, 4)
+          .map((line) => `<div style="padding:7px 8px;border-radius:8px;background:rgba(255,255,255,.05);">${line}</div>`)
+          .join("")
+      : `<div style="padding:7px 8px;border-radius:8px;background:rgba(255,255,255,.05);">Активных миссий нет</div>`) +
+    `</div>` +
+    `<div style="margin-top:10px;font-size:11px;opacity:.86;">Цель: ${ctx.poiHint || "—"}${focusLine}</div>`;
 
   if (text === this._last) return;
   this._last = text;
-  this.el.textContent = text;
+  this.el.innerHTML = text;
 }
 
 
