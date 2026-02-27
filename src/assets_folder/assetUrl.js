@@ -1,4 +1,9 @@
 const BASE_URL = import.meta.env.BASE_URL || "/";
+const BUNDLED_ASSET_URLS = import.meta.glob("./**/*", {
+  eager: true,
+  import: "default",
+  query: "?url",
+});
 
 function getAbsoluteBaseUrl() {
   if (typeof window !== "undefined" && window.location?.origin) {
@@ -17,5 +22,12 @@ export function resolveAssetUrl(assetPath) {
   }
 
   const normalizedPath = raw.replace(/^\/+/, "");
+
+  const relativePath = normalizedPath
+    .replace(/^src\//, "")
+    .replace(/^assets_folder\//, "");
+  const bundledAssetUrl = BUNDLED_ASSET_URLS[`./${relativePath}`];
+  if (bundledAssetUrl) return bundledAssetUrl;
+
   return new URL(normalizedPath, getAbsoluteBaseUrl()).toString();
 }
