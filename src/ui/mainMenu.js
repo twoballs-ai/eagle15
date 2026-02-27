@@ -292,7 +292,7 @@ export class MainMenu {
     st.id = "mainMenuUIStyles";
     st.textContent = `
       .mm-root{
-        position:fixed; inset:0; z-index:2100;
+        position:fixed; inset:0; z-index:2000001;
         display:flex; align-items:center; justify-content:center;
         padding: 12px;
         background:
