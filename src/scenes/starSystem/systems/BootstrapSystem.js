@@ -7,6 +7,7 @@ import { spawnSystemActors } from "../../../gameplay/spawn/spawnSystem.js";
 import { ShipStatsHUD } from "../../../ui/shipStatsHud.js";
 import { RACES } from "../../../data/character/races.js";
 import { CLASSES } from "../../../data/character/classes.js";
+import { getSpawnAlertLevelFromQuests } from "../../../gameplay/story/actRules.js";
 
 export class BootstrapSystem extends System {
   constructor(services, ctx) {
@@ -73,24 +74,29 @@ export class BootstrapSystem extends System {
     }
     console.log("ENTER SYSTEM:", sid);
     // spawn NPC
+    const activeQuestDefs = Object.keys(this.ctx.quest?.active ?? {}).map((qid) => this.ctx.content?.questsById?.[qid]).filter(Boolean);
     const spawned = spawnSystemActors({
       galaxySeed: galaxy.seed,
-      systemId: sid, // ✅ строка
+      systemId: sid,
       playerFactionId: state.player?.factionId ?? "union",
+      spawnAlertLevel: getSpawnAlertLevelFromQuests(activeQuestDefs),
+      actId: this.ctx.act?.current ?? "act1",
     });
-    state.ships.forEach((ship) => {
-      if (!ship) return;
 
-      if (ship.factionId === "pirates") {
-        ship.talkType = "enemy"; // враг
-      } else {
-        ship.talkType = "npc"; // нейтральный NPC / торговец
-        ship.dialogText = ["Привет, странник!", "Хочешь взглянуть на товары?"];
-        ship.talkRadius = 240; // радиус, в котором открывается диалог
-      }
-    });
     state.characters = spawned.characters;
     state.ships = [state.playerShip, ...spawned.ships].filter(Boolean);
+
+    state.ships.forEach((ship) => {
+      if (!ship || ship === state.playerShip) return;
+
+      if (ship.factionId === "pirates") {
+        ship.talkType = "enemy";
+      } else {
+        ship.talkType = "npc";
+        ship.dialogText = ["Привет, странник!", "Хочешь взглянуть на товары?"];
+        ship.talkRadius = 240;
+      }
+    });
     this.ctx.spawnPoints = spawned.spawnPoints;
 
     // init ship stats

@@ -159,14 +159,14 @@ tryInteractFocusedPoi() {
 
   updateQuestLine() {
     const f = this.ctx.quest.flags;
-    const a = f.nav_restored ? "Навигация ✅" : "Навигация ⬜";
-    const b = f.ship_stabilized ? "Стабилизация ✅" : "Стабилизация ⬜";
-    const c = f.got_parts ? "Детали ✅" : "Детали ⬜";
-    const d = f.installed_upgrade ? "Апгрейд ✅" : "Апгрейд ⬜";
+    const a = f["act1.nav_restored"] ? "Навигация ✅" : "Навигация ⬜";
+    const b = f["act1.ship_stabilized"] ? "Стабилизация ✅" : "Стабилизация ⬜";
+    const c = f["act1.got_parts"] ? "Детали ✅" : "Детали ⬜";
+    const d = f["act1.installed_upgrade"] ? "Апгрейд ✅" : "Апгрейд ⬜";
 
-    if (f.act1_complete) {
+    if (this.ctx.quest.isQuestCompleted("q:act1:repair_ship")) {
       this.ctx.questLine = "Акт 1 завершён: прыжок выполнен/доступен.";
-    } else if (f.beacon_enabled) {
+    } else if (f["act1.beacon_activated"]) {
       this.ctx.questLine = `Цель: активировать маяк\n${a} | ${b} | ${c} | ${d}`;
     } else {
       this.ctx.questLine = `Цель: починить корабль\n${a} | ${b} | ${c} | ${d}`;

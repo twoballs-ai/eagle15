@@ -1,3 +1,5 @@
+import { resolveQuestPriority } from "../../gameplay/story/actRules.js";
+
 export class StoryManager {
   constructor({ quest, act, cutscenePlayer, contentRegistry }) {
     this.quest = quest;             // QuestStateV2
@@ -33,7 +35,7 @@ export class StoryManager {
       if (!fromOk || !toOk) return;
     }
 
-    const pr = (typeof priority === "boolean") ? priority : !!q.priorityDefault;
+    const pr = resolveQuestPriority(q, priority);
     this.quest.startQuest(q, { priority: pr });
   }
 
