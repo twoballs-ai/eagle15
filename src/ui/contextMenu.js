@@ -5,10 +5,10 @@ export class ContextMenu {
     this.el.style.position = "fixed";
     this.el.style.zIndex = "999999"; // ✅ выше всего
     this.el.style.minWidth = "220px";
-    this.el.style.background = "rgba(10,12,18,0.92)";
+    this.el.style.background = "linear-gradient(180deg, rgba(17,22,31,0.96), rgba(9,12,18,0.96))";
     this.el.style.border = "1px solid rgba(255,255,255,0.12)";
-    this.el.style.borderRadius = "10px";
-    this.el.style.boxShadow = "0 12px 35px rgba(0,0,0,0.45)";
+    this.el.style.borderRadius = "12px";
+    this.el.style.boxShadow = "0 18px 48px rgba(0,0,0,0.5)";
     this.el.style.backdropFilter = "blur(10px)";
     this.el.style.padding = "6px";
     this.el.style.display = "none";
@@ -54,7 +54,7 @@ export class ContextMenu {
       header.textContent = title;
       header.style.padding = "8px 10px";
       header.style.margin = "0 0 4px 0";
-      header.style.fontSize = "13px";
+      header.style.fontSize = "14px";
       header.style.opacity = "0.9";
       header.style.borderBottom = "1px solid rgba(255,255,255,0.10)";
       this.el.appendChild(header);
@@ -67,7 +67,7 @@ export class ContextMenu {
       btn.textContent = it.label ?? "";
       btn.style.padding = "10px 10px";
       btn.style.fontSize = "14px";
-      btn.style.borderRadius = "8px";
+      btn.style.borderRadius = "10px";
       btn.style.cursor = it.disabled ? "default" : "pointer";
       btn.style.opacity = it.disabled ? "0.45" : "0.95";
       btn.style.pointerEvents = it.disabled ? "none" : "auto";
@@ -158,7 +158,7 @@ export class ContextMenu {
         btn.style.background = "transparent";
         continue;
       }
-      btn.style.background = i === idx ? "rgba(255,255,255,0.07)" : "transparent";
+      btn.style.background = i === idx ? "rgba(255,255,255,0.12)" : "transparent";
     }
   }
 

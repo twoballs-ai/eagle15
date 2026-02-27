@@ -89,13 +89,10 @@ export class BootstrapSystem extends System {
     state.ships.forEach((ship) => {
       if (!ship || ship === state.playerShip) return;
 
-      if (ship.factionId === "pirates") {
-        ship.talkType = "enemy";
-      } else {
-        ship.talkType = "npc";
-        ship.dialogText = ["Привет, странник!", "Хочешь взглянуть на товары?"];
-        ship.talkRadius = 240;
-      }
+      ship.talkType = ship.factionId === "pirates" ? "enemy" : "npc";
+      ship.talkRadius = 280;
+      ship.dialogShown = false;
+      ship.nextAutoDialogAt = 0;
     });
     this.ctx.spawnPoints = spawned.spawnPoints;
 
