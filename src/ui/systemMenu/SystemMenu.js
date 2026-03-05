@@ -5,6 +5,7 @@ import { CraftScreen } from "./screens/CraftScreen.js";
 import { SettingsScreen } from "./screens/SettingsScreen.js";
 import { InventoryScreen } from "./screens/InventoryScreen.js";
 import { MarketScreen } from "./screens/MarketScreen.js";
+import { ObjectGeneratorScreen } from "./screens/ObjectGeneratorScreen.js";
 const TAB_ICONS = {
   map: "🗺️",
   quests: "📜",
@@ -12,6 +13,7 @@ const TAB_ICONS = {
   inventory: "🎒",
   market: "💱",
   settings: "⚙",
+  generator: "🪐",
 };
 function apply(el, styles) { Object.assign(el.style, styles); }
 
@@ -32,6 +34,7 @@ this.tabs = [
   { id: "inventory",label: "Инвентарь" },
   { id: "market",   label: "Рынок" },
   { id: "settings", label: "Настройки" },
+  { id: "generator", label: "Генератор" },
 ];
 this.screens = {
   map: new MapScreen(services),
@@ -40,6 +43,7 @@ this.screens = {
   inventory: new InventoryScreen(services),
   market: new MarketScreen(services),
   settings: new SettingsScreen(services),
+  generator: new ObjectGeneratorScreen(services),
 };
 
     this.root = null;

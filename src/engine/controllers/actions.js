@@ -5,6 +5,7 @@
 export class Actions {
   constructor(input, bindings = null) {
     this.input = input;
+    this.virtualDown = new Set();
 
 this.bindings = bindings ?? {
   cancel:   { keys: ["Escape"] },
@@ -71,7 +72,16 @@ this.bindings = bindings ?? {
         if (this.input.isMouseDown(btn)) return true;
       }
     }
-    return false;
+    return this.virtualDown.has(action);
+  }
+
+  setVirtualAction(action, isDown) {
+    if (isDown) this.virtualDown.add(action);
+    else this.virtualDown.delete(action);
+  }
+
+  clearVirtualActions() {
+    this.virtualDown.clear();
   }
 
   // ---- consume helpers (prevents double-handling) ----

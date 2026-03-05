@@ -5,6 +5,8 @@ import { createAct1Poi } from "../../../data/system/poiGenerators/act1_poi.js";
 import { PoiRuntimeOrbit } from "../../../gameplay/poi/poiRuntimeOrbit.js";
 import { spawnSystemActors } from "../../../gameplay/spawn/spawnSystem.js";
 import { getSpawnAlertLevelFromQuests } from "../../../gameplay/story/actRules.js";
+import { KNOWN_EVENT_IDS } from "../../../data/content/events_router.js";
+import { sanitizeAndValidatePoiDef } from "../../../data/content/validation.js";
 
 export class BootstrapSystem extends System {
   constructor(services, ctx) {
@@ -34,6 +36,7 @@ export class BootstrapSystem extends System {
       randomizeStar: devGen?.randomizeStar,
       randomizePlanets: devGen?.randomizePlanets,
       randomCountRange: devGen?.randomCountRange,
+      devPreset: devGen?.devPreset ?? null,
     });
 
     // bounds
@@ -52,11 +55,16 @@ export class BootstrapSystem extends System {
     // POI (act1)
     // ✅ тут тоже передаём systemId строкой, без sys.id если sys нет
     const sysIdForPoi = sys?.id ?? sid;
-    this.ctx.poiDef = createAct1Poi(galaxy.seed, sysIdForPoi, this.ctx.system);
+    const rawPoiDef = createAct1Poi(galaxy.seed, sysIdForPoi, this.ctx.system);
+    const { poiDef, warnings } = sanitizeAndValidatePoiDef(rawPoiDef, KNOWN_EVENT_IDS);
+    this.ctx.poiDef = poiDef;
     this.ctx.poi = new PoiRuntimeOrbit({
       poiDef: this.ctx.poiDef,
       resolvePos: (poi) => this.ctx.resolvePoiPos(poi),
     });
+    if (warnings.length) {
+      console.warn(`[BootstrapSystem] POI validation warnings for '${sid}':\n${warnings.map((w) => ` - ${w}`).join("\n")}`);
+    }
 
     this.ctx.poiHint = "";
     this.ctx.poiFocus = null;
@@ -74,7 +82,6 @@ export class BootstrapSystem extends System {
       ship.runtime.targetX = null;
       ship.runtime.targetZ = null;
     }
-    console.log("ENTER SYSTEM:", sid);
     // spawn NPC
     const activeQuestDefs = Object.keys(this.ctx.quest?.active ?? {}).map((qid) => this.ctx.content?.questsById?.[qid]).filter(Boolean);
     const spawned = spawnSystemActors({

@@ -5,6 +5,7 @@ import { MinimapWidget } from "../../../ui/widgets/MinimapWidget.js";
 import { QuestWidget } from "../../../ui/widgets/QuestWidget.js";
 import { ShipStatusWidget } from "../../../ui/widgets/ShipStatusWidget.js";
 import { CommsWidget } from "../../../ui/widgets/CommsWidget.js";
+import { MobileControlsWidget } from "../../../ui/widgets/MobileControlsWidget.js";
 
 export class HudSystem extends System {
   constructor(services, ctx) {
@@ -43,6 +44,12 @@ export class HudSystem extends System {
       order: 10,
       enabled: true,
       props: { size: 220 },
+    });
+
+    this.scope.register(new MobileControlsWidget({ id: "mobile-controls", ctx: this.ctx }), {
+      slot: "bottom-right",
+      order: 100,
+      enabled: true,
     });
   }
 

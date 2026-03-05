@@ -5,23 +5,51 @@ function el(tag, className, parent) {
   return e;
 }
 
+const QUALITY_NAMES = ["Экономия", "Баланс", "Качество"];
+
 export class SettingsScreen {
   constructor(services) {
     this.services = services;
-    this.settings = { music: true, sfx: true, invertMouse: false, devMode: false, quality: 2 };
+    this.settingsApi = services?.get?.("settings") ?? null;
+    this.settings = {
+      music: true,
+      sfx: true,
+      invertMouse: false,
+      devMode: false,
+      quality: 1,
+      mobileControls: true,
+    };
     this._loaded = false;
     this.host = null;
     this._styleEl = null;
+    this._unsub = null;
   }
 
   onOpen() {
     if (this._loaded) return;
     this._loaded = true;
+
+    if (this.settingsApi) {
+      this.settings = this.settingsApi.getAll();
+      this._unsub = this.settingsApi.subscribe((cfg) => {
+        this.settings = cfg;
+        this.refresh();
+      });
+      this.refresh();
+      return;
+    }
+
     try {
       const raw = localStorage.getItem("ga_settings");
       if (raw) this.settings = { ...this.settings, ...JSON.parse(raw) };
     } catch (_) {}
     this.refresh();
+  }
+
+  onClose() {
+    this._unsub?.();
+    this._unsub = null;
+    this._loaded = false;
   }
 
   mount(host) {
@@ -33,6 +61,10 @@ export class SettingsScreen {
   destroy() { this.host = null; }
 
   _save() {
+    if (this.settingsApi) {
+      this.settingsApi.patch(this.settings);
+      return;
+    }
     try { localStorage.setItem("ga_settings", JSON.stringify(this.settings)); } catch (_) {}
   }
 
@@ -61,13 +93,14 @@ export class SettingsScreen {
     mkToggle("Звуки", "sfx");
     mkToggle("Инверсия мыши", "invertMouse");
     mkToggle("Режим разработчика", "devMode");
+    mkToggle("Мобильные кнопки управления", "mobileControls");
 
     const quality = el("div", "st-quality", panel);
-    quality.textContent = "Качество:";
+    quality.textContent = "Графический пресет:";
 
     [0, 1, 2].forEach((q) => {
       const b = el("button", "st-qBtn", quality);
-      b.textContent = ["Low", "Mid", "High"][q];
+      b.textContent = QUALITY_NAMES[q];
       b.classList.toggle("is-active", this.settings.quality === q);
       b.addEventListener("click", () => {
         this.settings.quality = q;
@@ -84,10 +117,10 @@ export class SettingsScreen {
       .st-root{display:flex;flex-direction:column;gap:12px}
       .st-top{padding:10px 12px;border:1px solid rgba(160,200,255,.10);border-radius:12px;background:rgba(0,0,0,.18)}
       .st-title{font-weight:900;font-size:16px;color:#e8f0ff}
-      .st-panel{border-radius:14px;border:1px solid rgba(160,200,255,.10);background:rgba(0,0,0,.18);padding:12px;display:flex;flex-direction:column;gap:8px;max-width:520px}
+      .st-panel{border-radius:14px;border:1px solid rgba(160,200,255,.10);background:rgba(0,0,0,.18);padding:12px;display:flex;flex-direction:column;gap:8px;max-width:640px}
       .st-row,.st-qBtn{padding:10px 12px;border-radius:12px;border:1px solid rgba(160,200,255,.12);background:rgba(255,255,255,.04);color:#eaf3ff;cursor:pointer;text-align:left;font-weight:800}
-      .st-quality{display:flex;align-items:center;gap:8px;margin-top:6px}
-      .st-qBtn{min-width:88px;text-align:center}
+      .st-quality{display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap}
+      .st-qBtn{min-width:120px;text-align:center}
       .st-qBtn.is-active{background:rgba(255,255,255,.12);border-color:rgba(0,255,220,.14)}
     `;
     document.head.appendChild(st);
