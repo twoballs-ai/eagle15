@@ -53,8 +53,6 @@ this.ctx.poi = new PoiRuntimeOrbit({
     }
 
     const { entered, focus } = this.ctx.poi.update(shipR);
-if (entered.length) console.log("ENTERED:", entered.map(e => e.id));
-if (focus) console.log("FOCUS:", focus.id);
     for (const p of entered) {
       if (!this.ctx.quest.isVisited(p.id)) {
         this.ctx.quest.markVisited(p.id);
@@ -167,7 +165,7 @@ tryInteractFocusedPoi() {
     if (this.ctx.quest.isQuestCompleted("q:act1:repair_ship")) {
       this.ctx.questLine = "Акт 1 завершён: прыжок выполнен/доступен.";
     } else if (f["act1.beacon_activated"]) {
-      this.ctx.questLine = `Цель: активировать маяк\n${a} | ${b} | ${c} | ${d}`;
+      this.ctx.questLine = `Маяк активирован. Подготовка к прыжку.\n${a} | ${b} | ${c} | ${d}`;
     } else {
       this.ctx.questLine = `Цель: починить корабль\n${a} | ${b} | ${c} | ${d}`;
     }

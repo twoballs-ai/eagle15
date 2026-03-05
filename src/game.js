@@ -32,6 +32,7 @@ import { SurfaceMetrics } from "./engine/runtime/SurfaceMetrics.js";
 import { Inventory } from "./gameplay/inventory/Inventory.js";
 import { Crafting } from "./gameplay/inventory/Crafting.js";
 import { shipRecipes } from "./data/crafting/shipRecipes.js";
+import { SettingsManager, getQualityPreset } from "./data/settings.js";
 export class Game {
   static async create(args) {
     const savedMain = await loadSave("main");
@@ -42,13 +43,20 @@ export class Game {
     this.canvas = canvas;
     this.gl = gl;
 this.__id = Math.random().toString(16).slice(2);
-console.log("[Game:new]", this.__id);
     this.r2d = r2d;
     this.r3d = r3d;
     this.statsEl = statsEl;
 
     // ✅ ЕДИНЫЙ ИСТОЧНИК ИСТИНЫ о поверхности
-    this.surface = new SurfaceMetrics({ canvas: this.canvas, gl: this.gl });
+    this.settings = new SettingsManager();
+    this.surface = new SurfaceMetrics({
+      canvas: this.canvas,
+      gl: this.gl,
+      clampDpr: (dpr) => {
+        const q = getQualityPreset(this.settings.get("quality"));
+        return Math.max(1, Math.min(q.maxDpr, dpr));
+      },
+    });
     // сразу применим размер (первый кадр)
     this.surface.applyCanvasSize();
     this.surface.update();
@@ -107,6 +115,7 @@ console.log("[Game:new]", this.__id);
 
       // ✅ истина
       surface: this.surface,
+      settings: this.settings,
 
       state: this.state,
       galaxy: this.galaxy,
@@ -138,6 +147,12 @@ this.crafting = new Crafting({
 this.services.set("inventory", this.inventory);
 this.services.set("crafting", this.crafting);
 this.services.set("marketPrice", getMarketPrice);
+
+this.settings.subscribe((cfg) => {
+  const quality = getQualityPreset(cfg.quality);
+  this.canvas.style.setProperty("--mobile-ui-scale", String(quality.mobileScale));
+  document.documentElement.style.setProperty("--mobile-ui-scale", String(quality.mobileScale));
+});
     // scenes
     this.sceneGalaxy = new GalaxyMapScene(this.services);
     this.sceneStar = new StarSystemScene(this.services);
@@ -313,7 +328,7 @@ update(dt, time) {
   }
 
 
-  regenerateCurrentSystem({ systemId, randomizeStar = true, randomizePlanets = true, randomCountRange = null } = {}) {
+  regenerateCurrentSystem({ systemId, randomizeStar = true, randomizePlanets = true, randomCountRange = null, devPreset = null } = {}) {
     const sid = String(systemId ?? this.state.currentSystemId ?? "");
     if (!sid) return;
 
@@ -323,6 +338,7 @@ update(dt, time) {
       randomizeStar: !!randomizeStar,
       randomizePlanets: !!randomizePlanets,
       randomCountRange: randomCountRange ?? null,
+      devPreset: devPreset ?? null,
     };
 
     this.openStarSystem(sid);

@@ -198,18 +198,25 @@ export class RenderSystem extends System {
     const U = ASSETS.normalizeUrl;
     const { star, planets } = this.ctx.system;
 
-    const sunModel = assets.getModel(U(ASSETS.models.sun));
+    const sunModelUrl = U(star?.modelUrl ?? ASSETS.models.sun);
+    const sunModel = assets.getModel(sunModelUrl);
     const ySys = this.ctx.systemPlaneY ?? -160;
 
     if (sunModel) {
       const s = star.radius * 10 * scaleMul;
+      const sunEm = star?.visual?.emissive ?? 2.5;
+      const sunAmb = star?.visual?.ambient ?? 0.95;
       r3d.drawModel(sunModel, {
         position: [0, ySys, 0],
         scale: [s, s, s],
         rotationY: this.ctx.time * 0.05,
-        emissive: 2.5,
-        ambient: 0.95,
+        emissive: sunEm,
+        ambient: sunAmb,
       });
+      if (star?.visual?.corona) {
+        r3d.drawRingAt(0, ySys + 0.8, 0, s * 1.16, Math.max(6, s * 0.04), 128, [1.0, 0.72, 0.24, 0.22]);
+        r3d.drawRingAt(0, ySys + 0.5, 0, s * 1.32, Math.max(4, s * 0.025), 128, [1.0, 0.8, 0.35, 0.12]);
+      }
     }
 
     for (const p of planets) {
@@ -223,13 +230,63 @@ export class RenderSystem extends System {
       if (!planetModel) continue;
 
       const s = p.size * scaleMul;
+      const pAmb = p?.visual?.ambient ?? 0.85;
+      const pEm = p?.visual?.emissive ?? 0.0;
       r3d.drawModel(planetModel, {
         position: [x, ySys, z],
         scale: [s, s, s],
         rotationY: this.ctx.time * 0.2,
-        ambient: 0.85,
-        emissive: 0.0,
+        ambient: pAmb,
+        emissive: pEm,
       });
+
+      if (p?.visual?.clouds) {
+        r3d.drawModel(planetModel, {
+          position: [x, ySys, z],
+          scale: [s * 1.024, s * 1.024, s * 1.024],
+          rotationY: -this.ctx.time * 0.1,
+          ambient: 0.98,
+          emissive: 0.09,
+        });
+      }
+      if (p?.visual?.atmosphere) {
+        r3d.drawRingAt(x, ySys + 0.2, z, s * 1.07, Math.max(2, s * 0.05), 72, [0.45, 0.75, 1.0, 0.12]);
+      }
+      if (p?.visual?.rings) {
+        r3d.drawRingAt(x, ySys + 0.05, z, s * 1.5, Math.max(4, s * 0.08), 96, [0.9, 0.86, 0.75, 0.2]);
+      }
+      if (p?.visual?.oceans) {
+        const oceanA = 0.08 + (p?.visual?.oceanIntensity ?? 0.5) * 0.24;
+        r3d.drawRingAt(x, ySys + 0.12, z, s * 0.88, Math.max(2, s * 0.03), 64, [0.2, 0.55, 0.95, oceanA]);
+      }
+      if ((p?.visual?.greenery ?? 0) > 0.01) {
+        const gA = 0.05 + p.visual.greenery * 0.2;
+        r3d.drawRingAt(x, ySys + 0.1, z, s * 0.76, Math.max(2, s * 0.024), 64, [0.24, 0.78, 0.36, gA]);
+      }
+      if ((p?.visual?.rocks ?? 0) > 0.01) {
+        const rA = 0.05 + p.visual.rocks * 0.2;
+        r3d.drawRingAt(x, ySys + 0.08, z, s * 0.66, Math.max(2, s * 0.02), 64, [0.62, 0.49, 0.35, rA]);
+      }
+      const satCount = Math.max(0, Math.floor(p?.visual?.satellitesCount ?? 0));
+      if (satCount > 0) {
+        const satModelUrl = U(p?.visual?.satelliteModelUrl ?? p.modelUrl);
+        const satModel = assets.getModel(satModelUrl) || planetModel;
+        for (let si = 0; si < satCount; si++) {
+          const sa = this.ctx.time * (0.14 + si * 0.03) + ((Math.PI * 2) * (si / satCount));
+          const sr = s * (1.45 + si * 0.16);
+          const sx = x + Math.cos(sa) * sr;
+          const sz = z + Math.sin(sa) * sr;
+          const ss = Math.max(2, s * 0.11);
+          r3d.drawModel(satModel, {
+            position: [sx, ySys + 0.18, sz],
+            scale: [ss, ss, ss],
+            rotationY: this.ctx.time * 0.25,
+            ambient: 0.88,
+            emissive: 0.02,
+          });
+          r3d.drawRingAt(x, ySys + 0.08, z, sr, Math.max(1.2, s * 0.01), 64, [0.8, 0.85, 0.95, 0.1]);
+        }
+      }
     }
 
     r3d.drawOrbit(

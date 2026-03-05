@@ -1,5 +1,6 @@
 // ui/systemMenu/screens/MapScreen.js
 import { MenuSystemMapRenderer } from "./MenuSystemMapRenderer.js";
+import { buildSystemPresetFromDescription, saveGeneratedPresetToFolder } from "../../../data/system/devSystemPrompt.js";
 
 function apply(el, styles) { Object.assign(el.style, styles); }
 
@@ -226,14 +227,11 @@ export class MapScreen {
     const game = this.services.get("game");
     const sid = ctx?.systemId ?? this.services.get("state")?.currentSystemId;
 
-    let devMode = false;
-    try {
-      const raw = localStorage.getItem("ga_settings");
-      devMode = !!(raw && JSON.parse(raw)?.devMode);
-    } catch (_) {}
+    const settings = this.services.get("settings");
+    const devMode = !!settings?.get?.("devMode");
 
     if (!devMode) {
-      this._devBox.innerHTML = "<div style=\"opacity:.5;font-size:12px\">Включите \"Режим разработчика\" в настройках.</div>";
+      this._devBox.innerHTML = '<div style="opacity:.5;font-size:12px">Включите "Режим разработчика" в настройках.</div>';
       return;
     }
 
@@ -266,6 +264,98 @@ export class MapScreen {
 
     this._devBox.appendChild(makeBtn("Больше планет (6-10)", () => {
       if (sid && game?.regenerateCurrentSystem) game.regenerateCurrentSystem({ systemId: sid, randomizeStar: true, randomizePlanets: true, randomCountRange: { min: 6, max: 10 } });
+    }));
+
+    const descrLabel = document.createElement("div");
+    descrLabel.textContent = "Генерация по описанию (dev only)";
+    apply(descrLabel, { fontWeight: "800", margin: "10px 0 6px" });
+    this._devBox.appendChild(descrLabel);
+
+    const ta = document.createElement("textarea");
+    ta.placeholder = "Например: blue hot star; ocean planet with clouds and seas; giant gas world with rings";
+    ta.rows = 5;
+    apply(ta, {
+      width: "100%",
+      borderRadius: "10px",
+      border: "1px solid rgba(160,200,255,.14)",
+      background: "rgba(0,0,0,.18)",
+      color: "#eaf3ff",
+      padding: "8px",
+      resize: "vertical",
+      boxSizing: "border-box",
+      marginBottom: "8px",
+    });
+    this._devBox.appendChild(ta);
+
+    const checks = document.createElement("div");
+    apply(checks, { display: "flex", gap: "12px", marginBottom: "8px", flexWrap: "wrap" });
+    const mkCheck = (label, checked = true) => {
+      const wrap = document.createElement("label");
+      apply(wrap, { display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12px", cursor: "pointer" });
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = checked;
+      wrap.appendChild(cb);
+      const t = document.createElement("span");
+      t.textContent = label;
+      wrap.appendChild(t);
+      checks.appendChild(wrap);
+      return cb;
+    };
+
+    const cbStar = mkCheck("Генерировать звезду", true);
+    const cbPlanets = mkCheck("Генерировать планеты", true);
+    this._devBox.appendChild(checks);
+
+    const status = document.createElement("div");
+    apply(status, { fontSize: "11px", opacity: "0.8", minHeight: "16px", marginBottom: "8px" });
+    this._devBox.appendChild(status);
+
+    const hint = document.createElement("div");
+    hint.textContent = "Ключи: ocean/sea/cloud/rings/lava/ice/gas/crystal/acid/arid, blue/hot/giant.";
+    apply(hint, { fontSize: "11px", opacity: "0.72", marginBottom: "8px" });
+    this._devBox.appendChild(hint);
+
+    let lastPreset = null;
+
+    this._devBox.appendChild(makeBtn("Сгенерировать систему по описанию", () => {
+      if (!sid || !game?.regenerateCurrentSystem) return;
+      if (!cbStar.checked && !cbPlanets.checked) {
+        status.textContent = "Выберите хотя бы один чекбокс (звезда или планеты).";
+        return;
+      }
+
+      const preset = buildSystemPresetFromDescription(ta.value, {
+        includeStar: cbStar.checked,
+        includePlanets: cbPlanets.checked,
+        preserveStar: ctx?.system?.star ?? null,
+        preservePlanets: ctx?.system?.planets ?? null,
+      });
+      lastPreset = preset;
+      game.regenerateCurrentSystem({
+        systemId: sid,
+        randomizeStar: !cbStar.checked,
+        randomizePlanets: !cbPlanets.checked,
+        devPreset: preset,
+      });
+      status.textContent = `Сгенерировано: ${cbStar.checked ? "звезда" : "без звезды"}, ${cbPlanets.checked ? "планеты" : "без планет"}.`;
+    }));
+
+    this._devBox.appendChild(makeBtn("Сохранить сгенерированную модель в папку", async () => {
+      const preset = lastPreset ?? buildSystemPresetFromDescription(ta.value, {
+        includeStar: cbStar.checked,
+        includePlanets: cbPlanets.checked,
+        preserveStar: ctx?.system?.star ?? null,
+        preservePlanets: ctx?.system?.planets ?? null,
+      });
+      try {
+        const res = await saveGeneratedPresetToFolder(preset, sid ?? "system");
+        status.textContent = res.method === "folder"
+          ? `Сохранено в выбранную папку: ${res.fileName}`
+          : `Браузер не дал доступ к папке, скачан файл: ${res.fileName}`;
+      } catch (e) {
+        status.textContent = `Ошибка сохранения: ${e?.message ?? e}`;
+      }
     }));
   }
 }

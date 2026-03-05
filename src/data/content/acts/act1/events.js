@@ -1,6 +1,16 @@
 // data/content/acts/act1/events.js
 const MAIN_Q = "q:act1:repair_ship";
 
+export const ACT1_EVENT_IDS = [
+  "event_scan_planet_a",
+  "event_station_contact",
+  "event_salvage_parts_b",
+  "event_anomaly_field",
+  "event_trace_enemy_c",
+  "event_beacon_hint",
+];
+
+
 export function runAct1Event(eventId, { quest, story } = {}) {
   switch (eventId) {
     case "event_scan_planet_a": {

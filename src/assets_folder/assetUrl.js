@@ -17,7 +17,7 @@ export function resolveAssetUrl(assetPath) {
   const raw = String(assetPath ?? "").trim();
   if (!raw) return raw;
 
-  if (/^(?:[a-z]+:)?\/\//i.test(raw) || raw.startsWith("data:")) {
+  if (/^(?:[a-z]+:)?\/\//i.test(raw) || raw.startsWith("data:") || raw.startsWith("blob:")) {
     return raw;
   }
 

@@ -27,7 +27,73 @@ export function createStarSystem(seed, systemId, opts = {}) {
   const star = {
     radius: (40 + rand() * 30) * SCALE * starRadiusMul,
     color: [1.0, 0.9, 0.6],
+    modelUrl: ASSETS.models.sun,
   };
+
+  if (opts?.devPreset?.mode === "description") {
+    const preset = opts.devPreset;
+    const starCfg = preset.star;
+
+    if (starCfg) {
+      const sr = Number.isFinite(starCfg.radiusMul) ? starCfg.radiusMul : 1;
+      star.radius *= sr;
+      if (Array.isArray(starCfg.color) && starCfg.color.length >= 3) {
+        star.color = [starCfg.color[0], starCfg.color[1], starCfg.color[2]];
+      }
+      star.visual = { ...(starCfg.visual ?? {}) };
+      if (typeof starCfg.modelUrl === "string" && starCfg.modelUrl.length) {
+        star.modelUrl = ASSETS.normalizeUrl(starCfg.modelUrl);
+      }
+    }
+
+    const fixedPlanets = Array.isArray(preset.planets) ? preset.planets : [];
+    if (fixedPlanets.length) {
+      let localOrbit = star.radius + 260 * SCALE;
+      const out = [];
+      for (let i = 0; i < fixedPlanets.length; i++) {
+        const pp = fixedPlanets[i] ?? {};
+
+        if (pp.preserveExact) {
+          out.push({
+            id: pp.id ?? `keep-${i}`,
+            name: pp.name ?? `Planet ${i + 1}`,
+            orbitRadius: Number.isFinite(pp.orbitRadius) ? pp.orbitRadius : localOrbit,
+            size: Number.isFinite(pp.size) ? pp.size : (9 * SCALE),
+            speed: Number.isFinite(pp.speed) ? pp.speed : ((0.3 * SPEED_SCALE) / Math.sqrt((localOrbit || 1) / (160 * SCALE))),
+            phase: Number.isFinite(pp.phase) ? pp.phase : rand() * Math.PI * 2,
+            color: Array.isArray(pp.color) && pp.color.length >= 3 ? [pp.color[0], pp.color[1], pp.color[2]] : [0.75, 0.75, 0.75],
+            modelUrl: pickModelUrl(pp, rand),
+            fixed: true,
+            visual: { ...(pp.visual ?? {}), type: pp.type ?? null },
+          });
+          continue;
+        }
+
+        const orbitRadius = Number.isFinite(pp.orbitRadius) ? pp.orbitRadius : localOrbit;
+        const sizeBase = Number.isFinite(pp.size) ? pp.size : (7 + rand() * 11) * SCALE * 0.72 * PLANET_SIZE_SCALE;
+        const sizeMul = Number.isFinite(pp.sizeMul) ? pp.sizeMul : 1;
+        const size = sizeBase * sizeMul;
+        const distFactor = Math.sqrt(orbitRadius / (160 * SCALE));
+        const speed = Number.isFinite(pp.speed)
+          ? pp.speed
+          : ((0.24 + rand() * 0.55) * SPEED_SCALE) / distFactor;
+        out.push({
+          id: pp.id ?? `dev-${i}`,
+          name: pp.name ?? `Planet ${i + 1}`,
+          orbitRadius,
+          size,
+          speed,
+          phase: Number.isFinite(pp.phase) ? pp.phase : rand() * Math.PI * 2,
+          color: Array.isArray(pp.color) && pp.color.length >= 3 ? [pp.color[0], pp.color[1], pp.color[2]] : [0.7 + rand() * 0.3, 0.7 + rand() * 0.3, 0.7 + rand() * 0.3],
+          modelUrl: pickModelUrl(pp, rand),
+          fixed: true,
+          visual: { ...(pp.visual ?? {}), type: pp.type ?? null },
+        });
+        localOrbit = nextOrbit(Math.max(localOrbit, orbitRadius), rand, SCALE, ORBIT_GAP_SCALE);
+      }
+      return { star, planets: out, systemId: id, def: def ?? null, generatedFromPrompt: true };
+    }
+  }
 
   // Базовая орбита (первая планета) и шаги орбит
   let orbit = star.radius + 220 * SCALE;

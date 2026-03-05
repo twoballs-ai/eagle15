@@ -5,6 +5,7 @@ import { ACT1_DEF } from "./acts/act1/act.js";
 import { ACT1_CUTSCENES } from "./acts/act1/cutscenes.js";
 import { ACT1_TRIGGERS } from "./acts/act1/triggers.js";
 import { runEvent } from "./events_router.js";
+import { validateContentRegistry } from "./validation.js";
 // ===== world =====
 import { WORLD_TRIGGERS } from "./world/triggers/worldTriggers.js";
 import { QUEST_CATALOG } from "../../gameplay/quest/questCatalog.js";
@@ -34,7 +35,11 @@ export function createContentRegistry() {
 
   const worldHooks = WORLD_TRIGGERS;
 
-
+  const validationWarnings = validateContentRegistry({ questsById, cutscenesById, hooksByAct });
+  if (validationWarnings.length) {
+    console.warn(`[ContentRegistry] validation warnings:
+${validationWarnings.map((w) => ` - ${w}`).join("\n")}`);
+  }
 
   return {
     acts,

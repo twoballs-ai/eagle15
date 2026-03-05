@@ -62,6 +62,7 @@ function tick(ts) {
     statsEl,
   });
 
+  window.__game = game;
   onResize();
   requestAnimationFrame(tick); // ❗ стартуем цикл после инициализации
 })();
