@@ -1,39 +1,20 @@
 // engine/renderer3d.js
 import { mat4 } from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index.js";
 import { loadGLBModel } from "../assets_folder/glbLoader.js";
+import { createProgram } from "./gl.js";
 import { ModelRenderer } from "./renderer/modelRenderer.js";
 import { Starfield } from "./renderer/starfield.js";
 import { GalaxySpiral } from "./renderer/galaxySpiral.js";
 import { ThickRings } from "./renderer/rings2d3d.js";
 import { ExtrudedRings } from "./renderer/extrudedRings.js";
 import { OverlayQuad } from "./renderer/overlayQuad.js";
-function compile(gl, type, src) {
-  const s = gl.createShader(type);
-  gl.shaderSource(s, src);
-  gl.compileShader(s);
-  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-    throw new Error(gl.getShaderInfoLog(s) || "Shader compile failed");
-  }
-  return s;
-}
-
-function link(gl, vs, fs) {
-  const p = gl.createProgram();
-  gl.attachShader(p, vs);
-  gl.attachShader(p, fs);
-  gl.linkProgram(p);
-  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
-    throw new Error(gl.getProgramInfoLog(p) || "Program link failed");
-  }
-  return p;
-}
 
 export class Renderer3D {
   constructor(gl) {
     this.gl = gl;
 
     // ===== Line program (orbits) =====
-    const vsLine = compile(gl, gl.VERTEX_SHADER, `#version 300 es
+    const vsLine = `#version 300 es
       precision highp float;
 
       layout(location=0) in vec3 aPos;
@@ -42,18 +23,18 @@ export class Renderer3D {
       void main() {
         gl_Position = uVP * vec4(aPos, 1.0);
       }
-    `);
+    `;
 
-    const fsLine = compile(gl, gl.FRAGMENT_SHADER, `#version 300 es
+    const fsLine = `#version 300 es
       precision highp float;
 
       uniform vec4 uColor;
       out vec4 outColor;
 
       void main() { outColor = uColor; }
-    `);
+    `;
 
-    this.progLine = link(gl, vsLine, fsLine);
+    this.progLine = createProgram(gl, vsLine, fsLine);
     this.uLine = {
       vp: gl.getUniformLocation(this.progLine, "uVP"),
       color: gl.getUniformLocation(this.progLine, "uColor"),

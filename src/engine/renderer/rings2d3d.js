@@ -1,37 +1,14 @@
 // engine/renderer/rings2d3d.js
 // Толстые кольца/круги на плоскости XZ (world-space) через TRIANGLE_STRIP.
 // Не зависит от gl.lineWidth (который в WebGL почти всегда 1).
-
-function compile(gl, type, src) {
-  const s = gl.createShader(type);
-  gl.shaderSource(s, src);
-  gl.compileShader(s);
-  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-    throw new Error(gl.getShaderInfoLog(s) || "Shader compile failed");
-  }
-  return s;
-}
-
-function link(gl, vs, fs) {
-  const p = gl.createProgram();
-  gl.attachShader(p, vs);
-  gl.attachShader(p, fs);
-  gl.linkProgram(p);
-  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
-    throw new Error(gl.getProgramInfoLog(p) || "Program link failed");
-  }
-  return p;
-}
+import { createProgram } from "../gl.js";
 
 export class ThickRings {
   constructor(gl, { maxSegments = 256 } = {}) {
     this.gl = gl;
     this.maxSegments = Math.min(256, Math.max(8, maxSegments | 0));
 
-    const vs = compile(
-      gl,
-      gl.VERTEX_SHADER,
-      `#version 300 es
+    const vs = `#version 300 es
 precision highp float;
 
 layout(location=0) in vec3 aPos;
@@ -40,13 +17,9 @@ uniform mat4 uVP;
 void main() {
   gl_Position = uVP * vec4(aPos, 1.0);
 }
-`,
-    );
+`;
 
-    const fs = compile(
-      gl,
-      gl.FRAGMENT_SHADER,
-      `#version 300 es
+    const fs = `#version 300 es
 precision highp float;
 
 uniform vec4 uColor;
@@ -55,10 +28,9 @@ out vec4 outColor;
 void main() {
   outColor = uColor;
 }
-`,
-    );
+`;
 
-    this.prog = link(gl, vs, fs);
+    this.prog = createProgram(gl, vs, fs);
     this.uVP = gl.getUniformLocation(this.prog, "uVP");
     this.uColor = gl.getUniformLocation(this.prog, "uColor");
 
