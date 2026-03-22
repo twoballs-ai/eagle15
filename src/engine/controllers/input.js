@@ -9,9 +9,10 @@
 // - records last pointerdown target so UI can do "click outside" WITHOUT its own event listeners
 
 export class Input {
-  constructor({ canvas, getView }) {
+  constructor({ canvas, getView, getCanvasRect }) {
     this.canvas = canvas;
     this.getView = getView;
+    this.getCanvasRect = getCanvasRect;
 
     // ---- Keyboard ----
     this.keysDown = new Set();
@@ -44,10 +45,7 @@ export class Input {
 
     // Pointer move is only needed on canvas to keep coordinates consistent with render
     this._onPointerMove = (e) => {
-const rect = this.canvas.getBoundingClientRect();
-const dpr = this.getView?.()?.dpr ?? window.devicePixelRatio ?? 1;
-this.mouseX = (e.clientX - rect.left) * dpr;
-this.mouseY = (e.clientY - rect.top) * dpr;
+      this._updatePointerPosition(e);
     };
 
     // We capture pointerdown on WINDOW so we can react to clicks anywhere (menus, UI, outside canvas).
@@ -61,10 +59,7 @@ this.mouseY = (e.clientY - rect.top) * dpr;
       this._lastPointerDownWasOnCanvas = !!onCanvas;
       // If pointerdown is on canvas, update coords right here (in case there was no prior move)
       if (onCanvas) {
-const rect = this.canvas.getBoundingClientRect();
-const dpr = this.getView?.()?.dpr ?? window.devicePixelRatio ?? 1;
-this.mouseX = (e.clientX - rect.left) * dpr;
-this.mouseY = (e.clientY - rect.top) * dpr;
+        this._updatePointerPosition(e);
       }
 
       // Mouse button mapping (pointer events still expose .button for mouse)
@@ -126,6 +121,19 @@ this.mouseY = (e.clientY - rect.top) * dpr;
       this.mousePressed[buttonName] = true;
     }
     this.mouseDown[buttonName] = true;
+  }
+
+  _updatePointerPosition(e) {
+    const rect =
+      this.getCanvasRect?.() ??
+      (() => {
+        const r = this.canvas.getBoundingClientRect();
+        return { x: r.left, y: r.top, w: r.width, h: r.height };
+      })();
+
+    const dpr = this.getView?.()?.dpr ?? window.devicePixelRatio ?? 1;
+    this.mouseX = (e.clientX - rect.x) * dpr;
+    this.mouseY = (e.clientY - rect.y) * dpr;
   }
 
 
