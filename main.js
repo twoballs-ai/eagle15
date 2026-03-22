@@ -8,8 +8,19 @@ const canvas = document.getElementById("game");
 const statsEl = document.getElementById("stats");
 
 const gl = createGL(canvas);
-installGLTraceFile(gl, { logEvery: 1, name: "minimap-trace" });
-window.dumpTrace = () => gl.__trace?.download({ format: "text" });
+const url = new URL(window.location.href);
+const traceEnabled =
+  url.searchParams.get("glTrace") === "1" ||
+  window.localStorage.getItem("glTrace") === "1";
+
+if (traceEnabled) {
+  installGLTraceFile(gl, { logEvery: 1, name: "minimap-trace" });
+  window.dumpTrace = () => gl.__trace?.download({ format: "text" });
+} else {
+  window.dumpTrace = () => {
+    console.warn("GL trace disabled. Add ?glTrace=1 or localStorage.glTrace=1 to enable.");
+  };
+}
 
 const r2d = new Renderer2D(gl);
 const r3d = new Renderer3D(gl);
@@ -25,6 +36,16 @@ function onResize() {
 }
 
 window.addEventListener("resize", onResize);
+
+canvas.addEventListener("webglcontextlost", (event) => {
+  event.preventDefault();
+  console.error("[WebGL] context lost");
+}, false);
+
+canvas.addEventListener("webglcontextrestored", () => {
+  console.warn("[WebGL] context restored, reloading page to rebuild GPU resources");
+  window.location.reload();
+}, false);
 
 function tick(ts) {
   if (!game) return; // пока не создан, ждём
