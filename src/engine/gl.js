@@ -3,6 +3,8 @@ export function createGL(canvas) {
     alpha: false,
     antialias: false,
     depth: true,
+    failIfMajorPerformanceCaveat: false,
+    powerPreference: "high-performance",
     stencil: false,
     premultipliedAlpha: false,
     preserveDrawingBuffer: false,

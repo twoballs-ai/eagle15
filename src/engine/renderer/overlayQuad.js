@@ -1,30 +1,11 @@
 // engine/renderer/overlayQuad.js
-function compile(gl, type, src) {
-  const s = gl.createShader(type);
-  gl.shaderSource(s, src);
-  gl.compileShader(s);
-  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-    throw new Error(gl.getShaderInfoLog(s) || "Shader compile failed");
-  }
-  return s;
-}
-
-function link(gl, vs, fs) {
-  const p = gl.createProgram();
-  gl.attachShader(p, vs);
-  gl.attachShader(p, fs);
-  gl.linkProgram(p);
-  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
-    throw new Error(gl.getProgramInfoLog(p) || "Program link failed");
-  }
-  return p;
-}
+import { createProgram } from "../gl.js";
 
 export class OverlayQuad {
   constructor(gl) {
     this.gl = gl;
 
-    const vs = compile(gl, gl.VERTEX_SHADER, `#version 300 es
+    const vs = `#version 300 es
 precision highp float;
 layout(location=0) in vec2 aPos;
 out vec2 vUV;
@@ -32,16 +13,16 @@ void main() {
   vUV = aPos * 0.5 + 0.5;
   gl_Position = vec4(aPos, 0.0, 1.0);
 }
-`);
+`;
 
-    const fs = compile(gl, gl.FRAGMENT_SHADER, `#version 300 es
+    const fs = `#version 300 es
 precision highp float;
 uniform vec4 uColor;
 out vec4 outColor;
 void main() { outColor = uColor; }
-`);
+`;
 
-    this.prog = link(gl, vs, fs);
+    this.prog = createProgram(gl, vs, fs);
     this.uColor = gl.getUniformLocation(this.prog, "uColor");
 
     this.vao = gl.createVertexArray();

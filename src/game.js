@@ -78,7 +78,11 @@ this.__id = Math.random().toString(16).slice(2);
 
     // ✅ Input пока оставляем как есть (он использует viewport CSS)
     // Позже переведём на surface для точного mapping
-    this.input = new Input({ canvas: this.canvas, getView: () => this.getView() });
+    this.input = new Input({
+      canvas: this.canvas,
+      getView: () => this.getView(),
+      getCanvasRect: () => this.surface.value.canvasCssRect,
+    });
     this.actions = new Actions(this.input);
 
     this.assets = new AssetManager({ r2d, r3d });

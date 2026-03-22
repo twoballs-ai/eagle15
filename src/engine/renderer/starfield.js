@@ -1,27 +1,7 @@
 import { mat4 } from "https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index.js";
+import { createProgram } from "../gl.js";
 
 /* ==================== utils ==================== */
-
-function compile(gl, type, src) {
-  const s = gl.createShader(type);
-  gl.shaderSource(s, src);
-  gl.compileShader(s);
-  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-    throw new Error(gl.getShaderInfoLog(s));
-  }
-  return s;
-}
-
-function link(gl, vs, fs) {
-  const p = gl.createProgram();
-  gl.attachShader(p, vs);
-  gl.attachShader(p, fs);
-  gl.linkProgram(p);
-  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
-    throw new Error(gl.getProgramInfoLog(p));
-  }
-  return p;
-}
 
 /* ==================== STARFIELD ==================== */
 
@@ -36,7 +16,7 @@ export class Starfield {
 
     /* ---------- shaders ---------- */
 
-    const vs = compile(gl, gl.VERTEX_SHADER, `#version 300 es
+    const vs = `#version 300 es
 precision highp float;
 
 layout(location=0) in vec3 aPos;
@@ -65,9 +45,9 @@ void main() {
   vColor = aColor;
   vAlpha = aAlpha;
 }
-`);
+`;
 
-    const fs = compile(gl, gl.FRAGMENT_SHADER, `#version 300 es
+    const fs = `#version 300 es
 precision highp float;
 
 in vec3 vColor;
@@ -80,9 +60,9 @@ void main() {
   float a = smoothstep(1.0, 0.15, r);
   outColor = vec4(vColor, vAlpha * a);
 }
-`);
+`;
 
-    this.prog = link(gl, vs, fs);
+    this.prog = createProgram(gl, vs, fs);
     this.uVP = gl.getUniformLocation(this.prog, "uVP");
     this.uDpr = gl.getUniformLocation(this.prog, "uDpr");
 this.uParallax = gl.getUniformLocation(this.prog, "uParallax");
