@@ -1,4 +1,70 @@
-node_modules/
+```
+# Build artifacts
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.exe
+*.out
 
-# C++ build artifacts
-c_cpp_migration/cpp_project/build/
+# C++ specific
+*.ilk
+*.pdb
+*.gch
+*.ii
+*.mi
+*.ci
+*.s
+*.S
+*.mod
+*.pbxproj
+*.ncb
+*.sdf
+*.opendb
+*.suppdata
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.manifest
+Makefile
+cmake-build-*/
+build/
+
+# Dependencies
+node_modules/
+vendor/
+
+# IDE specific
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# OS generated
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Coverage reports
+coverage/
+htmlcov/
+*.coverage
+
+# Python (in case there are Python scripts in the migration tools)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+```

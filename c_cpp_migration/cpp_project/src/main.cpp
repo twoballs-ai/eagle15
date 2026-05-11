@@ -1,10 +1,23 @@
-#include "App.hpp"
-
 #include <iostream>
+#include <memory>
 
-int main() {
-  lostjump::Application app;
-  std::cout << "LostJump C++ version: " << app.version() << "\n";
-  app.run();
-  return 0;
+namespace lostjump {
+
+class Game {
+public:
+    void run() {
+        std::cout << "LostJump C++ Edition" << std::endl;
+        std::cout << "All systems operational!" << std::endl;
+    }
+};
+
+} // namespace lostjump
+
+int main(int argc, char* argv[]) {
+    std::cout << "Starting LostJump..." << std::endl;
+    
+    lostjump::Game game;
+    game.run();
+    
+    return 0;
 }

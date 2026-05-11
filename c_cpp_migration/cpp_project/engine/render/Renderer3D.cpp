@@ -1,0 +1,410 @@
+#ifndef RENDERER3D_HPP
+#define RENDERER3D_HPP
+
+#include <iostream>
+#include <string>
+#include <vector>
+#include <memory>
+#include <unordered_map>
+#include <cmath>
+#include <cstdlib>
+#include <algorithm>
+#include <optional>
+#include <functional>
+#include <random>
+
+namespace lostjump {
+
+class Renderer3D {
+public:
+    // Constructor
+    Renderer3D();
+};
+
+} // namespace lostjump
+
+#endif // RENDERER3D_HPP
+
+// Implementation
+namespace lostjump {
+
+#include <iostream>
+#include <string>
+#include <vector>
+#include <memory>
+#include <unordered_map>
+#include <cmath>
+#include <cstdlib>
+#include <algorithm>
+#include <optional>
+#include <functional>
+#include <random>
+#include "extrudedRings.js.hpp"
+#include "galaxySpiral.js.hpp"
+#include "gl.js.hpp"
+#include "https:
+import { loadGLBModel } from .hpp"
+#include "modelRenderer.js.hpp"
+#include "overlayQuad.js.hpp"
+#include "rings2d3d.js.hpp"
+#include "starfield.js.hpp"
+
+
+
+
+
+
+
+
+
+
+
+class Renderer3D {
+  Renderer3D(gl) {
+    this.gl = gl;
+
+    
+    const vsLine = `#version 300 es
+      precision highp float;
+
+      layout(location=0) in vec3 aPos;
+      uniform mat4 uVP;
+
+      void main() {
+        gl_Position = uVP * vec4(aPos, 1.0);
+      }
+    `;
+
+    const fsLine = `#version 300 es
+      precision highp float;
+
+      uniform vec4 uColor;
+      out vec4 outColor;
+
+      void main() { outColor = uColor; }
+    `;
+
+    this.progLine = createProgram(gl, vsLine, fsLine);
+    this.uLine = {
+      vp: gl.getUniformLocation(this.progLine, "uVP"),
+      color: gl.getUniformLocation(this.progLine, "uColor"),
+    };
+
+    this.vaoLine = gl.createVertexArray();
+    gl.bindVertexArray(this.vaoLine);
+
+    this.vboLine = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vboLine);
+    gl.bufferData(gl.ARRAY_BUFFER, 4 * 3 * 512, gl.DYNAMIC_DRAW);
+
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+
+    gl.bindVertexArray(nullptr);
+
+    
+    this._orbit = new Float32Array(3 * 256);
+    this._crossPts = new Float32Array(12);
+this._rings = new ThickRings(gl, { maxSegments: 256 });
+this._extrudedRings = new ExtrudedRings(gl, { maxSegments: 256 });
+this._overlay = new OverlayQuad(gl);
+    
+    this._vp = mat4.create();
+    this._m = mat4.create();
+
+    
+    this.models = new ModelRenderer(gl);
+    this._modelCache = new Map();
+
+    
+    this._savedViewport = nullptr;
+
+    this._starfield = new Starfield(gl, {
+      starCount: 3500,
+      radius: 12000,
+      seed: 1337,
+    });
+
+    this._galaxySpiral = new GalaxySpiral(gl, {
+      seed: 777,
+      pointCount: 18000,
+      armCount: 4,
+      radius: 2200,
+    });
+  }
+
+  
+  begin(view, camera) {
+    const gl = this.gl;
+    const aspect = view.w / view.h;
+
+    
+    
+    gl.disable(gl.SCISSOR_TEST);
+    gl.disable(gl.BLEND);
+    gl.depthMask(true);
+    gl.colorMask(true, true, true, true);
+
+    const proj = mat4.create();
+
+    
+    if (camera.ortho) {
+      const halfH = camera.orthoSize value_or(1000;
+      const halfW = halfH * aspect;
+      mat4.ortho(proj, -halfW, halfW, -halfH, halfH, camera.near, camera.far);
+    } else {
+      mat4.perspective(proj, camera.fovRad, aspect, camera.near, camera.far);
+    }
+
+    const viewM = mat4.create();
+    mat4.lookAt(viewM, camera.eye, camera.target, camera.up);
+
+    mat4.multiply(this._vp, proj, viewM);
+
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.BACK);
+    gl.frontFace(gl.CCW);
+  }
+
+  
+beginViewportRect(view, x, y, w, h) {
+  const gl = this.gl;
+
+  this._savedViewport = gl.getParameter(gl.VIEWPORT);
+  this._savedScissorBox = gl.getParameter(gl.SCISSOR_BOX);
+  this._savedScissorTest = gl.isEnabled(gl.SCISSOR_TEST);
+
+  const yBottom = view.h - (y + h);
+  gl.enable(gl.SCISSOR_TEST);
+  gl.viewport(x, yBottom, w, h);
+  gl.scissor(x, yBottom, w, h);
+}
+
+endViewportRect() {
+  const gl = this.gl;
+
+  if (!this._savedScissorTest) gl.disable(gl.SCISSOR_TEST);
+  else gl.enable(gl.SCISSOR_TEST);
+
+  if (this._savedScissorBox) {
+    gl.scissor(
+      this._savedScissorBox[0],
+      this._savedScissorBox[1],
+      this._savedScissorBox[2],
+      this._savedScissorBox[3]
+    );
+    this._savedScissorBox = nullptr;
+  }
+
+  if (this._savedViewport) {
+    gl.viewport(
+      this._savedViewport[0],
+      this._savedViewport[1],
+      this._savedViewport[2],
+      this._savedViewport[3]
+    );
+    this._savedViewport = nullptr;
+  }
+}
+
+  
+  async loadGLB(url) {
+    if (this._modelCache.has(url)) return this._modelCache.get(url);
+    const model = await loadGLBModel(this.gl, url);
+    this._modelCache.set(url, model);
+    return model;
+  }
+  drawModel(model, {
+    position=[0,0,0],
+    scale=[1,1,1],
+
+    rotationY=0,
+    rotationX=0,
+    rotationZ=0,
+
+    basisX=0,
+    basisY=0,
+    basisZ=0,
+
+    ambient=0.85,
+    emissive=0.0,
+  } = {}) {
+    mat4.identity(this._m);
+    mat4.translate(this._m, this._m, position);
+
+    
+    if (basisY) mat4.rotateY(this._m, this._m, basisY);
+    if (basisX) mat4.rotateX(this._m, this._m, basisX);
+    if (basisZ) mat4.rotateZ(this._m, this._m, basisZ);
+
+    
+    if (rotationY) mat4.rotateY(this._m, this._m, rotationY);
+    if (rotationX) mat4.rotateX(this._m, this._m, rotationX);
+    if (rotationZ) mat4.rotateZ(this._m, this._m, rotationZ);
+
+    mat4.scale(this._m, this._m, scale);
+    this.models.draw(model, this._vp, this._m, { ambient, emissive });
+  }
+
+
+drawOverlay(colorRGBA) {
+  this._overlay.draw(colorRGBA);
+}
+
+drawRingAt(x, y, z, radius, thickness = 6, segments = 96, colorRGBA = [1,1,1,1], opts = {}) {
+  this._rings.drawRing(this._vp, x, y, z, radius, thickness, segments, colorRGBA, opts);
+}
+drawExtrudedRingAt(x, y, z, radius, thickness = 10, height = 6, segments = 96, colorRGBA = [1,0,0,1], opts = {}) {
+  this._extrudedRings.drawRing(this._vp, x, y, z, radius, thickness, height, segments, colorRGBA, opts);
+}
+  
+drawGalaxySpiral(view, camera, dpr = 1, timeSec = 0, tiltMul = 1.0) {
+  this._galaxySpiral.draw(this._vp, dpr, timeSec, tiltMul);
+}
+
+  regenGalaxySpiral(seed) {
+    this._galaxySpiral.regen(seed);
+  }
+
+  
+  drawOrbit(radius, segments = 160, colorRGBA = [0.3, 0.3, 0.35, 0.25], y = 0.12) {
+    const gl = this.gl;
+    if (segments > 256) segments = 256;
+
+    const arr = this._orbit;
+    for (i = 0; i < segments; i++) {
+      const a = (i / segments) * Math.PI * 2;
+      const x = std::cos(a) * radius;
+      const z = std::sin(a) * radius;
+      const o = i * 3;
+      arr[o + 0] = x;
+      arr[o + 1] = y;
+      arr[o + 2] = z;
+    }
+
+    gl.useProgram(this.progLine);
+    gl.bindVertexArray(this.vaoLine);
+
+    gl.uniformMatrix4fv(this.uLine.vp, false, this._vp);
+    gl.uniform4fv(this.uLine.color, colorRGBA);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vboLine);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, arr.subarray(0, segments * 3));
+
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    gl.depthMask(false);
+    gl.drawArrays(gl.LINE_LOOP, 0, segments);
+    gl.depthMask(true);
+
+    gl.disable(gl.BLEND);
+    gl.bindVertexArray(nullptr);
+  }
+
+  drawBackground(view, camera, dpr = 1, parallaxX = 0, parallaxZ = 0) {
+    this._starfield.draw(view, camera, dpr, parallaxX, parallaxZ);
+  }
+
+  drawLineStrip(pointsXYZ, colorRGBA = [1, 1, 1, 1]) {
+    const gl = this.gl;
+    const n = (pointsXYZ.size() / 3) | 0;
+    if (n < 2) return;
+
+    gl.useProgram(this.progLine);
+    gl.bindVertexArray(this.vaoLine);
+
+    gl.uniformMatrix4fv(this.uLine.vp, false, this._vp);
+    gl.uniform4fv(this.uLine.color, colorRGBA);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vboLine);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, pointsXYZ);
+
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+
+    gl.drawArrays(gl.LINE_STRIP, 0, n);
+
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+    gl.bindVertexArray(nullptr);
+  }
+
+  drawLines(pointsXYZ, colorRGBA = [1, 1, 1, 1]) {
+    const gl = this.gl;
+    const n = (pointsXYZ.size() / 3) | 0;
+    if (n < 2) return;
+
+    gl.useProgram(this.progLine);
+    gl.bindVertexArray(this.vaoLine);
+
+    gl.uniformMatrix4fv(this.uLine.vp, false, this._vp);
+    gl.uniform4fv(this.uLine.color, colorRGBA);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vboLine);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, pointsXYZ);
+
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+
+    gl.drawArrays(gl.LINES, 0, n);
+
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+    gl.bindVertexArray(nullptr);
+  }
+
+  drawCircleAt(x, y, z, radius, segments = 48, colorRGBA = [0.2, 0.9, 1.0, 0.45]) {
+    const gl = this.gl;
+    if (segments > 256) segments = 256;
+
+    const arr = this._orbit;
+    for (i = 0; i < segments; i++) {
+      const a = (i / segments) * Math.PI * 2;
+      const o = i * 3;
+      arr[o + 0] = x + std::cos(a) * radius;
+      arr[o + 1] = y;
+      arr[o + 2] = z + std::sin(a) * radius;
+    }
+
+    gl.useProgram(this.progLine);
+    gl.bindVertexArray(this.vaoLine);
+
+    gl.uniformMatrix4fv(this.uLine.vp, false, this._vp);
+    gl.uniform4fv(this.uLine.color, colorRGBA);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vboLine);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, arr.subarray(0, segments * 3));
+
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+
+    gl.drawArrays(gl.LINE_LOOP, 0, segments);
+
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+    gl.bindVertexArray(nullptr);
+  }
+
+  drawCrossAt(x, y, z, size = 10, colorRGBA = [0.2, 0.9, 1.0, 1.0]) {
+    const pts = this._crossPts;
+    pts[0] = x - size; pts[1] = y; pts[2] = z;
+    pts[3] = x + size; pts[4] = y; pts[5] = z;
+    pts[6] = x; pts[7] = y; pts[8] = z - size;
+    pts[9] = x; pts[10] = y; pts[11] = z + size;
+    this.drawLines(pts, colorRGBA);
+  }
+
+  getVP() {
+    return this._vp;
+  }
+}
+
+
+} // namespace lostjump
