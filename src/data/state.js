@@ -28,6 +28,7 @@ console.log("[STATE] createState(save):", save);
     playerShip,
     characters: [],
     ships: [playerShip],
+    onlinePeers: [],
     ui: { menuOpen: false, modalOpen: false },
     currentSystemId: null,
     selectedSystemId: null,

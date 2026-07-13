@@ -52,6 +52,7 @@ export class RenderSystem extends System {
     // ships
     this.drawPlayerShip3D(r3d);
     this.drawOtherShips3D(r3d);
+    this.drawOnlineShips3D(r3d);
     this.drawNpcFov3D(r3d);
 
     // flame
@@ -122,6 +123,32 @@ export class RenderSystem extends System {
         basisX: b.x, basisY: b.y, basisZ: b.z,
         ambient: 0.8,
         emissive: ship.isEnemy || ship.factionId === "pirates" ? 0.3 : 0.0,
+      });
+    }
+  }
+
+
+  drawOnlineShips3D(r3d) {
+    const state = this.s.get("state");
+    const assets = this.s.get("assets");
+    const peers = state.onlinePeers || [];
+    const shipModel = assets?.models?.ship;
+    if (!shipModel || peers.length === 0) return;
+
+    const b = getBasis("ship");
+
+    for (const peer of peers) {
+      const r = peer?.ship;
+      if (!r) continue;
+      r3d.drawModel(shipModel, {
+        position: [r.x ?? 0, 0, r.z ?? 0],
+        scale: [1, 1, 1],
+        rotationY: r.yaw ?? 0,
+        basisX: b.x, basisY: b.y, basisZ: b.z,
+        rotationX: r.pitchV ?? 0,
+        rotationZ: r.bank ?? 0,
+        ambient: 0.95,
+        emissive: 0.45,
       });
     }
   }
