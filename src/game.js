@@ -33,6 +33,7 @@ import { Inventory } from "./gameplay/inventory/Inventory.js";
 import { Crafting } from "./gameplay/inventory/Crafting.js";
 import { shipRecipes } from "./data/crafting/shipRecipes.js";
 import { SettingsManager, getQualityPreset } from "./data/settings.js";
+import { OnlineClient } from "./gameplay/network/OnlineClient.js";
 export class Game {
   static async create(args) {
     const savedMain = await loadSave("main");
@@ -94,6 +95,7 @@ this.__id = Math.random().toString(16).slice(2);
     this.mainMenu = new MainMenu();
 
     this.bus = new EventBus();
+    this.online = new OnlineClient();
 
     // ✅ legacy совместимость: getView/getViewPx теперь вычисляются из surface
     const getView = () => {
@@ -132,6 +134,7 @@ this.__id = Math.random().toString(16).slice(2);
 
       scenes: this.scenes,
       bus: this.bus,
+      online: this.online,
     });
 
 this.systemMenu = new SystemMenu(this.services);
