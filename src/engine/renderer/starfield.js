@@ -26,6 +26,7 @@ layout(location=3) in float aAlpha;
 
 uniform mat4 uVP;
 uniform float uDpr;
+uniform float uMaxPointSize;
 
 // ✅ параллакс
 uniform vec2 uParallax; // world dx,dz (маленький)
@@ -41,7 +42,7 @@ void main() {
   pos.xz += uParallax * uLayer;
 
   gl_Position = uVP * vec4(pos, 1.0);
-  gl_PointSize = aSize * uDpr;
+  gl_PointSize = min(aSize * uDpr, uMaxPointSize);
   vColor = aColor;
   vAlpha = aAlpha;
 }
@@ -65,8 +66,12 @@ void main() {
     this.prog = createProgram(gl, vs, fs);
     this.uVP = gl.getUniformLocation(this.prog, "uVP");
     this.uDpr = gl.getUniformLocation(this.prog, "uDpr");
-this.uParallax = gl.getUniformLocation(this.prog, "uParallax");
-this.uLayer = gl.getUniformLocation(this.prog, "uLayer");
+    this.uMaxPointSize = gl.getUniformLocation(this.prog, "uMaxPointSize");
+    this.uParallax = gl.getUniformLocation(this.prog, "uParallax");
+    this.uLayer = gl.getUniformLocation(this.prog, "uLayer");
+
+    const pointSizeRange = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE);
+    this.maxPointSize = Math.max(1, pointSizeRange?.[1] ?? 256);
     /* ---------- stars ---------- */
     this.starBuf = new Float32Array(this.starCount * 8);
     fillStars(this.starBuf, this.starCount, radius, seed);
@@ -109,7 +114,7 @@ this.uLayer = gl.getUniformLocation(this.prog, "uLayer");
     this._vp = mat4.create();
   }
 
-draw(view, cam, dpr = 1, parallaxX = 0, parallaxZ = 0) {
+  draw(view, cam, dpr = 1, parallaxX = 0, parallaxZ = 0) {
     const gl = this.gl;
 
     const skyCam = {
@@ -138,26 +143,33 @@ draw(view, cam, dpr = 1, parallaxX = 0, parallaxZ = 0) {
     gl.useProgram(this.prog);
     gl.uniformMatrix4fv(this.uVP, false, this._vp);
     gl.uniform1f(this.uDpr, dpr);
-gl.uniform2f(this.uParallax, parallaxX, parallaxZ);
+    gl.uniform1f(this.uMaxPointSize, this.maxPointSize);
+
+    // Keep parallax bounded and finite. Unbounded world offsets eventually move
+    // huge point sprites through the frustum and cause visible full-screen pops.
+    const safeParallaxX = wrapParallax(parallaxX, this.radius * 0.025);
+    const safeParallaxZ = wrapParallax(parallaxZ, this.radius * 0.025);
     gl.disable(gl.DEPTH_TEST);
     gl.depthMask(false);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
 
-    // 🌫 nebulae (background)
-gl.uniform1f(this.uLayer, 0.20);
-gl.bindVertexArray(this.nebulaVao);
-gl.drawArrays(gl.POINTS, 0, this.nebulaCount);
+    // 🌫 nebulae (background) — static, because large sprites pop at frustum edges.
+    gl.uniform2f(this.uParallax, 0, 0);
+    gl.uniform1f(this.uLayer, 0.0);
+    gl.bindVertexArray(this.nebulaVao);
+    gl.drawArrays(gl.POINTS, 0, this.nebulaCount);
 
-// 🌌 milky way band (middle) — средний
-gl.uniform1f(this.uLayer, 0.12);
-gl.bindVertexArray(this.bandVao);
-gl.drawArrays(gl.POINTS, 0, this.bandCount);
+    // 🌌 milky way band (middle) — subtle bounded parallax.
+    gl.uniform2f(this.uParallax, safeParallaxX, safeParallaxZ);
+    gl.uniform1f(this.uLayer, 0.04);
+    gl.bindVertexArray(this.bandVao);
+    gl.drawArrays(gl.POINTS, 0, this.bandCount);
 
-// ⭐ stars (foreground) — очень слабый (почти skybox)
-gl.uniform1f(this.uLayer, 0.05);
-gl.bindVertexArray(this.starVao);
-gl.drawArrays(gl.POINTS, 0, this.starCount);
+    // ⭐ stars (foreground) — very weak bounded parallax.
+    gl.uniform1f(this.uLayer, 0.02);
+    gl.bindVertexArray(this.starVao);
+    gl.drawArrays(gl.POINTS, 0, this.starCount);
 
     gl.bindVertexArray(null);
     gl.disable(gl.BLEND);
@@ -280,6 +292,12 @@ function fillMilkyWayBand(buf, n, radius, seed) {
     buf[o + 6] = col[2];
     buf[o + 7] = (0.06 + rand() * 0.10) * Math.max(0.15, dust);
   }
+}
+
+function wrapParallax(value, limit) {
+  if (!Number.isFinite(value) || !Number.isFinite(limit) || limit <= 0) return 0;
+  const span = limit * 2;
+  return ((value + limit) % span + span) % span - limit;
 }
 
 function randomDir(rand) {
