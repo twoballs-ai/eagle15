@@ -1,4 +1,4 @@
-// data/state.js
+// src/data/state.js
 import { applySaveToState } from "./save.js";
 
 export function createState(save = null) {
@@ -19,7 +19,7 @@ export function createState(save = null) {
       radius: 10,
     },
   };
-console.log("[STATE] createState(save):", save);
+
   const state = {
     paused: false,
     camera: { x: 0, y: 0, zoom: 1 },
@@ -35,18 +35,23 @@ console.log("[STATE] createState(save):", save);
     credits: 2500,
     inventoryCapacity: 100,
     inventorySlots: Array.from({ length: 100 }, (_, i) => {
-  // стартовый тест: первые слоты заполнены
-  const seed = [
-    ["oxygen", 40],
-    ["iron_ore", 30],
-    ["copper_ore", 30],
-    ["silicon_dust", 30],
-    ["polymer_slurry", 20],
-  ];
-  if (i < seed.length) return { id: seed[i][0], n: seed[i][1] };
-  return null;
+      const seed = [
+        ["oxygen", 40], ["iron_ore", 30], ["copper_ore", 30],
+        ["silicon_dust", 30], ["polymer_slurry", 20],
+      ];
+      if (i < seed.length) return { id: seed[i][0], n: seed[i][1] };
+      return null;
     }),
 
+    // 🚨 НОВОЕ: Уникальный ID пилота и состояние квестов теперь часть state
+    playerId: save?.playerId ?? `pilot_${Math.random().toString(36).slice(2, 10)}`,
+    questState: save?.questState ?? {
+      active: {},
+      completed: {},
+      flags: {},
+      visitedPoi: {},
+      log: []
+    },
   };
 
   return applySaveToState(state, save);

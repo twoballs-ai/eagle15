@@ -15,7 +15,6 @@ function makeMetaFromData(data) {
     updatedAt: now(),
   };
 }
-
 export async function loadSave(slot = DEFAULT_SLOT) {
   try {
     const rec = await idbGet(slot);
@@ -68,36 +67,31 @@ export async function listSaves() {
     return [];
   }
 }
-
-/** Сохраняем только то, что должно переживать перезапуск */
 export function makeSaveFromState(state) {
   return {
     meta: {
       title: state?.player?.name ? `Пилот ${state.player.name}` : "Сохранение",
     },
+    player: state.player ? {
+      id: state.player.id,
+      name: state.player.name,
+      raceId: state.player.raceId,
+      classId: state.player.classId,
+      factionId: state.player.factionId ?? "player",
+    } : null,
 
-    player: state.player
-      ? {
-          id: state.player.id,
-          name: state.player.name,
-          raceId: state.player.raceId,
-          classId: state.player.classId,
-          factionId: state.player.factionId ?? "player",
-        }
-      : null,
-
-    // ⚠️ у тебя тут сейчас странно: сохраняешь number, а systemId у тебя string.
-    // Сделаем универсально:
     currentSystemId: state.currentSystemId ?? "sol",
-
     playerShipClassId: state.playerShipClassId ?? "scout",
     credits: Number.isFinite(state?.credits) ? Math.floor(state.credits) : 0,
     inventoryCapacity: Number.isFinite(state?.inventoryCapacity) ? Math.floor(state.inventoryCapacity) : 100,
     inventorySlots: Array.isArray(state?.inventorySlots)
       ? state.inventorySlots.map((s) => (s ? { id: s.id, n: s.n } : null))
       : [],
-
     playerShip: state.playerShip ? { stats: state.playerShip.stats } : null,
+
+    // 🚨 НОВОЕ: Сохраняем квесты и ID вместе с основным состоянием
+    playerId: state.playerId,
+    questState: state.questState,
   };
 }
 
@@ -112,27 +106,33 @@ export function applySaveToState(state, save) {
     state.selectedSystemId = save.currentSystemId;
   }
 
-  if (Number.isFinite(save.credits)) {
-    state.credits = Math.max(0, Math.floor(save.credits));
-  }
-
-  if (Number.isFinite(save.inventoryCapacity)) {
-    state.inventoryCapacity = Math.max(1, Math.floor(save.inventoryCapacity));
-  }
+  if (Number.isFinite(save.credits)) state.credits = Math.max(0, Math.floor(save.credits));
+  if (Number.isFinite(save.inventoryCapacity)) state.inventoryCapacity = Math.max(1, Math.floor(save.inventoryCapacity));
 
   if (Array.isArray(save.inventorySlots)) {
     const cap = state.inventoryCapacity ?? 100;
-    const nextSlots = Array.from({ length: cap }, (_, i) => {
+    state.inventorySlots = Array.from({ length: cap }, (_, i) => {
       const slot = save.inventorySlots[i] ?? null;
       if (!slot || !slot.id) return null;
       const n = Number.isFinite(slot.n) ? Math.max(0, Math.floor(slot.n)) : 0;
       return n > 0 ? { id: String(slot.id), n } : null;
     });
-    state.inventorySlots = nextSlots;
   }
 
   if (save.playerShip?.stats && state.playerShip) {
     state.playerShip.stats = { ...state.playerShip.stats, ...save.playerShip.stats };
+  }
+
+  // 🚨 НОВОЕ: Восстанавливаем квесты и ID
+  if (save.playerId) state.playerId = save.playerId;
+  if (save.questState) {
+    state.questState = {
+      active: save.questState.active || {},
+      completed: save.questState.completed || {},
+      flags: save.questState.flags || {},
+      visitedPoi: save.questState.visitedPoi || {},
+      log: Array.isArray(save.questState.log) ? save.questState.log : []
+    };
   }
 
   return state;

@@ -235,7 +235,7 @@ export class MenuSystemMapRenderer {
     // чистим мини-карту (непрозрачный фон миникарты)
     gl.disable(gl.BLEND);
     gl.clearColor(0.01, 0.02, 0.04, 1.0);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    // gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     const y = (ctx.systemPlaneY ?? -160) + 0.12;
 

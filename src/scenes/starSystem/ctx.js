@@ -1,5 +1,4 @@
 import { EngineFlame } from "../../engine/renderer/engineFlame.js";
-
 import { QuestStateV2 } from "../../gameplay/quest/QuestStateV2.js";
 import { StoryManager } from "../../engine/managers/StoryManager.js";
 import { createContentRegistry } from "../../data/content/index.js";
@@ -15,20 +14,21 @@ import { CutsceneCaption } from "../../ui/cutsceneCaption.js";
 import { CutscenePlayer } from "../../gameplay/cutscene/cutscenePlayer.js";
 import { ActState } from "../../gameplay/story/ActState.js";
 import { EnemyDialogWidget } from "../../ui/EnemyDialogWidget.js";
+
 export function createStarSystemCtx(services) {
   const gl = services.get("gl");
   const canvas = services.get("canvas");
+  
+  // 🚨 НОВОЕ: Получаем единый state из сервисов
+  const state = services.get("state");
 
   const ctx = {
-    // ⛳️ важно: чтобы катсцены могли получать доступ к services (если надо)
     services,
 
-    // runtime
     systemId: null,
     system: null,
     time: 0,
 
-    // camera
     cam3d: {
       eye: [0, 220, 340],
       target: [0, 0, 0],
@@ -56,8 +56,10 @@ export function createStarSystemCtx(services) {
 
     boundsRadius: 1200,
     act: new ActState(),
-    // POI + quest
-    quest: new QuestStateV2(),   // ✅ новый стейт
+    
+    // 🚨 ИСПРАВЛЕНО: Передаем state внутрь, чтобы QuestStateV2 работал с ним, а не с localStorage
+    quest: new QuestStateV2(state),
+    
     poiDef: null,
     poi: null,
     poiFocus: null,
@@ -66,10 +68,8 @@ export function createStarSystemCtx(services) {
     lastLog: "",
     spawnPoints: null,
 
-    // rendering helpers
     flame: new EngineFlame(gl, { max: 2000 }),
 
-    // combat/physics
     colliders: createColliderSystem({ cellSize: 140 }),
     projectiles: createProjectileSystem({
       bulletSpeed: 1100,
@@ -84,9 +84,9 @@ export function createStarSystemCtx(services) {
       available: WEAPON_PRESETS,
       currentIndex: 0,
     },
-ui: {
-  enemyDialog: new EnemyDialogWidget(),
-},
+    ui: {
+      enemyDialog: new EnemyDialogWidget(),
+    },
     enemyFire: createEnemyFireModule({
       range: 520,
       fireRate: 1.2,
@@ -95,15 +95,12 @@ ui: {
       jitter: 0.02,
     }),
 
-    // overlays
     relIcons: new RelationIconsOverlay({ canvas }),
 
-    // tuning
     systemPlaneY: -90,
     celestialTriggerMul: 1.6,
     celestialInteractMul: 1.0,
 
-    // input lock
     inputLock: {
       camera: false,
       ship: false,
@@ -111,7 +108,6 @@ ui: {
       combat: false,
     },
 
-    // debug flags
     debug: {
       colliders: true,
       poiSampleLog: true,
@@ -119,7 +115,7 @@ ui: {
     },
   };
 
-  // ===== cutscene infrastructure (движковая) =====
+  // ===== cutscene infrastructure =====
   const letterbox = new LetterboxOverlay({ parent: document.body });
   const caption = new CutsceneCaption({ parent: document.body });
 
@@ -142,12 +138,15 @@ ui: {
 
   // ===== content registry + story manager =====
   ctx.content = createContentRegistry();
-ctx.story = new StoryManager({
-  quest: ctx.quest,
-  act: ctx.act,
-  cutscenePlayer: ctx.cutscene,
-  contentRegistry: ctx.content,
-});
+  
+  // StoryManager теперь автоматически получает обновленный ctx.quest, 
+  // который работает напрямую с state.questState
+  ctx.story = new StoryManager({
+    quest: ctx.quest,
+    act: ctx.act,
+    cutscenePlayer: ctx.cutscene,
+    contentRegistry: ctx.content,
+  });
 
   // ===== world helpers =====
   ctx.resolvePoiPos = (poi) => {

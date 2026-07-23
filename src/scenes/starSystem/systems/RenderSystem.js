@@ -20,17 +20,14 @@ export class RenderSystem extends System {
     const getViewPx = this.s.get("getViewPx");
     const state = this.s.get("state");
 
-    // ✅ ВСЕГДА px-view для viewport/scissor
-    const view =
-      (typeof getViewPx === "function" ? getViewPx() : null) ??
-      (typeof getView === "function" ? getView() : { w: 1, h: 1, dpr: 1 });
-
-    gl.viewport(0, 0, view.w, view.h);
-    gl.clearColor(0.02, 0.02, 0.04, 1);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
+    const view = (typeof getViewPx === "function" ? getViewPx() : null) ??
+                 (typeof getView === "function" ? getView() : { w: 1, h: 1, dpr: 1 });
     const dpr = view.dpr ?? (this.s.get("runtime")?.dpr ?? 1);
 
+    // ✅ 1. СНАЧАЛА инициализируем состояние рендера и матрицы для текущего кадра!
+    r3d.begin(view, this.ctx.cam3d);
+
+    // ✅ 2. ТОЛЬКО ПОСЛЕ begin() рисуем фон и всю сцену
     const ship = state.playerShip?.runtime;
     const k = 0.002;
     const px = ship ? -ship.x * k : 0;
@@ -38,27 +35,16 @@ export class RenderSystem extends System {
 
     r3d.drawBackground(view, this.ctx.cam3d, dpr, px, pz);
 
-    // ВАЖНО: все debug draw должны быть ПОСЛЕ begin()
-    r3d.begin(view, this.ctx.cam3d);
-
     if (this.ctx.debug?.poiZones) this.drawPoiZones3D(r3d);
-
-    // projectiles tracers
     this.drawProjectiles3D(r3d);
-
-    // system
     this.drawSystem3D(r3d);
-
-    // ships
     this.drawPlayerShip3D(r3d);
     this.drawOtherShips3D(r3d);
     this.drawOnlineShips3D(r3d);
     this.drawNpcFov3D(r3d);
 
-    // flame
     this.ctx.flame.draw(r3d.getVP(), dpr);
 
-    // enemy tracer lines
     const lines = this.ctx.enemyFire.getTracerLinesY(1.2);
     if (lines.length >= 6) r3d.drawLines(lines, [1.0, 0.35, 0.15, 0.9]);
 
@@ -270,7 +256,7 @@ export class RenderSystem extends System {
       if (p?.visual?.clouds) {
         r3d.drawModel(planetModel, {
           position: [x, ySys, z],
-          scale: [s * 1.024, s * 1.024, s * 1.024],
+          scale: [s * 1.08, s * 1.08, s * 1.08],
           rotationY: -this.ctx.time * 0.1,
           ambient: 0.98,
           emissive: 0.09,
@@ -324,15 +310,26 @@ export class RenderSystem extends System {
     );
   }
 
-  drawAutopilotRoute3D(r3d) {
+    drawAutopilotRoute3D(r3d) {
     const state = this.s.get("state");
     const r = state.playerShip?.runtime;
     if (!r) return;
     if (r.targetX == null || r.targetZ == null) return;
 
     const tx = r.targetX, tz = r.targetZ;
-    r3d.drawCrossAt(tx, 0.65, tz, 12, [0.2, 0.9, 1.0, 1.0]);
-    r3d.drawCircleAt(tx, 0.65, tz, 16, 48, [0.2, 0.9, 1.0, 0.45]);
+    const dist = Math.hypot(tx - r.x, tz - r.z);
+
+    // 1. Улучшенный маркер цели с легкой пульсацией (используем ctx.time)
+    const pulse = 0.6 + 0.4 * Math.sin(this.ctx.time * 4);
+    r3d.drawCrossAt(tx, 1.5, tz, 14, [0.2, 0.9, 1.0, pulse]);
+    r3d.drawCircleAt(tx, 1.5, tz, 18 + 6 * pulse, 48, [0.2, 0.9, 1.0, 0.25 * pulse]);
+
+    // 2. Динамическое количество шагов: чем дальше цель, тем длиннее линия
+    // Минимум 60 шагов, максимум 150 (чтобы не просаживать FPS на огромных дистанциях)
+    const maxSteps = Math.min(150, Math.max(60, Math.ceil(dist / 15)));
+    const dt = 0.12; // Чуть увеличенный шаг времени для более плавной и длинной кривой
+    
+    const pts = new Float32Array((maxSteps + 1) * 3);
 
     const rr = {
       ...r,
@@ -345,24 +342,40 @@ export class RenderSystem extends System {
       targetZ: tz,
     };
 
-    const dt = 0.1;
-    const steps = 48;
-    const pts = new Float32Array((steps + 1) * 3);
-
     let k = 0;
-    pts[k++] = rr.x; pts[k++] = 0.55; pts[k++] = rr.z;
+    // ⚠️ ВАЖНО: Поднимаем линию на Y=1.5. Это предотвращает "слипание" (z-fighting) 
+    // линии с поверхностью планеты или другими объектами.
+    pts[k++] = rr.x; pts[k++] = 1.5; pts[k++] = rr.z;
 
-    for (let i = 0; i < steps; i++) {
+    for (let i = 0; i < maxSteps; i++) {
       const c = getAutopilotControls(rr);
       if (!c) break;
 
       stepShipMovement(rr, c, dt, { boundsRadius: this.ctx.boundsRadius });
 
-      pts[k++] = rr.x; pts[k++] = 0.55; pts[k++] = rr.z;
-      if (rr.targetX == null) break;
+      pts[k++] = rr.x; pts[k++] = 1.5; pts[k++] = rr.z;
+
+      // 3. Умная остановка: если мы уже почти прилетели, не рисуем линию в никуда
+      const currentDist = Math.hypot(rr.targetX - rr.x, rr.targetZ - rr.z);
+      if (currentDist < 8) break; 
     }
 
-    if (k >= 6) r3d.drawLineStrip(pts.subarray(0, k), [1.0, 1.0, 1.0, 0.35]);
+    // 4. Рисуем основную траекторию (неоновый голубой, полупрозрачный)
+    if (k >= 6) {
+      r3d.drawLineStrip(pts.subarray(0, k), [0.2, 0.9, 1.0, 0.6]);
+    }
+
+    // 5. Бонус: "Узлы" маршрута каждые 12 шагов. 
+    // Это создает эффект голографической разметки, а не скучной сплошной линии
+    for (let i = 12; i < k / 3; i += 12) {
+      const idx = i * 3;
+      const nx = pts[idx];
+      const ny = pts[idx + 1];
+      const nz = pts[idx + 2];
+      
+      // Маленькие светящиеся точки вдоль маршрута
+      r3d.drawCircleAt(nx, ny, nz, 1.8, 12, [0.2, 0.9, 1.0, 0.9]);
+    }
   }
 
   drawCollidersDebug3D(r3d) {

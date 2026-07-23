@@ -61,8 +61,23 @@ export function installGLTraceFile(gl, { logEvery = 1, name = "gltrace" } = {}) 
         payload = JSON.stringify(rows, null, 2);
       } else {
         payload = rows.map(r => {
-          if (r.op === "frame") return `${r.t}ms [${r.scope}] frame=${r.frame} marks=${r.marks}`;
-          return `${r.t}ms [${r.scope}] ${r.label} vp=${r.viewport.join(",")} sc=${r.scissorTest ? r.scissorBox.join(",") : "off"} err=${r.err}`;
+          if (r.op === "frame") {
+            return `${r.t}ms [${r.scope}] frame=${r.frame} marks=${r.marks}`;
+          }
+          if (r.op === "mark") {
+            // Безопасное чтение viewport и scissorBox
+            const vp = r.viewport ? r.viewport.join(",") : "N/A";
+            const sc = r.scissorTest ? r.scissorBox.join(",") : "off";
+            return `${r.t}ms [${r.scope}] MARK ${r.label} | vp=[${vp}] sc=[${sc}] err=${r.err}`;
+          }
+          if (r.op === "gl.error") {
+            return `${r.t}ms [${r.scope}] ERROR after ${r.after}: code ${r.err}`;
+          }
+          // Для обычных вызовов WebGL (gl.clear, gl.viewport и т.д.)
+          if (r.op && r.op.startsWith("gl.")) {
+            return `${r.t}ms [${r.scope}] CALL ${r.op}`;
+          }
+          return `${r.t}ms [${r.scope}] ${r.op || "unknown"}`;
         }).join("\n");
       }
 

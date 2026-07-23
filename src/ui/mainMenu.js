@@ -32,7 +32,6 @@ export class MainMenu {
     this._visible = false;
     if (!this.root) return;
     this.root.classList.remove("mm-visible");
-    // небольшая задержка под анимацию
     setTimeout(() => {
       if (!this._visible && this.root) this.root.style.display = "none";
     }, 160);
@@ -68,12 +67,12 @@ export class MainMenu {
           </div>
           <div>
             <div class="mm-title">EAGLE-15</div>
-            <div class="mm-subtitle">Капитанский терминал • MAIN DECK</div>
+            <div class="mm-subtitle">Добро пожаловать в Орел-15 рпг с видом сверху</div>
           </div>
         </div>
 
         <div class="mm-status">
-          <div class="mm-chip"><span class="mm-dot"></span>ONLINE</div>
+          <div class="mm-chip"><span class="mm-dot"></span>ONLINE(в разработке)</div>
           <div class="mm-chip mm-chip2" id="mm_build">BUILD • ALPHA</div>
         </div>
       </div>
@@ -115,12 +114,6 @@ export class MainMenu {
 
           <div class="mm-divider"></div>
 
-          <div class="mm-notes">
-            <div class="mm-noteLine"><span class="mm-key">ESC</span> системное меню в полёте (позже)</div>
-            <div class="mm-noteLine"><span class="mm-key">RMB</span> контекст в карте/системе</div>
-            <div class="mm-noteLine"><span class="mm-key">F5</span> быстрый автосейв (идея)</div>
-          </div>
-
           <div class="mm-footerMeta" id="mm_meta">
             <div class="mm-metaRow"><span class="mm-metaK">Пилот:</span> <span class="mm-metaV">—</span></div>
             <div class="mm-metaRow"><span class="mm-metaK">Система:</span> <span class="mm-metaV">—</span></div>
@@ -133,13 +126,6 @@ export class MainMenu {
           <div class="mm-cardHeader">
             <div class="mm-cardTitle">Бортовой журнал</div>
             <div class="mm-cardHint">Слоты сохранений</div>
-
-            <div class="mm-spacer"></div>
-
-            <button id="mm_refresh" class="mm-miniBtn" title="Обновить">
-              <span class="mm-miniBtnIco">⟳</span>
-              <span>Скан</span>
-            </button>
           </div>
 
           <div class="mm-slots" id="mm_slots"></div>
@@ -159,29 +145,18 @@ export class MainMenu {
 
     this.root = root;
 
-    // bind
     root.querySelector("#mm_new").addEventListener("click", () => this.onNewGame?.());
     root.querySelector("#mm_settings").addEventListener("click", () => this.onOpenSettings?.());
-    root.querySelector("#mm_refresh").addEventListener("click", () => this.refresh());
-
+    
     root.querySelector("#mm_continue").addEventListener("click", async () => {
       const main = this._slots.find((s) => s.slot === "main");
       if (!main) return;
       this.onContinue?.("main");
     });
-
-    // закрытие по клику вне панели (как игровая модалка)
-    root.addEventListener("mousedown", (e) => {
-      if (e.target === root) {
-        // можно не закрывать главное меню — оставил выключенным
-        // this.hide();
-      }
-    });
   }
 
   _renderMeta() {
     if (!this.root) return;
-
     const meta = this.root.querySelector("#mm_meta");
     if (!meta) return;
 
@@ -232,7 +207,6 @@ export class MainMenu {
     for (const s of this._slots) {
       const row = document.createElement("div");
       row.className = "mm-slotRow";
-
       const isMain = s.slot === "main";
 
       const left = document.createElement("div");
@@ -244,9 +218,7 @@ export class MainMenu {
 
       const sub = document.createElement("div");
       sub.className = "mm-slotSub";
-      sub.textContent = `обновлено: ${fmtDate(s.updatedAt)} • пилот: ${
-        s.meta?.pilotName ?? "—"
-      } • система: ${s.meta?.systemId ?? "—"}`;
+      sub.textContent = `обновлено: ${fmtDate(s.updatedAt)} • пилот: ${s.meta?.pilotName ?? "—"} • система: ${s.meta?.systemId ?? "—"}`;
 
       left.appendChild(title);
       left.appendChild(sub);
@@ -268,7 +240,6 @@ export class MainMenu {
         await this.refresh();
       });
 
-      // маленький бейдж для main
       const badge = document.createElement("div");
       badge.className = "mm-badge";
       badge.textContent = isMain ? "PRIMARY" : "AUX";
@@ -280,7 +251,6 @@ export class MainMenu {
 
       row.appendChild(left);
       row.appendChild(right);
-
       host.appendChild(row);
     }
   }
@@ -313,29 +283,25 @@ export class MainMenu {
         border-radius: 16px;
         overflow:hidden;
         position:relative;
-        background:
-          linear-gradient(180deg, rgba(10,14,24,.72), rgba(6,8,12,.86));
-        border: 1px solid rgba(160,200,255,.14);
-        box-shadow:
-          0 26px 90px rgba(0,0,0,.62),
-          0 0 0 1px rgba(0,0,0,.45) inset;
+        background: linear-gradient(180deg, rgba(10,14,24,.72), rgba(6,8,12,.86));
+        border: none;
+        box-shadow: 0 26px 90px rgba(0,0,0,.62), 0 0 0 1px rgba(0,0,0,.45) inset;
         backdrop-filter: blur(12px);
       }
 
-      /* top bar */
       .mm-topbar{
         display:flex; align-items:center; justify-content:space-between;
         padding: 14px 16px;
         background:
           linear-gradient(90deg, rgba(40,120,255,.12), rgba(0,0,0,0) 45%),
           linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0));
-        border-bottom: 1px solid rgba(160,200,255,.10);
+        border-bottom: none;
       }
       .mm-brand{ display:flex; align-items:center; gap:12px; }
       .mm-logo{
         width:40px; height:40px; border-radius: 12px;
         display:grid; place-items:center;
-        border: 1px solid rgba(160,200,255,.20);
+        border: none;
         background: rgba(0,0,0,.22);
         box-shadow: 0 10px 30px rgba(0,0,0,.35);
         color: rgba(120,220,255,.95);
@@ -349,7 +315,7 @@ export class MainMenu {
         display:flex; gap:8px; align-items:center;
         padding: 6px 10px;
         border-radius: 999px;
-        border: 1px solid rgba(160,200,255,.16);
+        border: none;
         background: rgba(0,0,0,.20);
         font-size: 12px;
         opacity: .9;
@@ -361,7 +327,6 @@ export class MainMenu {
         box-shadow: 0 0 14px rgba(0,255,200,.35);
       }
 
-      /* grid */
       .mm-grid{
         display:grid;
         grid-template-columns: 320px 1fr;
@@ -374,11 +339,9 @@ export class MainMenu {
 
       .mm-card{
         border-radius: 14px;
-        border: 1px solid rgba(160,200,255,.12);
-        background:
-          linear-gradient(180deg, rgba(0,0,0,.22), rgba(0,0,0,.12));
-        box-shadow:
-          0 18px 50px rgba(0,0,0,.35);
+        border: none;
+        background: linear-gradient(180deg, rgba(0,0,0,.22), rgba(0,0,0,.12));
+        box-shadow: 0 18px 50px rgba(0,0,0,.35);
         padding: 12px;
         position:relative;
         overflow:hidden;
@@ -399,9 +362,7 @@ export class MainMenu {
       }
       .mm-cardTitle{ font-weight: 850; font-size: 13px; letter-spacing:.4px; }
       .mm-cardHint{ opacity:.62; font-size: 12px; }
-      .mm-spacer{ flex:1; }
 
-      /* buttons */
       .mm-actions{ display:flex; flex-direction:column; gap:10px; padding: 6px; }
       .mm-btn{
         position:relative;
@@ -411,22 +372,19 @@ export class MainMenu {
         border-radius: 14px;
         cursor:pointer;
         user-select:none;
-        border: 1px solid rgba(160,200,255,.16);
+        border: 1px solid transparent;
         background: rgba(0,0,0,.18);
         color: #eaf3ff;
-        transition: transform .12s ease, border-color .12s ease, background .12s ease, opacity .12s ease;
+        transition: background .15s ease, opacity .15s ease;
         text-align:left;
       }
       .mm-btn:hover{
-        transform: translateY(-1px);
-        border-color: rgba(160,200,255,.28);
-        background: rgba(0,0,0,.26);
+        background: rgba(60,100,180,.25);
       }
-      .mm-btn:active{ transform: translateY(0px); }
       .mm-btnIco{
         width:34px; height:34px; border-radius: 12px;
         display:grid; place-items:center;
-        border: 1px solid rgba(160,200,255,.18);
+        border: none;
         background: rgba(0,0,0,.28);
         font-weight: 900;
       }
@@ -435,16 +393,17 @@ export class MainMenu {
       .mm-btnSub{ font-size: 11px; opacity:.70; }
 
       .mm-btnPrimary{
-        border-color: rgba(80,170,255,.28);
-        background:
-          linear-gradient(90deg, rgba(45,125,255,.22), rgba(0,0,0,.18));
+        border: 1px solid transparent;
+        background: linear-gradient(90deg, rgba(45,125,255,.22), rgba(0,0,0,.18));
+      }
+      .mm-btnPrimary:hover {
+        background: linear-gradient(90deg, rgba(45,125,255,.45), rgba(10,20,40,.35));
       }
       .mm-btnPrimary .mm-btnIco{
         color: rgba(0,255,220,.95);
         box-shadow: 0 0 18px rgba(0,255,220,.16);
       }
       .mm-btnGlow{
-        content:"";
         position:absolute; inset:-1px;
         border-radius: 14px;
         pointer-events:none;
@@ -454,27 +413,9 @@ export class MainMenu {
         box-shadow: 0 0 26px rgba(80,170,255,.18);
       }
 
-      .mm-btnGhost{ }
-      .mm-btnGhost2{ border-color: rgba(255,255,255,.10); opacity:.92; }
-      .mm-disabled{ opacity:.42 !important; cursor:not-allowed !important; transform:none !important; }
+      .mm-btnGhost2{ border: 1px solid transparent; opacity:.92; }
+      .mm-disabled{ opacity:.42 !important; cursor:not-allowed !important; }
       .mm-btn:disabled{ opacity:.42; cursor:not-allowed; }
-
-      .mm-miniBtn{
-        display:flex; align-items:center; gap:8px;
-        padding: 8px 10px;
-        border-radius: 12px;
-        cursor:pointer;
-        border: 1px solid rgba(160,200,255,.14);
-        background: rgba(0,0,0,.18);
-        color:#eaf3ff;
-        transition: transform .12s ease, border-color .12s ease, background .12s ease;
-      }
-      .mm-miniBtn:hover{
-        transform: translateY(-1px);
-        border-color: rgba(160,200,255,.28);
-        background: rgba(0,0,0,.26);
-      }
-      .mm-miniBtnIco{ opacity:.9; font-weight: 900; }
 
       .mm-divider{
         height:1px;
@@ -482,25 +423,11 @@ export class MainMenu {
         background: linear-gradient(90deg, transparent, rgba(160,200,255,.16), transparent);
       }
 
-      .mm-notes{ padding: 6px; display:flex; flex-direction:column; gap:6px; }
-      .mm-noteLine{ font-size: 12px; opacity:.78; }
-      .mm-key{
-        display:inline-block;
-        padding: 2px 7px;
-        border-radius: 8px;
-        border: 1px solid rgba(160,200,255,.16);
-        background: rgba(0,0,0,.22);
-        margin-right: 6px;
-        font-weight: 800;
-        font-size: 11px;
-        opacity:.95;
-      }
-
       .mm-footerMeta{
         margin-top: 10px;
         padding: 10px;
         border-radius: 14px;
-        border: 1px solid rgba(160,200,255,.12);
+        border: none;
         background: rgba(0,0,0,.16);
       }
       .mm-metaRow{
@@ -512,22 +439,17 @@ export class MainMenu {
       .mm-metaK{ opacity:.70; }
       .mm-metaV{ font-weight: 750; }
 
-      /* slots */
       .mm-slots{ display:flex; flex-direction:column; gap:10px; padding: 6px; }
       .mm-slotRow{
         display:flex; align-items:center; justify-content:space-between; gap:10px;
         padding: 12px;
         border-radius: 14px;
-        border: 1px solid rgba(160,200,255,.12);
-        background:
-          linear-gradient(180deg, rgba(255,255,255,.05), rgba(0,0,0,.12));
-        transition: transform .12s ease, border-color .12s ease, background .12s ease;
+        border: 1px solid transparent;
+        background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(0,0,0,.12));
+        transition: background .15s ease;
       }
       .mm-slotRow:hover{
-        transform: translateY(-1px);
-        border-color: rgba(160,200,255,.24);
-        background:
-          linear-gradient(180deg, rgba(255,255,255,.07), rgba(0,0,0,.16));
+        background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(20,40,80,.25));
       }
       .mm-slotLeft{ display:flex; flex-direction:column; gap:4px; min-width: 0; }
       .mm-slotTitle{ font-size: 13px; font-weight: 900; letter-spacing:.35px; }
@@ -544,18 +466,19 @@ export class MainMenu {
         font-size: 11px;
         font-weight: 900;
         letter-spacing: .55px;
-        border: 1px solid rgba(160,200,255,.16);
+        border: 1px solid transparent;
         background: rgba(0,0,0,.18);
         opacity: .9;
       }
       .mm-badge[data-kind="main"]{
-        border-color: rgba(0,255,220,.28);
+        border: 1px solid transparent;
         color: rgba(0,255,220,.95);
-        box-shadow: 0 0 16px rgba(0,255,220,.10);
+        background: rgba(0,255,220,.12);
       }
       .mm-badge[data-kind="aux"]{
-        border-color: rgba(160,200,255,.16);
+        border: 1px solid transparent;
         color: rgba(160,200,255,.9);
+        background: rgba(160,200,255,.08);
       }
 
       .mm-slotBtn{
@@ -563,27 +486,30 @@ export class MainMenu {
         padding: 9px 10px;
         border-radius: 12px;
         cursor:pointer;
-        border: 1px solid rgba(160,200,255,.14);
+        border: 1px solid transparent;
         background: rgba(0,0,0,.18);
         color:#eaf3ff;
-        transition: transform .12s ease, border-color .12s ease, background .12s ease, opacity .12s ease;
+        transition: background .15s ease, opacity .15s ease;
         font-weight: 800;
         font-size: 12px;
       }
       .mm-slotBtn:hover{
-        transform: translateY(-1px);
-        border-color: rgba(160,200,255,.28);
-        background: rgba(0,0,0,.26);
+        background: rgba(60,100,180,.25);
       }
-      .mm-slotBtn:active{ transform: translateY(0px); }
       .mm-slotBtnLoad{
-        border-color: rgba(80,170,255,.22);
+        border: 1px solid transparent;
         background: linear-gradient(90deg, rgba(45,125,255,.18), rgba(0,0,0,.18));
       }
+      .mm-slotBtnLoad:hover {
+        background: linear-gradient(90deg, rgba(45,125,255,.40), rgba(0,0,0,.28));
+      }
       .mm-slotBtnDel{
-        border-color: rgba(255,120,120,.20);
+        border: 1px solid transparent;
         color: rgba(255,210,210,.95);
         background: linear-gradient(90deg, rgba(255,90,90,.10), rgba(0,0,0,.18));
+      }
+      .mm-slotBtnDel:hover {
+        background: linear-gradient(90deg, rgba(255,90,90,.30), rgba(0,0,0,.28));
       }
       .mm-mini{ font-weight: 900; opacity:.85; }
 
@@ -595,7 +521,7 @@ export class MainMenu {
 
       .mm-empty{
         border-radius: 14px;
-        border: 1px dashed rgba(160,200,255,.16);
+        border: none;
         background: rgba(0,0,0,.12);
         padding: 18px;
         opacity:.9;
@@ -603,12 +529,10 @@ export class MainMenu {
       .mm-emptyTitle{ font-weight: 900; letter-spacing:.4px; }
       .mm-emptySub{ margin-top: 6px; opacity:.72; font-size: 12px; }
 
-      /* scanline + noise */
       .mm-scanline{
         position:absolute; inset:0;
         pointer-events:none;
-        background:
-          linear-gradient(180deg, transparent, rgba(0,255,220,.08), transparent);
+        background: linear-gradient(180deg, transparent, rgba(0,255,220,.08), transparent);
         opacity:.15;
         transform: translateY(-120%);
         animation: mmScan 6.2s linear infinite;

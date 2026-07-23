@@ -28,6 +28,7 @@ export class HUDManager {
       inset: "0px",
       zIndex: 9999,
       pointerEvents: "none",
+      display: "none", 
       // удобно для масштабирования/темы
       fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
       padding: "18px",
@@ -44,7 +45,13 @@ export class HUDManager {
     this.setTheme(theme);
     this._installResizeObserver();
   }
+  show() {
+    this.root.style.display = "block";
+  }
 
+  hide() {
+    this.root.style.display = "none";
+  }
   _initFrame() {
     const frame = ensureEl("hud-cosmo-frame", this.root);
     apply(frame, {

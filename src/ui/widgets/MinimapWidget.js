@@ -88,7 +88,7 @@ export class MinimapWidget {
     // чистим ТОЛЬКО мини-прямоугольник
     gl.disable(gl.BLEND);
     gl.clearColor(0.0, 0.0, 0.0, 0.35);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    // gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     // рисуем “копию мира”
     this._drawMinimapWorld(game, scene, miniView);

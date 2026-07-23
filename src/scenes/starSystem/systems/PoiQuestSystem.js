@@ -1,19 +1,27 @@
 import { System } from "../../../engine/core/lifecycle.js";
 import { PoiRuntimeOrbit } from "../../../gameplay/poi/poiRuntimeOrbit.js";
 
-
 export class PoiQuestSystem extends System {
-  constructor(services, ctx) { super(services); this.ctx = ctx; }
+  constructor(services, ctx) { 
+    super(services); 
+    this.ctx = ctx; 
+  }
 
   enter() {
+    // 🛡️ ЗАЩИТА: Гарантируем, что flags существует, даже если старое сохранение "битое"
+    if (!this.ctx.quest.flags) {
+      this.ctx.quest.flags = {};
+    }
+    
     this.updateQuestLine();
   }
 
   update(dt) {
     if (this.ctx.inputLock?.interact) {
-  this.ctx.poiHint = "Катсцена… (ESC чтобы пропустить)";
-  return;
-}
+      this.ctx.poiHint = "Катсцена… (ESC чтобы пропустить)";
+      return;
+    }
+    
     const state = this.s.get("state");
     const actions = this.s.get("actions");
 
@@ -44,10 +52,10 @@ export class PoiQuestSystem extends System {
       this.ctx.lastLog = this.ctx.quest.log.at(-1)?.text ?? "";
       this.updateQuestLine();
 
-this.ctx.poi = new PoiRuntimeOrbit({
-  poiDef: this.ctx.poiDef,
-  resolvePos: (poi) => this.ctx.resolvePoiPos(poi),
-});
+      this.ctx.poi = new PoiRuntimeOrbit({
+        poiDef: this.ctx.poiDef,
+        resolvePos: (poi) => this.ctx.resolvePoiPos(poi),
+      });
       this.ctx.poiFocus = null;
       this.ctx.poiHint = "";
     }
@@ -56,9 +64,9 @@ this.ctx.poi = new PoiRuntimeOrbit({
     for (const p of entered) {
       if (!this.ctx.quest.isVisited(p.id)) {
         this.ctx.quest.markVisited(p.id);
-this.ctx.story?.onPoiEnter({ poi: p, systemId: this.ctx.systemId, ctx: this.ctx });
-this.ctx.lastLog = this.ctx.quest.log.at(-1)?.text ?? "";
-this.updateQuestLine();
+        this.ctx.story?.onPoiEnter({ poi: p, systemId: this.ctx.systemId, ctx: this.ctx });
+        this.ctx.lastLog = this.ctx.quest.log.at(-1)?.text ?? "";
+        this.updateQuestLine();
       }
     }
 
@@ -66,28 +74,29 @@ this.updateQuestLine();
     this.ctx.poiHint = "";
 
     if (focus) {
-if (focus.id === "poi_beacon") {
-  const f = this.ctx.quest.flags;
-  const ok = !!(f["act1.ship_stabilized"] && f["act1.nav_restored"] && f["act1.got_parts"] && f["act1.installed_upgrade"]);
-  this.ctx.poiHint = ok ? "E: активировать маяк" : "Маяк заблокирован (сначала почини корабль)";
-} else {
-  this.ctx.poiHint = focus.name;
-}
+      if (focus.id === "poi_beacon") {
+        // 🛡️ ЗАЩИТА: добавлено || {} на случай, если flags вдруг пропал
+        const f = this.ctx.quest.flags || {}; 
+        const ok = !!(f["act1.ship_stabilized"] && f["act1.nav_restored"] && f["act1.got_parts"] && f["act1.installed_upgrade"]);
+        this.ctx.poiHint = ok ? "E: активировать маяк" : "Маяк заблокирован (сначала почини корабль)";
+      } else {
+        this.ctx.poiHint = focus.name;
+      }
     }
 
     if (actions.take("interact")) this.tryInteractFocusedPoi();
   }
 
-tryInteractFocusedPoi() {
-  const focus = this.ctx.poiFocus;
-  if (!focus) return;
+  tryInteractFocusedPoi() {
+    const focus = this.ctx.poiFocus;
+    if (!focus) return;
 
-  // всё решение — в story triggers
-  this.ctx.story?.onPoiInteract({ poi: focus, systemId: this.ctx.systemId, ctx: this.ctx });
+    // всё решение — в story triggers
+    this.ctx.story?.onPoiInteract({ poi: focus, systemId: this.ctx.systemId, ctx: this.ctx });
 
-  this.ctx.lastLog = this.ctx.quest.log.at(-1)?.text ?? "";
-  this.updateQuestLine();
-}
+    this.ctx.lastLog = this.ctx.quest.log.at(-1)?.text ?? "";
+    this.updateQuestLine();
+  }
 
   openCelestialInteraction(cel) {
     if (cel.kind === "planet") {
@@ -156,7 +165,9 @@ tryInteractFocusedPoi() {
   }
 
   updateQuestLine() {
-    const f = this.ctx.quest.flags;
+    // 🛡️ ЗАЩИТА: если flags нет, используем пустой объект, чтобы игра не упала
+    const f = this.ctx.quest.flags || {};
+    
     const a = f["act1.nav_restored"] ? "Навигация ✅" : "Навигация ⬜";
     const b = f["act1.ship_stabilized"] ? "Стабилизация ✅" : "Стабилизация ⬜";
     const c = f["act1.got_parts"] ? "Детали ✅" : "Детали ⬜";
@@ -182,6 +193,6 @@ tryInteractFocusedPoi() {
       const pos = this.ctx.resolvePoiPos(p);
       return { id: p.id, name: p.name, kind: p.kind, x: pos?.x?.toFixed?.(1), z: pos?.z?.toFixed?.(1) };
     });
-    console.log("POI sample:", sample);
+    
   }
 }
