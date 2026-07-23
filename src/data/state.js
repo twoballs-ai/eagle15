@@ -5,7 +5,7 @@ export function createState(save = null) {
   const playerShip = {
     id: "ship_player",
     isPlayer: true,
-    factionId: "player",
+    factionId: "union", // Или "player", в зависимости от того, как ты считаешь фракцию игрока
     stats: { hull: 120, shields: 80, energy: 60, speed: 1.0 },
     runtime: {
       x: 0, z: 0,
@@ -43,7 +43,7 @@ export function createState(save = null) {
       return null;
     }),
 
-    // 🚨 НОВОЕ: Уникальный ID пилота и состояние квестов теперь часть state
+    // 🚨 НОВОЕ: Уникальный ID пилота и состояние квестов
     playerId: save?.playerId ?? `pilot_${Math.random().toString(36).slice(2, 10)}`,
     questState: save?.questState ?? {
       active: {},
@@ -51,6 +51,17 @@ export function createState(save = null) {
       flags: {},
       visitedPoi: {},
       log: []
+    },
+
+    // 🚨 НОВОЕ: Репутация игрока с фракциями
+    // Диапазон: от -100 (Враждебный) до 100 (Союзный). 0 = Нейтральный.
+    // При загрузке сохранения (save) эти значения будут перезаписаны, 
+    // а при новой игре будут использованы значения по умолчанию.
+    reputation: save?.reputation ?? {
+      union: 0,
+      traders: 0,
+      pirates: -10, // Пример: пираты сразу немного не любят новичков
+      neutral: 0,
     },
   };
 

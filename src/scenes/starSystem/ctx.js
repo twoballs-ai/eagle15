@@ -34,7 +34,7 @@ export function createStarSystemCtx(services) {
       target: [0, 0, 0],
       up: [0, 1, 0],
       fovRad: Math.PI / 3,
-      near: 0.1,
+      near: 1.0,
       far: 5000,
     },
 

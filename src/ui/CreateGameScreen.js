@@ -455,7 +455,35 @@ export class CreateGameScreen {
       </div>
     `;
   }
+getRepLabel(value) {
+    if (value >= 20) return { text: "Благоприятно", class: "cg-bonusPos" };
+    if (value >= 0) return { text: "Нейтрально", class: "cg-bonusNeutral" };
+    if (value >= -20) return { text: "С подозрением", class: "cg-bonusNeg" };
+    return { text: "Враждебно", class: "cg-bonusNeg" };
+  }
 
+  _renderFactionPreview() {
+    // Импортируем матрицу (добавь импорт в начало файла: import { RACE_FACTION_BIAS } from "../data/character/raceReputation.js";)
+    const bias = RACE_FACTION_BIAS[this._raceId] || RACE_FACTION_BIAS.human;
+    
+    const factions = [
+      { id: 'union', name: 'Союз', value: bias.union },
+      { id: 'traders', name: 'Торговцы', value: bias.traders },
+      { id: 'pirates', name: 'Пираты', value: bias.pirates },
+    ];
+
+    return factions.map(f => {
+      const label = this._getRepLabel(f.value);
+      const sign = f.value > 0 ? '+' : '';
+      return `
+        <div class="cg-repRow">
+          <span class="cg-repName">${f.name}</span>
+          <span class="cg-repValue ${label.class}">${sign}${f.value}</span>
+          <span class="cg-repStatus">${label.text}</span>
+        </div>
+      `;
+    }).join('');
+  }
   _injectStyles() {
     if (this._styleEl) return;
     const st = document.createElement("style");
