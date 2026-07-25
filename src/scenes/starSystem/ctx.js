@@ -1,3 +1,5 @@
+// src/scenes/starSystem/ctx.js
+
 import { EngineFlame } from "../../engine/renderer/engineFlame.js";
 import { QuestStateV2 } from "../../gameplay/quest/QuestStateV2.js";
 import { StoryManager } from "../../engine/managers/StoryManager.js";
@@ -14,21 +16,18 @@ import { CutsceneCaption } from "../../ui/cutsceneCaption.js";
 import { CutscenePlayer } from "../../gameplay/cutscene/cutscenePlayer.js";
 import { ActState } from "../../gameplay/story/ActState.js";
 import { EnemyDialogWidget } from "../../ui/EnemyDialogWidget.js";
+import { CommsWidget } from "../../ui/widgets/CommsWidget.js"; // <-- ДОБАВЛЕНО
 
 export function createStarSystemCtx(services) {
   const gl = services.get("gl");
   const canvas = services.get("canvas");
-  
-  // 🚨 НОВОЕ: Получаем единый state из сервисов
   const state = services.get("state");
 
   const ctx = {
     services,
-
     systemId: null,
     system: null,
     time: 0,
-
     cam3d: {
       eye: [0, 220, 340],
       target: [0, 0, 0],
@@ -37,7 +36,6 @@ export function createStarSystemCtx(services) {
       near: 1.0,
       far: 5000,
     },
-
     followCam: {
       distance: 340,
       height: 220,
@@ -53,13 +51,9 @@ export function createStarSystemCtx(services) {
       minPitch: -1.35,
       maxPitch: -0.15,
     },
-
     boundsRadius: 1200,
     act: new ActState(),
-    
-    // 🚨 ИСПРАВЛЕНО: Передаем state внутрь, чтобы QuestStateV2 работал с ним, а не с localStorage
     quest: new QuestStateV2(state),
-    
     poiDef: null,
     poi: null,
     poiFocus: null,
@@ -67,9 +61,7 @@ export function createStarSystemCtx(services) {
     questLine: "",
     lastLog: "",
     spawnPoints: null,
-
     flame: new EngineFlame(gl, { max: 2000 }),
-
     colliders: createColliderSystem({ cellSize: 140 }),
     projectiles: createProjectileSystem({
       bulletSpeed: 1100,
@@ -86,6 +78,7 @@ export function createStarSystemCtx(services) {
     },
     ui: {
       enemyDialog: new EnemyDialogWidget(),
+      commsLog: null, // Инициализируется ниже
     },
     enemyFire: createEnemyFireModule({
       range: 520,
@@ -94,26 +87,32 @@ export function createStarSystemCtx(services) {
       fireArcCos: 0.25,
       jitter: 0.02,
     }),
-
     relIcons: new RelationIconsOverlay({ canvas }),
-
     systemPlaneY: -90,
     celestialTriggerMul: 1.6,
     celestialInteractMul: 1.0,
-
     inputLock: {
       camera: false,
       ship: false,
       interact: false,
       combat: false,
     },
-
     debug: {
       colliders: true,
       poiSampleLog: true,
       poiZones: true,
     },
   };
+
+  // ===== Инициализация CommsWidget =====
+  // ===== Инициализация CommsWidget =====
+  ctx.ui.commsLog = new CommsWidget({ 
+    id: "comms-panel", // <--- ВОТ ЭТОГО НЕ ХВАТАЛО В МОЕМ ПРЕДЫДУЩЕМ КОДЕ
+    ctx,
+    onMessageClick: (msg) => {
+      services.get("bus").emit("ui:requestInteraction", { shipId: msg.shipId });
+    }
+  });
 
   // ===== cutscene infrastructure =====
   const letterbox = new LetterboxOverlay({ parent: document.body });
@@ -138,9 +137,6 @@ export function createStarSystemCtx(services) {
 
   // ===== content registry + story manager =====
   ctx.content = createContentRegistry();
-  
-  // StoryManager теперь автоматически получает обновленный ctx.quest, 
-  // который работает напрямую с state.questState
   ctx.story = new StoryManager({
     quest: ctx.quest,
     act: ctx.act,
@@ -151,16 +147,13 @@ export function createStarSystemCtx(services) {
   // ===== world helpers =====
   ctx.resolvePoiPos = (poi) => {
     if (!poi) return null;
-
     if (poi.kind === "static") return { x: poi.x ?? 0, z: poi.z ?? 0 };
-
     if (poi.kind === "planet") {
       const p = ctx.system?.planets?.find((pp) => pp.id === poi.planetId);
       if (!p) return null;
       const a = ctx.time * p.speed + p.phase;
       return { x: Math.cos(a) * p.orbitRadius, z: Math.sin(a) * p.orbitRadius };
     }
-
     return null;
   };
 

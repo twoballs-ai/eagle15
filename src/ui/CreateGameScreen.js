@@ -1,4 +1,4 @@
-                              // ui/startScreen.js
+import { RACE_FACTION_BIAS } from "../data/character/raceReputation.js";
 import { RACES } from "../data/character/races.js";
 import { CLASSES } from "../data/character/classes.js";
 import { SHIP_CLASSES } from "../data/ship/shipClasses.js";
@@ -15,8 +15,6 @@ const NAMES_BY_RACE = {
   voidborn: ["Нокс","Эхо","Люмен","Пульсар","Тень"],
 };
 
-// 🎨 Цветовая тема расы (rgb-тройка → собираем rgba через var(--race-rgb)).
-//    При выборе расы весь «паспорт» справа перекрашивается в её цвет.
 const RACE_THEME = {
   human:    { rgb: "120,170,235" },
   synth:    { rgb: "90,210,255"  },
@@ -26,7 +24,6 @@ const RACE_THEME = {
   voidborn: { rgb: "150,110,255" },
 };
 
-// 🛡 Векторные эмблемы рас (вместо эмодзи → единый sci-fi язык, currentColor).
 const RACE_EMBLEM = {
   human: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M24 6 L40 16 V30 C40 38 32 42 24 44 C16 42 8 38 8 30 V16 Z"/><path d="M24 16 L31 24 L24 34 L17 24 Z" fill="currentColor" stroke="none" opacity=".85"/></svg>`,
   synth: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M24 5 L40 14 V34 L24 43 L8 34 V14 Z"/><circle cx="18" cy="22" r="2.4" fill="currentColor" stroke="none"/><circle cx="30" cy="22" r="2.4" fill="currentColor" stroke="none"/><path d="M16 32 H32"/></svg>`,
@@ -36,7 +33,6 @@ const RACE_EMBLEM = {
   voidborn: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="24" cy="24" r="7" fill="currentColor" stroke="none"/><ellipse cx="24" cy="24" rx="18" ry="7" transform="rotate(25 24 24)"/><path d="M24 4 V10 M24 38 V44 M4 24 H10 M38 24 H44" stroke-linecap="round"/></svg>`,
 };
 
-// ⚙ Линейные иконки классов пилота.
 const CLASS_ICON = {
   soldier: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3 L19 6 V11 C19 16 16 19 12 21 C8 19 5 16 5 11 V6 Z"/></svg>`,
   ace: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M12 3 C15 6 16 10 16 14 L12 17 L8 14 C8 10 9 6 12 3 Z"/><path d="M8 14 L5 17 M16 14 L19 17"/><circle cx="12" cy="10" r="1.6"/></svg>`,
@@ -47,7 +43,6 @@ const CLASS_ICON = {
   scout_pilot: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M2 12 C5 7 9 5 12 5 C15 5 19 7 22 12 C19 17 15 19 12 19 C9 19 5 17 2 12 Z"/><circle cx="12" cy="12" r="2.6"/></svg>`,
 };
 
-// 🚀 Силуэты кораблей (вид сверху).
 const SHIP_ICON = {
   scout: `<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 3 L15 13 L12 11 L9 13 Z" opacity=".9"/><path d="M9 13 L6 18 L9 16 Z M15 13 L18 18 L15 16 Z" opacity=".6"/></svg>`,
   frigate: `<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2 L16 14 L12 12 L8 14 Z"/><path d="M8 14 L4 19 L8 17 Z M16 14 L20 19 L16 17 Z" opacity=".7"/></svg>`,
@@ -58,8 +53,6 @@ const SHIP_ICON = {
 };
 
 const FALLBACK_ICON = `<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 3 L20 12 L12 21 L4 12 Z" opacity=".7"/></svg>`;
-
-// Условные «потолки» для полосок ТТХ (чтобы бары были наглядны и реагировали на бонусы).
 const STAT_MAX = { hull: 250, shields: 200, energy: 150, speed: 3 };
 
 const MOD_LABELS = {
@@ -84,30 +77,23 @@ export class CreateGameScreen {
   constructor({ parent } = {}) {
     this.parent = parent ?? document.getElementById("ui-root") ?? document.body;
     this.root = null;
-
     this._raceId = "human";
     this._classId = "soldier";
     this._shipClassId = "scout";
-
     this.nameInp = null;
     this.randomNameBtn = null;
     this.summaryEl = null;
     this.startBtn = null;
     this.backBtn = null;
-
     this._raceRow = null;
     this._classRow = null;
     this._shipRow = null;
-
     this._raceHelp = null;
     this._classHelp = null;
     this._shipHelp = null;
-
     this._regCode = "";
-
     this.onStart = null;
     this.onBack = null;
-
     this._handlers = {};
     this._styleEl = null;
   }
@@ -151,7 +137,6 @@ export class CreateGameScreen {
             <div class="cg-cardTitle">Параметры экипажа</div>
             <div class="cg-cardHint">раса • роль • корпус</div>
           </div>
-
           <div class="cg-form">
             <div class="cg-field">
               <div class="cg-label">Раса</div>
@@ -176,9 +161,7 @@ export class CreateGameScreen {
               <div class="cg-help">Пустое поле → позывной назначит бортовой ИИ.</div>
             </div>
           </div>
-
           <div class="cg-divider"></div>
-
           <div class="cg-actions">
             <button data-id="backBtn" class="cg-btn cg-btnGhost">
               <span class="cg-btnIco">←</span>
@@ -201,12 +184,11 @@ export class CreateGameScreen {
         <div class="cg-card cg-cardWide">
           <div class="cg-cardHeader">
             <div class="cg-cardTitle">Бортовое досье</div>
-            <div class="cg-cardHint">паспорт • ТТХ</div>
+            <div class="cg-cardHint">паспорт • ТТХ • репутация</div>
           </div>
           <div data-id="summary" class="cg-summary"></div>
         </div>
       </div>
-
       <div class="cg-scanline" aria-hidden="true"></div>
       <div class="cg-noise" aria-hidden="true"></div>
     `;
@@ -230,7 +212,6 @@ export class CreateGameScreen {
     this._raceId = this._raceId in RACES ? this._raceId : (Object.keys(RACES)[0] ?? "human");
     this._classId = this._classId in CLASSES ? this._classId : (Object.keys(CLASSES)[0] ?? "soldier");
     this._shipClassId = this._shipClassId in SHIP_CLASSES ? this._shipClassId : (Object.keys(SHIP_CLASSES)[0] ?? "scout");
-
     this._regCode = "E15-" + Math.random().toString(36).slice(2, 6).toUpperCase() + "-" + Math.floor(Math.random() * 900 + 100);
 
     this._renderPickers();
@@ -275,7 +256,6 @@ export class CreateGameScreen {
     };
   }
 
-  // ===== тема расы: ставим rgb-тройку в CSS-переменную на корне =====
   _applyRaceTheme() {
     if (!this.root) return;
     const t = RACE_THEME[this._raceId] ?? RACE_THEME.human;
@@ -379,7 +359,6 @@ export class CreateGameScreen {
     this.nameInp.value = (!list || !list.length) ? "Пилот" : list[Math.floor(Math.random() * list.length)];
   }
 
-  // ===== построение «паспорта пилота» (DOM, а не моноширинный текст) =====
   _bar(label, value, max) {
     const w = Math.max(0, Math.min(100, (Number(value) / max) * 100));
     return `<div class="cg-bar">
@@ -398,7 +377,14 @@ export class CreateGameScreen {
     const emblem = RACE_EMBLEM[raceId] ?? FALLBACK_ICON;
     const shipIco = SHIP_ICON[shipClassId] ?? FALLBACK_ICON;
 
-    const pilot = createPilotProfile({ id: "preview_pilot", name: name || "—", raceId, classId, factionId: "player" });
+    const pilot = createPilotProfile({ 
+      id: "preview_pilot", 
+      name: name || "—", 
+      raceId, 
+      classId, 
+      factionId: "player" 
+    });
+    
     const base = shipCls?.baseStats || { hull: 0, shields: 0, energy: 0, speed: 0 };
     const final = applyPilotModifiersToShipStats(base, pilot.modifiers);
 
@@ -412,6 +398,7 @@ export class CreateGameScreen {
     if (!chips) chips = `<span class="cg-bonus cg-bonusNeutral">особенности не выявлены</span>`;
 
     const desc = [race?.description, cls?.description].filter(Boolean).join(" ");
+    const repPreview = this._renderFactionPreview();
 
     this.summaryEl.innerHTML = `
       <div class="cg-id">
@@ -452,38 +439,52 @@ export class CreateGameScreen {
           <div class="cg-idSectionTitle">Особенности пилота</div>
           <div class="cg-idBonus">${chips}</div>
         </div>
+
+        <div class="cg-idSection">
+          <div class="cg-idSectionTitle">Отношение фракций <span class="cg-idSectionHint">(стартовое)</span></div>
+          <div class="cg-idRepList">
+            ${repPreview}
+          </div>
+        </div>
       </div>
     `;
   }
-getRepLabel(value) {
-    if (value >= 20) return { text: "Благоприятно", class: "cg-bonusPos" };
-    if (value >= 0) return { text: "Нейтрально", class: "cg-bonusNeutral" };
-    if (value >= -20) return { text: "С подозрением", class: "cg-bonusNeg" };
-    return { text: "Враждебно", class: "cg-bonusNeg" };
-  }
 
+  // НОВЫЙ МЕТОД: Рендер градиентной шкалы репутации
   _renderFactionPreview() {
-    // Импортируем матрицу (добавь импорт в начало файла: import { RACE_FACTION_BIAS } from "../data/character/raceReputation.js";)
     const bias = RACE_FACTION_BIAS[this._raceId] || RACE_FACTION_BIAS.human;
     
     const factions = [
-      { id: 'union', name: 'Союз', value: bias.union },
-      { id: 'traders', name: 'Торговцы', value: bias.traders },
-      { id: 'pirates', name: 'Пираты', value: bias.pirates },
+      { id: 'union', name: 'Союз', value: bias.union ?? 0 },
+      { id: 'traders', name: 'Торговцы', value: bias.traders ?? 0 },
+      { id: 'pirates', name: 'Пираты', value: bias.pirates ?? 0 },
     ];
 
     return factions.map(f => {
-      const label = this._getRepLabel(f.value);
+      // Вычисляем позицию маркера: от 0% (при -100) до 100% (при +100)
+      const clampedValue = Math.max(-100, Math.min(100, f.value));
+      const positionPercent = ((clampedValue + 100) / 200) * 100;
       const sign = f.value > 0 ? '+' : '';
+
       return `
-        <div class="cg-repRow">
-          <span class="cg-repName">${f.name}</span>
-          <span class="cg-repValue ${label.class}">${sign}${f.value}</span>
-          <span class="cg-repStatus">${label.text}</span>
+        <div class="cg-rep-container">
+          <div class="cg-rep-header">
+            <span class="cg-rep-name">${f.name}</span>
+            <span class="cg-rep-value">${sign}${f.value}</span>
+          </div>
+          <div class="cg-rep-track">
+            <div class="cg-rep-marker" style="left: ${positionPercent}%"></div>
+          </div>
+          <div class="cg-rep-labels">
+            <span>-100</span>
+            <span>0</span>
+            <span>+100</span>
+          </div>
         </div>
       `;
     }).join('');
   }
+
   _injectStyles() {
     if (this._styleEl) return;
     const st = document.createElement("style");
@@ -491,7 +492,7 @@ getRepLabel(value) {
     st.textContent = `
     .cg-root{
         position:fixed; inset:0; z-index:2000001;
-        overflow: hidden; /* Жестко обрезаем всё, что вылезает за экран */
+        overflow: hidden;
         display:flex; align-items:center; justify-content:center;
         padding: 12px; pointer-events:auto;
         --race-rgb: 120,170,235;
@@ -506,36 +507,23 @@ getRepLabel(value) {
       .cg-root.cg-visible{ opacity:1; transform: translateY(0); }
 
       .cg-panel{
-        /* 🚨 ИСПРАВЛЕНО: 100% вместо 100vw. 100vw включает ширину скроллбара, 100% — нет. */
         width: min(1320px, 100%);
         max-height: calc(100vh - 24px);
-        
-        /* 🚨 ИСПРАВЛЕНО: запрещаем горизонтальный скролл, вертикальный оставляем только при реальной необходимости */
         overflow-x: hidden;
         overflow-y: auto;
-        
         border-radius: 16px; position:relative;
         background: linear-gradient(180deg, rgba(10,14,24,.78), rgba(6,8,12,.90));
         border: none;
         box-shadow: 0 26px 90px rgba(0,0,0,.62), 0 0 0 1px rgba(0,0,0,.45) inset;
         backdrop-filter: blur(12px);
-        
-        /* Сглаживание скролла для эстетики */
-/* Невидимый скроллбар для Firefox */
-scrollbar-width: none;
-/* Невидимый скроллбар для Chrome/Safari/Edge */
-&::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-  display: none;
-}
+        scrollbar-width: none;
       }
+      .cg-panel::-webkit-scrollbar { width: 0; height: 0; display: none; }
+      
       .cg-topbar{
         display:flex; align-items:center; justify-content:space-between;
         padding: 14px 18px;
-        background:
-          linear-gradient(90deg, rgba(var(--race-rgb),.14), rgba(0,0,0,0) 55%),
-          linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0));
+        background: linear-gradient(90deg, rgba(var(--race-rgb),.14), rgba(0,0,0,0) 55%), linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0));
         border-bottom: 1px solid rgba(var(--race-rgb),.18);
       }
       .cg-brand{ display:flex; align-items:center; gap:12px; }
@@ -567,9 +555,7 @@ scrollbar-width: none;
       }
       .cg-card::before{
         content:""; position:absolute; inset:-1px; pointer-events:none;
-        background:
-          radial-gradient(520px 140px at 20% 0%, rgba(var(--race-rgb),.10), transparent 60%),
-          radial-gradient(520px 140px at 80% 0%, rgba(120,160,255,.06), transparent 60%);
+        background: radial-gradient(520px 140px at 20% 0%, rgba(var(--race-rgb),.10), transparent 60%), radial-gradient(520px 140px at 80% 0%, rgba(120,160,255,.06), transparent 60%);
       }
       .cg-cardHeader{ display:flex; align-items:baseline; gap:10px; padding: 6px 6px 10px 6px; }
       .cg-cardTitle{ font-weight: 850; font-size: 13px; letter-spacing:.6px; text-transform:uppercase; }
@@ -578,7 +564,6 @@ scrollbar-width: none;
       .cg-form{ padding: 6px; display:flex; flex-direction:column; gap:14px; }
       .cg-field{ display:flex; flex-direction:column; gap:8px; }
       .cg-label{ font-size:11px; opacity:.7; letter-spacing:.8px; text-transform:uppercase; }
-
       .cg-pickRow{ display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; padding: 2px 2px 4px 2px; }
 
       .cg-pill{
@@ -598,11 +583,9 @@ scrollbar-width: none;
       .cg-pillMain{ font-weight: 850; font-size: 12px; letter-spacing:.3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
       .cg-pillGlow{ position:absolute; inset:-1px; border-radius:12px; pointer-events:none; }
 
-      /* активный выбор: классы/корабли → бирюза */
       .cg-pill.is-active{ border-color: rgba(0,255,220,.30); background: linear-gradient(90deg, rgba(0,255,220,.10), rgba(0,0,0,.22)); }
       .cg-pill.is-active .cg-pillIco{ color: rgba(0,255,220,.95); box-shadow: 0 0 16px rgba(0,255,220,.16); background: rgba(0,255,220,.08); }
       .cg-pill.is-active .cg-pillGlow{ box-shadow: 0 0 24px rgba(0,255,220,.10); }
-      /* активный выбор расы → цвет расы (перебивает бирюзу специфичностью) */
       .cg-pill[data-kind="race"].is-active{ border-color: rgba(var(--race-rgb),.55); background: linear-gradient(90deg, rgba(var(--race-rgb),.16), rgba(0,0,0,.22)); }
       .cg-pill[data-kind="race"].is-active .cg-pillIco{ color: rgb(var(--race-rgb)); box-shadow: 0 0 18px rgba(var(--race-rgb),.24); background: rgba(var(--race-rgb),.10); }
       .cg-pill[data-kind="race"].is-active .cg-pillGlow{ box-shadow: 0 0 26px rgba(var(--race-rgb),.16); }
@@ -625,8 +608,8 @@ scrollbar-width: none;
       .cg-iconBtn:hover{ background: rgba(var(--race-rgb),.16); color: rgb(var(--race-rgb)); border-color: rgba(var(--race-rgb),.3); }
 
       .cg-divider{ height:1px; margin: 10px 6px; background: linear-gradient(90deg, transparent, rgba(var(--race-rgb),.22), transparent); }
-
       .cg-actions{ padding: 6px; display:flex; gap:10px; }
+      
       .cg-btn{
         position:relative; flex:1; display:flex; align-items:center; gap:10px; padding: 12px; border-radius: 12px;
         cursor:pointer; user-select:none; border: 1px solid transparent; background: rgba(0,0,0,.20); color:#eaf3ff;
@@ -644,13 +627,10 @@ scrollbar-width: none;
       .cg-btnPrimary:hover .cg-btnGlow{ box-shadow: 0 0 26px rgba(0,255,220,.16); }
       .cg-btnGhost{ opacity:.92; }
 
-      /* ============ БОРТОВОЕ ДОСЬЕ (паспорт) ============ */
       .cg-summary{ margin: 4px 6px 6px; }
       .cg-id{
         position:relative; padding: 16px; border-radius: 14px;
-        background:
-          radial-gradient(420px 160px at 100% 0%, rgba(var(--race-rgb),.12), transparent 60%),
-          linear-gradient(180deg, rgba(0,0,0,.30), rgba(0,0,0,.16));
+        background: radial-gradient(420px 160px at 100% 0%, rgba(var(--race-rgb),.12), transparent 60%), linear-gradient(180deg, rgba(0,0,0,.30), rgba(0,0,0,.16));
         box-shadow: 0 0 0 1px rgba(var(--race-rgb),.16) inset;
       }
       .cg-idCorner{ position:absolute; width:18px; height:18px; pointer-events:none; border: 2px solid rgba(var(--race-rgb),.6); }
@@ -672,9 +652,7 @@ scrollbar-width: none;
       .cg-idSep{ opacity:.5; margin:0 4px; }
       .cg-idName{ font-size:26px; font-weight:900; letter-spacing:.5px; line-height:1.1; margin:2px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
       .cg-idReg{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:11px; opacity:.5; letter-spacing:1px; }
-
       .cg-idDesc{ margin-top:14px; font-size:12.5px; line-height:1.5; opacity:.78; }
-
       .cg-idSection{ margin-top:16px; }
       .cg-idSectionTitle{
         font-size:11px; font-weight:850; letter-spacing:1.2px; text-transform:uppercase; opacity:.66;
@@ -689,21 +667,53 @@ scrollbar-width: none;
       .cg-idShipName{ font-weight:900; font-size:14px; letter-spacing:.4px; }
       .cg-idShipDesc{ font-size:11.5px; opacity:.66; margin-top:2px; line-height:1.4; }
 
-      /* полоски ТТХ */
       .cg-bar{ margin-bottom:9px; }
       .cg-barLabel{ display:flex; justify-content:space-between; font-size:11px; letter-spacing:.6px; opacity:.8; margin-bottom:4px; }
       .cg-barVal{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: rgb(var(--race-rgb)); font-weight:700; }
       .cg-barTrack{ height:7px; border-radius:6px; background: rgba(255,255,255,.07); overflow:hidden; box-shadow: 0 0 0 1px rgba(0,0,0,.3) inset; }
       .cg-barFill{ height:100%; border-radius:6px; background: linear-gradient(90deg, rgba(var(--race-rgb),.95), rgba(var(--race-rgb),.35)); box-shadow: 0 0 10px rgba(var(--race-rgb),.4); transition: width .25s ease; }
-
-      /* чипы бонусов */
       .cg-idBonus{ display:flex; flex-wrap:wrap; gap:8px; }
       .cg-bonus{ padding:5px 10px; border-radius:999px; font-size:11px; font-weight:800; letter-spacing:.3px; border:1px solid transparent; }
       .cg-bonusPos{ color:#9dffc8; background: rgba(40,200,120,.12); box-shadow: 0 0 0 1px rgba(40,200,120,.3) inset; }
       .cg-bonusNeg{ color:#ff9d9d; background: rgba(220,70,70,.12); box-shadow: 0 0 0 1px rgba(220,70,70,.3) inset; }
       .cg-bonusNeutral{ color: rgba(220,230,255,.6); background: rgba(255,255,255,.04); }
 
-      /* атмосфера */
+      /* НОВЫЕ СТИЛИ ДЛЯ ГРАДИЕНТНОЙ ШКАЛЫ РЕПУТАЦИИ */
+      .cg-idRepList { display:flex; flex-direction:column; gap: 16px; margin-top: 4px; }
+      .cg-rep-container { display:flex; flex-direction:column; gap: 6px; }
+      .cg-rep-header { display:flex; justify-content:space-between; font-size: 12px; font-weight: 600; }
+      .cg-rep-name { opacity: 0.9; }
+      .cg-rep-value { font-family: ui-monospace, monospace; color: rgb(var(--race-rgb)); }
+      
+      .cg-rep-track {
+        position: relative;
+        height: 8px;
+        border-radius: 4px;
+        /* Градиент: Красный (-100) -> Желтый (0) -> Зеленый (+100) */
+        background: linear-gradient(90deg, #ff4757 0%, #ffa502 50%, #2ed573 100%);
+        box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
+      }
+      .cg-rep-marker {
+        position: absolute;
+        top: 50%;
+        width: 12px;
+        height: 12px;
+        background: #ffffff;
+        border: 2px solid #0a0e18;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.6);
+        transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Плавное скольжение при смене расы */
+      }
+      .cg-rep-labels {
+        display: flex;
+        justify-content: space-between;
+        font-size: 10px;
+        opacity: 0.5;
+        font-family: ui-monospace, monospace;
+        margin-top: 2px;
+      }
+
       .cg-scanline{
         position:absolute; inset:0; pointer-events:none;
         background: linear-gradient(180deg, transparent, rgba(var(--race-rgb),.10), transparent);
