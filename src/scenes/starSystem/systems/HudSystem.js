@@ -1,10 +1,10 @@
-// scenes/starSystem/systems/HudSystem.js
+// src/scenes/starSystem/systems/HudSystem.js
+
 import { System } from "../../../engine/core/lifecycle.js";
 import { HudScope } from "../../../ui/hud/HudScope.js";
 import { MinimapWidget } from "../../../ui/widgets/MinimapWidget.js";
 import { QuestWidget } from "../../../ui/widgets/QuestWidget.js";
 import { ShipStatusWidget } from "../../../ui/widgets/ShipStatusWidget.js";
-import { CommsWidget } from "../../../ui/widgets/CommsWidget.js";
 import { MobileControlsWidget } from "../../../ui/widgets/MobileControlsWidget.js";
 
 export class HudSystem extends System {
@@ -33,11 +33,14 @@ export class HudSystem extends System {
       enabled: true,
     });
 
-    this.scope.register(new CommsWidget({ id: "comms-panel", ctx: this.ctx }), {
-      slot: "bottom-left",
-      order: 5,
-      enabled: true,
-    });
+    // Регистрируем уже созданный в ctx.ui виджет (избавляемся от дублирования)
+    if (this.ctx.ui?.commsLog) {
+      this.scope.register(this.ctx.ui.commsLog, {
+        slot: "bottom-left",
+        order: 5,
+        enabled: true,
+      });
+    }
 
     this.scope.register(new MinimapWidget({ id: "minimap", ctx: this.ctx }), {
       slot: "top-right",

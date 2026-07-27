@@ -1,3 +1,5 @@
+// src/gameplay/interaction/NpcInteractionSystem.js
+
 import { System } from "../../engine/core/lifecycle.js";
 import { projectWorldToScreen } from "../math/project.js";
 import { getFactionRelation } from "../../data/faction/factionRelationsUtil.js";
@@ -9,6 +11,24 @@ export class NpcInteractionSystem extends System {
   constructor(services, ctx) {
     super(services);
     this.ctx = ctx;
+    this.handleInteractionRequest = this.handleInteractionRequest.bind(this);
+  }
+
+  enter() {
+    this.s.get("bus").on("ui:requestInteraction", this.handleInteractionRequest);
+  }
+
+  exit() {
+    this.s.get("bus").off("ui:requestInteraction", this.handleInteractionRequest);
+  }
+
+  handleInteractionRequest({ shipId }) {
+    const state = this.s.get("state");
+    const ship = state.ships?.find(s => s.id === shipId);
+    if (ship) {
+      const playerFaction = state.playerShip?.factionId ?? state.player?.factionId ?? "player";
+      this.requestInteraction(ship, playerFaction, true);
+    }
   }
 
   update(dt) {
@@ -29,12 +49,12 @@ export class NpcInteractionSystem extends System {
     const viewPx = (typeof getViewPx === "function" ? getViewPx() : null) ?? { w: 1, h: 1, dpr: 1 };
     const now = performance.now();
 
-    // 1. Ручное взаимодействие по клику
+    // 1. Ручное взаимодействие по клику (Alt+Click)
     if (actions.take("clickAlt")) {
       const mouse = this.s.get("input").getMouse();
       const clickedShip = this.getShipAtMouse(ships, mouse.x, mouse.y, vp, viewPx, playerShip);
       if (clickedShip) {
-        this.openShipDialog(clickedShip, playerFaction);
+        this.requestInteraction(clickedShip, playerFaction, true);
         return;
       }
     }
@@ -45,12 +65,19 @@ export class NpcInteractionSystem extends System {
       if (ship.alive === false || ship.runtime.dead) continue;
       if (ship.aiState === "combat") continue; // Уже в бою, не мешаем
 
+      // Проверка кулдауна на автоматические диалоги (механика "Игнорировать")
+      if (ship.nextAutoDialogAt && now < ship.nextAutoDialogAt) {
+        continue;
+      }
+
       const dist = this.getDistance(player, ship.runtime);
       
       // Если корабль улетел далеко, сбрасываем предупреждение и закрываем диалог
       if (dist > (ship.talkRadius ?? PASSING_DISTANCE)) {
         if (ship.warningState) {
           ship.warningState = null;
+          this.ctx.ui?.commsLog?.removeMessage(ship.id);
+          
           const dialog = this.ctx.ui?.enemyDialog;
           if (dialog?.currentShip?.id === ship.id) {
             dialog.close();
@@ -70,26 +97,50 @@ export class NpcInteractionSystem extends System {
           startedAt: now,
           duration: HOSTILE_WARNING_TIME,
         };
-        this.openShipDialog(ship, playerFaction, relation);
+        // Вместо мгновенного открытия диалога, отправляем сигнал в лог связи
+        this.ctx.ui?.commsLog?.addMessage({
+          shipId: ship.id,
+          shipName: ship.name ?? "Вражеский корабль",
+          type: "hostile",
+          text: "Нарушение границ! 60 секунд на ответ или мы откроем огонь.",
+          isUrgent: true
+        });
+      }
+
+      // Нейтрал/Союзник: предлагаем связь
+      if (relation !== "hostile" && !ship.hasOfferedInteraction) {
+        ship.hasOfferedInteraction = true;
+        this.ctx.ui?.commsLog?.addMessage({
+          shipId: ship.id,
+          shipName: ship.name ?? "Попутный корабль",
+          type: relation === "ally" ? "ally" : "neutral",
+          text: "Входящий запрос на связь. Нажмите, чтобы ответить.",
+          isUrgent: false
+        });
       }
 
       // 3. Проверка таймера предупреждения для врагов
       if (ship.warningState?.type === "hostile_warning") {
         const timeLeft = ship.warningState.startedAt + ship.warningState.duration - now;
         
-        // Обновляем таймер в UI, если диалог открыт
-        const dialog = this.ctx.ui?.enemyDialog;
-        if (dialog?.currentShip?.id === ship.id) {
-          dialog.updateCountdown(Math.ceil(timeLeft / 1000));
-          if (timeLeft <= 10) {
-            dialog.setUrgent(true);
-          }
+        // Обновляем текст в логе связи, чтобы показать обратный отсчет (примерно раз в секунду)
+        if (timeLeft > 0 && timeLeft % 1000 < 20) {
+           this.ctx.ui?.commsLog?.addMessage({
+             shipId: ship.id,
+             shipName: ship.name ?? "Вражеский корабль",
+             type: "hostile",
+             text: `ВНИМАНИЕ: Огонь будет открыт через ${Math.ceil(timeLeft / 1000)} сек.`,
+             isUrgent: true
+           });
         }
 
         // Время вышло - нападаем!
         if (timeLeft <= 0) {
           ship.warningState = null;
           ship.aiState = "combat";
+          this.ctx.ui?.commsLog?.removeMessage(ship.id);
+          
+          const dialog = this.ctx.ui?.enemyDialog;
           if (dialog?.currentShip?.id === ship.id) {
             dialog.close();
           }
@@ -99,12 +150,14 @@ export class NpcInteractionSystem extends System {
     }
   }
 
-  openShipDialog(ship, playerFaction, forcedRelation = null) {
-    const relation = forcedRelation ?? getFactionRelation(playerFaction, ship.factionId);
+  requestInteraction(ship, playerFaction, forceOpen = false) {
+    const relation = getFactionRelation(playerFaction, ship.factionId);
     const dialog = this.ctx.ui?.enemyDialog;
     if (!dialog) return;
 
     if (dialog.currentShip?.id === ship.id) return;
+
+    this.ctx.ui?.commsLog?.markAsRead(ship.id);
 
     const options = this.getInteractionOptions(ship, relation);
     dialog.open({
@@ -112,7 +165,7 @@ export class NpcInteractionSystem extends System {
       title: `${ship.name ?? "Неизвестный корабль"} · ${this.relationLabel(relation)}`,
       text: options.text,
       actions: options.actions,
-      isWarning: relation === "hostile", // Флаг для UI, чтобы показать таймер
+      isWarning: relation === "hostile",
     });
   }
 
@@ -129,6 +182,7 @@ export class NpcInteractionSystem extends System {
                 state.credits -= 500;
                 ship.aiState = "idle";
                 ship.warningState = null;
+                this.ctx.ui?.commsLog?.removeMessage(ship.id);
                 this.ctx.ui?.enemyDialog?.close();
                 this.ctx.lastLog = "Вы заплатили штраф. Корабль отступил.";
               } else {
@@ -141,6 +195,7 @@ export class NpcInteractionSystem extends System {
             onClick: () => {
               ship.aiState = "idle";
               ship.warningState = null;
+              this.ctx.ui?.commsLog?.removeMessage(ship.id);
               this.ctx.ui?.enemyDialog?.close();
               this.ctx.lastLog = "Вы сдались. Корабль обыскал вас и отступил.";
             },
@@ -150,6 +205,7 @@ export class NpcInteractionSystem extends System {
             onClick: () => {
               ship.warningState = null;
               ship.aiState = "combat";
+              this.ctx.ui?.commsLog?.removeMessage(ship.id);
               this.ctx.ui?.enemyDialog?.close();
               this.ctx.lastLog = "Вы проигнорировали предупреждение. Бой начался!";
             },
@@ -174,6 +230,7 @@ export class NpcInteractionSystem extends System {
           onClick: () => {
             ship.aiState = "idle";
             ship.nextAutoDialogAt = performance.now() + 30000;
+            this.ctx.ui?.commsLog?.removeMessage(ship.id);
             this.ctx.ui?.enemyDialog?.close();
             // TODO: Открыть экран рынка
           },
@@ -184,6 +241,7 @@ export class NpcInteractionSystem extends System {
             this.ctx.lastLog = `Новый миниквест от ${ship.name ?? "пилота"}`;
             ship.aiState = "idle";
             ship.nextAutoDialogAt = performance.now() + 60000;
+            this.ctx.ui?.commsLog?.removeMessage(ship.id);
             this.ctx.ui?.enemyDialog?.close();
             // TODO: Логика выдачи квеста
           },
@@ -192,7 +250,8 @@ export class NpcInteractionSystem extends System {
           label: "Игнорировать",
           onClick: () => {
             ship.aiState = "idle";
-            ship.nextAutoDialogAt = performance.now() + 12000;
+            ship.nextAutoDialogAt = performance.now() + 12000; // Механика сохранена!
+            this.ctx.ui?.commsLog?.removeMessage(ship.id);
             this.ctx.ui?.enemyDialog?.close();
           },
         },

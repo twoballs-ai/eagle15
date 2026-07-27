@@ -1,3 +1,5 @@
+// src/gameplay/combat/EnemyAISystem.js
+
 import { System } from "../../../engine/core/lifecycle.js";
 import { isHostile } from "../../../data/faction/factionRelationsUtil.js";
 
@@ -14,7 +16,6 @@ export class EnemyAISystem extends System {
     if (!player) return;
 
     const playerFaction = playerShip?.factionId ?? state.player?.factionId ?? "player";
-
     const ships = state.ships || [];
 
     const aliveShips = ships.filter((ship) => {
@@ -30,6 +31,7 @@ export class EnemyAISystem extends System {
     for (const ship of aliveShips) {
       if (ship === playerShip) continue;
       if (!ship?.runtime) continue;
+      
       const hostile = !!ship.isEnemy || isHostile(playerFaction, ship.factionId);
       if (!hostile) continue;
 
@@ -46,25 +48,27 @@ export class EnemyAISystem extends System {
         continue;
       }
 
-      if (ship.aiState === "dialog") {
+      // Если открыт диалог или идет предупреждение, враг тормозит и ждет решения
+      if (ship.aiState === "dialog" || ship.warningState) {
         r.vx *= 0.92;
         r.vz *= 0.92;
         continue;
       }
 
-      ship.aiState = "combat";
+      // Если состояние combat, атакуем
+      if (ship.aiState === "combat") {
+        const nx = dx / (dist || 1);
+        const nz = dz / (dist || 1);
 
-      const nx = dx / (dist || 1);
-      const nz = dz / (dist || 1);
+        r.yaw = Math.atan2(dx, -dz);
 
-      r.yaw = Math.atan2(dx, -dz);
+        const speed = dist > 180 ? 120 : 0;
+        r.vx = nx * speed;
+        r.vz = nz * speed;
 
-      const speed = dist > 180 ? 120 : 0;
-      r.vx = nx * speed;
-      r.vz = nz * speed;
-
-      r.x += r.vx * dt;
-      r.z += r.vz * dt;
+        r.x += r.vx * dt;
+        r.z += r.vz * dt;
+      }
     }
   }
 }
