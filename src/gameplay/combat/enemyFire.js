@@ -1,6 +1,9 @@
 // gameplay/combat/enemyFire.js
 // Простая стрельба врагов по игроку (hit-scan + трассер)
+// ✅ ДОБАВЛЕНО: враги создают снаряды через projectiles.js для единого VFX-рендера
 import { applyShipDamage } from "./applyShipDamage.js";
+import { tryFire } from "../weapons/projectiles.js";
+
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
 function dist2(ax, az, bx, bz) {
@@ -41,13 +44,23 @@ export function createEnemyFireModule(opts = {}) {
 
   const cfg = {
     range: 520,            // дальность стрельбы
-    fireArcCos: 0.35,      // “сектор” стрельбы: cos угла (0.35 ~ 69°)
+    fireArcCos: 0.35,      // "сектор" стрельбы: cos угла (0.35 ~ 69°)
     fireRate: 1.2,         // выстрелов/сек (1.2 => раз в ~0.83с)
     jitter: 0.02,          // небольшой разброс направления
     damage: 18,            // урон по щиту/корпусу
     bulletSpeed: 0,        // 0 = hitscan; если захочешь снаряды — сделаем позже
+    // ✅ ДОБАВЛЕНО: пресет оружия врагов (определяет VFX-стиль)
+    weaponPresetId: "pulse",
     ...opts,
   };
+
+  // ✅ ДОБАВЛЕНО: ссылка на projectile system (передаётся извне)
+  let projectileSystem = null;
+
+  // ✅ ДОБАВЛЕНО: метод для подключения projectile system
+  function setProjectileSystem(sys) {
+    projectileSystem = sys;
+  }
 
   function update(dt, ships, playerShip) {
     if (!playerShip?.runtime) return;
@@ -124,8 +137,21 @@ export function createEnemyFireModule(opts = {}) {
         applyShipDamage(playerShip.runtime, cfg.damage);
       }
 
-      // трассер
+      // трассер (оставляем для совместимости)
       state.tracers.push(makeTracer(muzzleX, muzzleZ, endX, endZ));
+
+      // ✅ ДОБАВЛЕНО: создаём снаряд для VFX-рендера
+      // Снаряд летит в направлении выстрела, рисуется тем же компонентом что и у игрока
+      if (projectileSystem) {
+        // Определяем presetId: у каждого врага может быть свой, иначе берём из cfg
+        const presetId = ship.weaponPresetId || cfg.weaponPresetId;
+
+        tryFire(projectileSystem, r, ship.id, dt, true, {
+          presetId: presetId,
+          teamId: ship.factionId || "enemy",
+          damage: null, // урон уже применён через hitscan, снаряд только визуальный
+        });
+      }
     }
 
     // обновление трассеров
@@ -149,5 +175,5 @@ export function createEnemyFireModule(opts = {}) {
     return arr;
   }
 
-  return { cfg, state, update, getTracerLinesY };
+  return { cfg, state, update, getTracerLinesY, setProjectileSystem };
 }

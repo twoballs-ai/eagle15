@@ -6,6 +6,7 @@ import { MinimapWidget } from "../../../ui/widgets/MinimapWidget.js";
 import { QuestWidget } from "../../../ui/widgets/QuestWidget.js";
 import { ShipStatusWidget } from "../../../ui/widgets/ShipStatusWidget.js";
 import { MobileControlsWidget } from "../../../ui/widgets/MobileControlsWidget.js";
+import { BottomControlPanel } from "../../../ui/widgets/BottomControlPanel.js";
 
 export class HudSystem extends System {
   constructor(services, ctx) {
@@ -28,19 +29,27 @@ export class HudSystem extends System {
     });
 
     this.scope.register(new QuestWidget({ id: "quest-panel" }), {
-      slot: "bottom-left",
-      order: 0,
+      slot: "top-left",
+      order: 10,
       enabled: true,
     });
 
-    // Регистрируем уже созданный в ctx.ui виджет (избавляемся от дублирования)
-    if (this.ctx.ui?.commsLog) {
-      this.scope.register(this.ctx.ui.commsLog, {
-        slot: "bottom-left",
-        order: 5,
+    // 🚨 ИСПРАВЛЕНО: Регистрируем СУЩЕСТВУЮЩИЙ экземпляр из ctx.ui, 
+    // а не создаем новый через new EventIndicatorWidget()
+    if (this.ctx.ui?.eventIndicator) {
+      this.scope.register(this.ctx.ui.eventIndicator, {
+        slot: "bottom-above",
+        order: 1,
         enabled: true,
       });
     }
+
+    // Нижняя панель управления (ей нужен ctx, чтобы внутри смонтировать commsLog)
+    this.scope.register(new BottomControlPanel({ id: "bottom-control-panel", ctx: this.ctx }), {
+      slot: "bottom-full",
+      order: 10,
+      enabled: true,
+    });
 
     this.scope.register(new MinimapWidget({ id: "minimap", ctx: this.ctx }), {
       slot: "top-right",

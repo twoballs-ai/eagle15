@@ -9,14 +9,15 @@ import { createColliderSystem } from "../../gameplay/collisions/colliders.js";
 import { createProjectileSystem } from "../../gameplay/weapons/projectiles.js";
 import { RelationIconsOverlay } from "../../ui/relationIconsOverlay.js";
 import { createEnemyFireModule } from "../../gameplay/combat/enemyFire.js";
-import { WEAPON_PRESETS } from "../../gameplay/weapons/weaponPresets.js";
+import { WEAPON_PRESETS } from "../../gameplay/weapons/projectiles.js";
 
 import { LetterboxOverlay } from "../../ui/letterboxOverlay.js";
 import { CutsceneCaption } from "../../ui/cutsceneCaption.js";
 import { CutscenePlayer } from "../../gameplay/cutscene/cutscenePlayer.js";
 import { ActState } from "../../gameplay/story/ActState.js";
 import { EnemyDialogWidget } from "../../ui/EnemyDialogWidget.js";
-import { CommsWidget } from "../../ui/widgets/CommsWidget.js"; // <-- ДОБАВЛЕНО
+import { EventIndicatorWidget } from "../../ui/widgets/EventIndicatorWidget.js";
+import { CommsWidget } from "../../ui/widgets/CommsWidget.js";
 
 export function createStarSystemCtx(services) {
   const gl = services.get("gl");
@@ -72,13 +73,19 @@ export function createStarSystemCtx(services) {
       hitRadius: 6,
       spread: 0.01,
     }),
-    weapons: {
+weapons: {
       available: WEAPON_PRESETS,
       currentIndex: 0,
     },
+    // 🚨 ДОБАВЛЕНО: Состояние автобоя
+    autoCombat: {
+      enabled: false,
+      orbitDir: 1, // 1 или -1 (по часовой / против)
+    },
     ui: {
       enemyDialog: new EnemyDialogWidget(),
-      commsLog: null, // Инициализируется ниже
+      commsLog: null,
+      eventIndicator: null,
     },
     enemyFire: createEnemyFireModule({
       range: 520,
@@ -103,16 +110,21 @@ export function createStarSystemCtx(services) {
       poiZones: true,
     },
   };
-
-  // ===== Инициализация CommsWidget =====
-  // ===== Инициализация CommsWidget =====
+ctx.enemyFire.setProjectileSystem(ctx.projectiles);
+  // ===== Инициализация виджетов связи =====
   ctx.ui.commsLog = new CommsWidget({ 
-    id: "comms-panel", // <--- ВОТ ЭТОГО НЕ ХВАТАЛО В МОЕМ ПРЕДЫДУЩЕМ КОДЕ
+    id: "comms-widget",
     ctx,
     onMessageClick: (msg) => {
       services.get("bus").emit("ui:requestInteraction", { shipId: msg.shipId });
     }
   });
+
+  ctx.ui.eventIndicator = new EventIndicatorWidget({ 
+    id: "event-indicator",
+    ctx 
+  });
+  // ==========================================
 
   // ===== cutscene infrastructure =====
   const letterbox = new LetterboxOverlay({ parent: document.body });

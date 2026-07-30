@@ -1,9 +1,14 @@
 // scenes/starSystem/systems/RenderSystem.js
 import { System } from "../../../engine/core/lifecycle.js";
 import { getBasis } from "../../../assets_folder/modelBasis.js";
-import { buildTracersXYZ } from "../../../gameplay/weapons/projectiles.js";
+import { buildTracersXYZ, WEAPON_PRESETS } from "../../../gameplay/weapons/projectiles.js";
 import { ASSETS } from "../../../assets_folder/manifest.js";
-
+// ✅ УДАЛЁН импорт из vfx.js
+// ✅ ДОБАВЛЕНЫ импорты отдельных компонентов оружия
+import { renderImpulseLaser } from "../../../engine/renderer/vfx/ImpulseLaserRenderer.js";
+import { renderScatterTracer } from "../../../engine/renderer/vfx/ScatterTracerRenderer.js";
+import { renderRailgunBeam } from "../../../engine/renderer/vfx/RailgunBeamRenderer.js";
+import { renderRocketVFX } from "../../../engine/renderer/vfx/RocketVFXRenderer.js";
 import { stepShipMovement } from "../../../gameplay/shipMovement.js";
 import { getAutopilotControls } from "../../../gameplay/shipController.js";
 
@@ -45,8 +50,10 @@ export class RenderSystem extends System {
 
     this.ctx.flame.draw(r3d.getVP(), dpr);
 
-    const lines = this.ctx.enemyFire.getTracerLinesY(1.2);
-    if (lines.length >= 6) r3d.drawLines(lines, [1.0, 0.35, 0.15, 0.9]);
+    // ✅ Старые красные трассеры врагов отключены:
+    // вражеские выстрелы теперь рисуются через VFX-компоненты снарядов (drawProjectiles3D)
+    // const lines = this.ctx.enemyFire.getTracerLinesY(1.2);
+    // if (lines.length >= 6) r3d.drawLines(lines, [1.0, 0.35, 0.15, 0.9]);
 
     this.drawAutopilotRoute3D(r3d);
 
@@ -59,9 +66,34 @@ export class RenderSystem extends System {
 
   drawProjectiles3D(r3d) {
     if (!this.ctx.projectiles) return;
-    const pts = buildTracersXYZ(this.ctx.projectiles, 1.2, 0.03);
-    if (pts.length < 6) return;
-    r3d.drawLines(pts, [1.0, 0.35, 0.15, 0.95]);
+    const bullets = this.ctx.projectiles.list;
+    if (!bullets || bullets.length === 0) return;
+
+    const gl = this.s.get("gl"); // Получаем контекст WebGL для VFX
+    const time = this.ctx.time;
+
+    for (const b of bullets) {
+      if (b.alive === false) continue;
+
+      // Находим пресет (по умолчанию "pulse")
+      const preset = WEAPON_PRESETS.find(p => p.id === b.presetId) || WEAPON_PRESETS[0];
+      const vfx = preset.vfx || {};
+
+      // ✅ Каждый тип оружия рисуется своим отдельным компонентом
+      if (vfx.type === "impulse_laser") {
+        renderImpulseLaser(r3d, gl, b, vfx, time);
+      }
+      else if (vfx.type === "tracer") {
+        renderScatterTracer(r3d, gl, b, vfx, time);
+      }
+      else if (vfx.type === "laser_beam") {
+        renderRailgunBeam(r3d, gl, b, vfx, time);
+      }
+      else if (vfx.type === "rocket_model") {
+        renderRocketVFX(r3d, gl, b, vfx, time);
+      }
+      // ✅ Если тип не распознан — ничего не рисуем (без кругов-заглушек)
+    }
   }
 
   drawPlayerShip3D(r3d) {

@@ -1,3 +1,5 @@
+// src/engine/managers/HUDManager.js
+
 function ensureEl(id, parent, tag = "div") {
   let el = document.getElementById(id);
   if (!el) {
@@ -29,77 +31,20 @@ export class HUDManager {
       zIndex: 9999,
       pointerEvents: "none",
       display: "none", 
-      // удобно для масштабирования/темы
       fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-      padding: "18px",
       boxSizing: "border-box",
     });
 
-    this._initFrame();
-
-    // --- slots (как areas в верстке) ---
-    this.slots = new Map();     // name -> el
-    this.widgets = new Map();   // id -> record
+    this.slots = new Map();
+    this.widgets = new Map();
 
     this._initDefaultSlots();
     this.setTheme(theme);
     this._installResizeObserver();
   }
-  show() {
-    this.root.style.display = "block";
-  }
 
-  hide() {
-    this.root.style.display = "none";
-  }
-  _initFrame() {
-    const frame = ensureEl("hud-cosmo-frame", this.root);
-    apply(frame, {
-      position: "absolute",
-      inset: "10px",
-      borderRadius: "18px",
-      border: "1px solid rgba(110, 196, 255, 0.32)",
-      boxShadow: "inset 0 0 32px rgba(64, 132, 189, 0.2), 0 0 40px rgba(0, 0, 0, 0.35)",
-      background: "radial-gradient(circle at 50% -12%, rgba(85,165,235,0.12), transparent 36%), radial-gradient(circle at 50% 112%, rgba(85,165,235,0.08), transparent 34%)",
-      pointerEvents: "none",
-      zIndex: "0",
-    });
-
-    const corners = ["top-left", "top-right", "bottom-left", "bottom-right"];
-    for (const pos of corners) {
-      const corner = ensureEl(`hud-cosmo-corner-${pos}`, frame);
-      apply(corner, {
-        position: "absolute",
-        width: "120px",
-        height: "120px",
-        border: "2px solid rgba(142, 215, 255, 0.52)",
-        borderRadius: "20px",
-        opacity: "0.75",
-      });
-
-      if (pos.includes("top")) corner.style.top = "-1px";
-      if (pos.includes("bottom")) corner.style.bottom = "-1px";
-      if (pos.includes("left")) corner.style.left = "-1px";
-      if (pos.includes("right")) corner.style.right = "-1px";
-
-      if (pos === "top-left") {
-        corner.style.borderRight = "none";
-        corner.style.borderBottom = "none";
-      }
-      if (pos === "top-right") {
-        corner.style.borderLeft = "none";
-        corner.style.borderBottom = "none";
-      }
-      if (pos === "bottom-left") {
-        corner.style.borderRight = "none";
-        corner.style.borderTop = "none";
-      }
-      if (pos === "bottom-right") {
-        corner.style.borderLeft = "none";
-        corner.style.borderTop = "none";
-      }
-    }
-  }
+  show() { this.root.style.display = "block"; }
+  hide() { this.root.style.display = "none"; }
 
   _initDefaultSlots() {
     const mkSlot = (name, styles) => {
@@ -125,7 +70,30 @@ export class HUDManager {
     mkSlot("bottom-center",{ left: "50%", bottom: "18px", transform: "translateX(-50%)", alignItems: "center" });
     mkSlot("bottom-right", { right: "18px", bottom: "18px", alignItems: "flex-end" });
 
-    mkSlot("center",       { left: "50%", top: "50%", transform: "translate(-50%,-50%)", alignItems: "center" });
+    // Слот для иконок событий над нижней панелью
+    mkSlot("bottom-above", { 
+      left: "18px",
+      bottom: "70px", // Высота панели (60px) + отступ
+      width: "auto",
+      flexDirection: "row",
+      alignItems: "center",
+      pointerEvents: "none"
+    });
+
+    // Слот для нижней панели на всю ширину
+    mkSlot("bottom-full", { 
+      left: "0",
+      right: "0",
+      bottom: "0",
+      width: "100%",
+      height: "60px",
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      pointerEvents: "none"
+    });
+
+    mkSlot("center", { left: "50%", top: "50%", transform: "translate(-50%,-50%)", alignItems: "center" });
   }
 
   setTheme(theme) {
@@ -134,7 +102,6 @@ export class HUDManager {
   }
 
   _installResizeObserver() {
-    // чтобы GL-виджеты могли получать актуальный rect слота
     this._ro = new ResizeObserver(() => this._updateSlotRects());
     this._ro.observe(this.root);
     for (const el of this.slots.values()) this._ro.observe(el);
@@ -149,22 +116,9 @@ export class HUDManager {
     }
   }
 
-  getSlotEl(name) {
-    return this.slots.get(name);
-  }
+  getSlotEl(name) { return this.slots.get(name); }
+  getSlotRect(name) { return this._slotRects?.[name] ?? { x: 0, y: 0, w: 0, h: 0 }; }
 
-  getSlotRect(name) {
-    return this._slotRects?.[name] ?? { x: 0, y: 0, w: 0, h: 0 };
-  }
-
-  /**
-   * registerWidget
-   * cfg:
-   *  - slot: "bottom-center" etc
-   *  - order: number (сортировка внутри слота)
-   *  - enabled: boolean
-   *  - props: любые настройки виджета
-   */
   registerWidget(widget, cfg = {}) {
     if (!widget?.id) throw new Error("Widget must have id");
     if (this.widgets.has(widget.id)) return;
@@ -177,11 +131,11 @@ export class HUDManager {
     const slotEl = this.getSlotEl(slot);
     if (!slotEl) throw new Error(`Unknown slot: ${slot}`);
 
-    // wrapper чтобы можно было управлять order/visibility независимо
     const wrap = document.createElement("div");
     apply(wrap, {
-      pointerEvents: "none",
-      display: "block",
+      pointerEvents: "auto",
+      display: "flex",
+      width: "100%",
       order: String(order),
     });
     slotEl.appendChild(wrap);
@@ -201,7 +155,7 @@ export class HUDManager {
     const rec = this.widgets.get(id);
     if (!rec) return;
     rec.enabled = !!v;
-    rec.wrap.style.display = rec.enabled ? "" : "none";
+    rec.wrap.style.display = rec.enabled ? "flex" : "none";
     rec.widget.setVisible?.(rec.enabled);
   }
 
@@ -219,28 +173,24 @@ export class HUDManager {
     this.widgets.delete(id);
   }
 
-// (опционально) если хочешь: bulk by prefix/owner
   unregisterWhere(pred) {
     for (const [id, rec] of [...this.widgets.entries()]) {
       if (pred(rec, id)) this.unregisterWidget(id);
     }
   }
+
   move(id, slot, order = undefined) {
     const rec = this.widgets.get(id);
     if (!rec) return;
-
     const slotEl = this.getSlotEl(slot);
     if (!slotEl) throw new Error(`Unknown slot: ${slot}`);
-
     rec.wrap.remove();
     slotEl.appendChild(rec.wrap);
     rec.slot = slot;
-
     if (order != null) {
       rec.order = order;
       rec.wrap.style.order = String(order);
     }
-
     this._updateSlotRects();
     rec.widget.onLayout?.(this.getSlotRect(rec.slot));
   }
@@ -259,26 +209,23 @@ export class HUDManager {
     }
   }
 
-render(game, scene) {
-  const surface = game.surface;
-  const { canvasCssRect } = surface.value;
-
-  for (const rec of this.widgets.values()) {
-    if (!rec.enabled) continue;
-
-    const r = rec.wrap.getBoundingClientRect();
-
-    const rect = {
-      x: r.left - canvasCssRect.x,
-      y: r.top  - canvasCssRect.y,
-      w: r.width,
-      h: r.height,
-    };
-
-    rec.widget.render?.(game, scene, rect);
+  render(game, scene) {
+    const surface = game.surface;
+    const { canvasCssRect } = surface.value;
+    for (const rec of this.widgets.values()) {
+      if (!rec.enabled) continue;
+      const r = rec.wrap.getBoundingClientRect();
+      const rect = {
+        x: r.left - canvasCssRect.x,
+        y: r.top  - canvasCssRect.y,
+        w: r.width,
+        h: r.height,
+      };
+      rec.widget.render?.(game, scene, rect);
+    }
   }
-}
-destroy() {
+
+  destroy() {
     for (const rec of this.widgets.values()) {
       rec.widget.destroy?.();
       rec.wrap?.remove();

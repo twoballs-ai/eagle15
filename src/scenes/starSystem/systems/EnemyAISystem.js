@@ -1,7 +1,8 @@
-// src/gameplay/combat/EnemyAISystem.js
+// src/scenes/starSystem/systems/EnemyAISystem.js
 
 import { System } from "../../../engine/core/lifecycle.js";
 import { isHostile } from "../../../data/faction/factionRelationsUtil.js";
+import { computeDogfightFrame } from "../../../gameplay/combat/autoCombat.js";
 
 export class EnemyAISystem extends System {
   constructor(services, ctx) {
@@ -41,6 +42,7 @@ export class EnemyAISystem extends System {
       const dz = player.z - r.z;
       const dist = Math.hypot(dx, dz);
 
+      // Если игрок далеко, успокаиваемся
       if (dist > 1200) {
         ship.aiState = "idle";
         r.vx *= 0.98;
@@ -48,24 +50,29 @@ export class EnemyAISystem extends System {
         continue;
       }
 
-      // Если открыт диалог или идет предупреждение, враг тормозит и ждет решения
+      // Если открыт диалог или идет предупреждение, враг тормозит
       if (ship.aiState === "dialog" || ship.warningState) {
         r.vx *= 0.92;
         r.vz *= 0.92;
         continue;
       }
 
-      // Если состояние combat, атакуем
+      // Если состояние combat, используем продвинутый dogfight-мозг
       if (ship.aiState === "combat") {
-        const nx = dx / (dist || 1);
-        const nz = dz / (dist || 1);
+        // 🚨 Вызываем единую функцию боя
+        const frame = computeDogfightFrame(r, player, ship, dt);
 
-        r.yaw = Math.atan2(dx, -dz);
+        // Применяем движение
+        r.vx = frame.vx;
+        r.vz = frame.vz;
 
-        const speed = dist > 180 ? 120 : 0;
-        r.vx = nx * speed;
-        r.vz = nz * speed;
+        // Плавный поворот с индивидуальной скоростью корабля
+        let yawDiff = frame.yaw - (r.yaw ?? 0);
+        while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
+        while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
+        r.yaw = (r.yaw ?? 0) + yawDiff * Math.min(1, dt * frame.turnSpeed);
 
+        // Обновляем позицию
         r.x += r.vx * dt;
         r.z += r.vz * dt;
       }

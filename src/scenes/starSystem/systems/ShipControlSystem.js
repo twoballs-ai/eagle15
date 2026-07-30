@@ -1,10 +1,12 @@
+// src/scenes/starSystem/systems/ShipControlSystem.js
+
 import { System } from "../../../engine/core/lifecycle.js";
 import { stepShipMovement } from "../../../gameplay/shipMovement.js";
 import { raycastToGround } from "../../../gameplay/cameraRay.js";
 import { getShipControls, getAutopilotControls } from "../../../gameplay/shipController.js";
 import { tryFire } from "../../../gameplay/weapons/projectiles.js";
-import { getWeaponPreset, WEAPON_PRESETS } from "../../../gameplay/weapons/weaponPresets.js";
-
+import { getWeaponPreset, WEAPON_PRESETS } from "../../../gameplay/weapons/projectiles.js";
+import { findAutoTarget, computeDogfightFrame } from "../../../gameplay/combat/autoCombat.js";
 export class ShipControlSystem extends System {
   constructor(services, ctx) {
     super(services);
@@ -13,26 +15,86 @@ export class ShipControlSystem extends System {
 
   update(dt) {
     if (this.ctx.inputLock?.ship) return;
+    
     const input = this.s.get("input");
     const actions = this.s.get("actions");
     const state = this.s.get("state");
 
     const getView = this.s.get("getView");
-    const getViewPx = this.s.get("getViewPx"); // ✅ добавили
+    const getViewPx = this.s.get("getViewPx");
 
     const ship = state.playerShip;
     if (!ship?.runtime) return;
 
     const r = ship.runtime;
 
+    // Смена оружия (работает всегда)
     if (actions.pressed("cycleWeapon")) {
       const next = (this.ctx.weapons.currentIndex + 1) % WEAPON_PRESETS.length;
       this.ctx.weapons.currentIndex = next;
     }
 
+    const weapon = getWeaponPreset(this.ctx.weapons.currentIndex);
+
+if (this.ctx.autoCombat?.enabled) {
+      const playerFaction = ship.factionId ?? state.player?.factionId ?? "player";
+      const targetData = findAutoTarget(r, state.ships || [], playerFaction);
+      
+      if (targetData) {
+        // 🚨 Используем продвинутый dogfight-мозг
+        const frame = computeDogfightFrame(r, targetData.ship.runtime, ship, dt);
+
+        // Применяем движение
+        r.vx = frame.vx;
+        r.vz = frame.vz;
+        
+        // Плавный поворот
+        let yawDiff = frame.yaw - (r.yaw ?? 0);
+        while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
+        while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
+        r.yaw = (r.yaw ?? 0) + yawDiff * Math.min(1, dt * frame.turnSpeed);
+
+        // Обновляем позицию
+        r.x += r.vx * dt;
+        r.z += r.vz * dt;
+
+        // Авто-стрельба
+        if (frame.shouldFire && weapon) {
+          for (let i = 0; i < weapon.pellets; i++) {
+            const side = weapon.pellets > 1 ? (i - (weapon.pellets - 1) * 0.5) * 1.2 : 0;
+            tryFire(this.ctx.projectiles, r, ship.id, dt, true, {
+              teamId: playerFaction,
+              damage: weapon.damage,
+              bulletSpeed: weapon.bulletSpeed,
+              bulletLife: weapon.bulletLife,
+              spread: weapon.spread,
+              fireCooldown: weapon.fireCooldown,
+              muzzleSide: side,
+            });
+          }
+        }
+      } else {
+        // Цели нет: плавно тормозим
+        r.vx *= 0.95;
+        r.vz *= 0.95;
+      }
+
+      // Пламя двигателя
+      const fx = Math.sin(r.yaw);
+      const fz = -Math.cos(r.yaw);
+      const throttle = Math.hypot(r.vx, r.vz) > 10 ? 1.0 : 0.2;
+      this.ctx.flame.update(dt, [r.x, 0, r.z], [fx, 0, fz], throttle);
+
+      this.applyFollowCamera(dt, r);
+      return; // Выходим, ручной ввод не обрабатываем
+    }
+
+    // ==========================================
+    // РУЧНОЙ РЕЖИМ (Без изменений)
+    // ==========================================
+    
     // FIRE
     const wantFire = actions.down("fire");
-    const weapon = getWeaponPreset(this.ctx.weapons.currentIndex);
 
     if (weapon && wantFire) {
       for (let i = 0; i < weapon.pellets; i++) {
@@ -50,14 +112,10 @@ export class ShipControlSystem extends System {
       }
     }
 
-    // ✅ set target on left click (FIX: px<->css mismatch)
+    // set target on left click
     if (actions.pressed("clickPrimary")) {
-      const m = input.getMouse(); // m.x/m.y в DEVICE PIXELS
-
-      // w/h должны быть в тех же единицах что m.x/m.y => берём viewPx
+      const m = input.getMouse();
       const viewPx = getViewPx ? getViewPx() : null;
-
-      // fallback на случай если getViewPx нет (тогда конвертим вручную)
       let w = viewPx?.w;
       let h = viewPx?.h;
 

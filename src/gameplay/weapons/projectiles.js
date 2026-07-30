@@ -87,6 +87,7 @@ export function tryFire(system, shipRuntime, shipId, dt, wantFire, extra = {}) {
     teamId: extra.teamId ?? null, // ✅ для friendly fire
     alive: true,                  // ✅ чтобы colliders могли убивать пулю
     damage: extra.damage ?? null, // опционально, если хочешь разный урон
+    presetId: extra.presetId ?? "pulse", // ✅ ID пресета для рендерера
   });
 
   return true;
@@ -173,4 +174,79 @@ export function buildTracersXYZ(system, y = 1.2, tail = 0.03) {
   // out фиксированной длины, но k может быть меньше если были dead.
   // чтобы не усложнять, возвращаем subarray:
   return out.subarray(0, k);
+}
+
+// ✅ ЕДИНСТВЕННЫЙ массив пресетов (дубль удалён)
+export const WEAPON_PRESETS = [
+  {
+    id: "pulse",
+    name: "Импульсный лазер",
+    fireCooldown: 0.15,
+    damage: 18,
+    bulletSpeed: 2500,
+    bulletLife: 0.8,
+    spread: 0.002,
+    pellets: 1,
+    vfx: {
+      type: "impulse_laser",
+      color: [0.2, 0.9, 1.0],
+      coreColor: [1.0, 1.0, 1.0],
+      beamLength: 0.12,
+      headSize: 2.5,
+      glowSize: 5.5
+    }
+  },
+  {
+    id: "scatter",
+    name: "Дробовик",
+    fireCooldown: 0.35,
+    damage: 8,
+    bulletSpeed: 900,
+    bulletLife: 0.55,
+    spread: 0.09,
+    pellets: 6,
+    vfx: {
+      type: "tracer",
+      color: [1.0, 0.8, 0.2],
+      size: 1.5,
+      alpha: 0.9
+    }
+  },
+  {
+    id: "rail",
+    name: "Рельса",
+    fireCooldown: 0.55,
+    damage: 42,
+    bulletSpeed: 1800,
+    bulletLife: 1.5,
+    spread: 0.002,
+    pellets: 1,
+    vfx: {
+      type: "laser_beam",
+      color: [1.0, 0.2, 0.2],
+      thickness: 2.0,
+      trailLength: 0.2
+    }
+  },
+  {
+    id: "rocket",
+    name: "Ракета",
+    fireCooldown: 0.8,
+    damage: 65,
+    bulletSpeed: 600,
+    bulletLife: 2.5,
+    spread: 0.01,
+    pellets: 1,
+    vfx: {
+      type: "rocket_model",
+      trailColor: [1.0, 0.4, 0.0],
+      trailSize: 4.0
+    }
+  }
+];
+
+export function getWeaponPreset(index = 0) {
+  if (!WEAPON_PRESETS.length) return null;
+  const safe = ((index % WEAPON_PRESETS.length) + WEAPON_PRESETS.length) % WEAPON_PRESETS.length;
+  return WEAPON_PRESETS[safe];
 }
