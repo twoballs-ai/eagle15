@@ -1,30 +1,20 @@
-
 function wrapPi(a) {
   while (a > Math.PI) a -= Math.PI * 2;
   while (a < -Math.PI) a += Math.PI * 2;
   return a;
 }
 
+/**
+ * Ручное управление кораблём.
+ * ✅ WASD отключено: корабль управляется только автопилотом (клик по карте).
+ * Функция сохранена для совместимости, но возвращает нулевое управление.
+ * Если в будущем понадобится ручное управление (мышь, геймпад) — добавить сюда.
+ */
 export function getShipControls(actions) {
-  const forward = actions.down("moveForward");
-  const back    = actions.down("moveBack");
-  const left    = actions.down("moveLeft");
-  const right   = actions.down("moveRight");
-
-  let throttle = 0;
-  if (forward) throttle += 1;
-  if (back)    throttle -= 1;
-
-  let turn = 0;
-  if (right) turn += 1;
-  if (left)  turn -= 1;
-
-  const boost = actions.down("boost");
-
-  // если игрок жмёт WASD — это manual override
-  const manual = forward || back || left || right;
-
-  return { throttle, turn, boost, manual };
+  // ✅ WASD больше не управляет кораблём.
+  // Кнопки остаются в actions.js (могут использоваться для камеры/UI),
+  // но на корабль не влияют.
+  return { throttle: 0, turn: 0, boost: false, manual: false };
 }
 
 

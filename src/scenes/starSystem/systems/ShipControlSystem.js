@@ -158,16 +158,22 @@ if (this.ctx.autoCombat?.enabled) {
     this.applyFollowCamera(dt, r);
   }
 
-  applyFollowCamera(dt, r) {
+    applyFollowCamera(dt, r) {
     const cam = this.ctx.cam3d;
     const c = this.ctx.followCam;
 
     const ax = r.x;
     const az = r.z;
 
-    const yaw = r.yaw + c.yawOffset;
-    const fwdX = Math.sin(r.yaw);
-    const fwdZ = -Math.cos(r.yaw);
+    // ✅ ФИКСИРОВАННАЯ КАМЕРА: yaw не зависит от r.yaw.
+    // Мир не вращается. Корабль поворачивается внутри кадра.
+    // c.yawOffset позволяет игроку вручную повернуть вид (Z/C), но по умолчанию 0.
+    const yaw = c.yawOffset;
+
+    // ✅ targetAhead смещает камеру в фиксированном направлении (не по yaw корабля).
+    // При yawOffset=0 и targetAhead=0 камера смотрит ровно на корабль сверху.
+    const fwdX = Math.sin(yaw);
+    const fwdZ = -Math.cos(yaw);
 
     const tx = ax + fwdX * c.targetAhead;
     const ty = c.targetLift;

@@ -42,7 +42,7 @@ export function createStarSystemCtx(services) {
       height: 220,
       yawOffset: 0.0,
       pitch: -0.55,
-      targetAhead: 40,
+      targetAhead: 0,
       targetLift: 0,
       smooth: 12.0,
       minHeight: 40,
