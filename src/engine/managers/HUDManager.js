@@ -30,7 +30,7 @@ export class HUDManager {
       inset: "0px",
       zIndex: 9999,
       pointerEvents: "none",
-      display: "none", 
+      display: "none",
       fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
       boxSizing: "border-box",
     });
@@ -71,7 +71,7 @@ export class HUDManager {
     mkSlot("bottom-right", { right: "18px", bottom: "18px", alignItems: "flex-end" });
 
     // Слот для иконок событий над нижней панелью
-    mkSlot("bottom-above", { 
+    mkSlot("bottom-above", {
       left: "18px",
       bottom: "70px", // Высота панели (60px) + отступ
       width: "auto",
@@ -81,7 +81,7 @@ export class HUDManager {
     });
 
     // Слот для нижней панели на всю ширину
-    mkSlot("bottom-full", { 
+    mkSlot("bottom-full", {
       left: "0",
       right: "0",
       bottom: "0",
@@ -91,6 +91,18 @@ export class HUDManager {
       alignItems: "center",
       justifyContent: "center",
       pointerEvents: "none"
+    });
+
+    // 🚨 ДОБАВЛЕНО: Слот для overlay-виджетов (здоровье врагов, прицелы и т.д.)
+    // Позиционируется поверх всего HUD с высоким z-index
+    mkSlot("overlay", {
+      left: "0",
+      top: "0",
+      width: "100%",
+      height: "100%",
+      position: "absolute",
+      pointerEvents: "none",
+      zIndex: "60",
     });
 
     mkSlot("center", { left: "50%", top: "50%", transform: "translate(-50%,-50%)", alignItems: "center" });

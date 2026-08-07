@@ -5,6 +5,7 @@ import { HudScope } from "../../../ui/hud/HudScope.js";
 import { MinimapWidget } from "../../../ui/widgets/MinimapWidget.js";
 import { QuestWidget } from "../../../ui/widgets/QuestWidget.js";
 import { ShipStatusWidget } from "../../../ui/widgets/ShipStatusWidget.js";
+import { EnemyStatusWidget } from "../../../ui/widgets/EnemyStatusWidget.js";
 import { MobileControlsWidget } from "../../../ui/widgets/MobileControlsWidget.js";
 import { BottomControlPanel } from "../../../ui/widgets/BottomControlPanel.js";
 
@@ -28,13 +29,20 @@ export class HudSystem extends System {
       enabled: true,
     });
 
+    // 🚨 ДОБАВЛЕНО: Виджет отображения характеристик врагов (RPG-style health bars над кораблями)
+    this.scope.register(new EnemyStatusWidget({ id: "enemy-status", ctx: this.ctx }), {
+      slot: "overlay",
+      order: 5,
+      enabled: true,
+    });
+
     this.scope.register(new QuestWidget({ id: "quest-panel" }), {
       slot: "top-left",
       order: 10,
       enabled: true,
     });
 
-    // 🚨 ИСПРАВЛЕНО: Регистрируем СУЩЕСТВУЮЩИЙ экземпляр из ctx.ui, 
+    // 🚨 ИСПРАВЛЕНО: Регистрируем СУЩЕСТВУЮЩИЙ экземпляр из ctx.ui,
     // а не создаем новый через new EventIndicatorWidget()
     if (this.ctx.ui?.eventIndicator) {
       this.scope.register(this.ctx.ui.eventIndicator, {

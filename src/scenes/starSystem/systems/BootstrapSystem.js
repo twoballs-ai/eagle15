@@ -52,7 +52,7 @@ export class BootstrapSystem extends System {
     this.ctx.cam3d.eye = [0, 220, 340];
     this.ctx.cam3d.target = [0, 0, 0];
 
-    // POI (act1)
+    // ПОИ (act1)
     // ✅ тут тоже передаём systemId строкой, без sys.id если sys нет
     const sysIdForPoi = sys?.id ?? sid;
     const rawPoiDef = createAct1Poi(galaxy.seed, sysIdForPoi, this.ctx.system);
@@ -82,6 +82,13 @@ export class BootstrapSystem extends System {
       ship.runtime.targetX = null;
       ship.runtime.targetZ = null;
     }
+    
+    // ✅ ДОБАВЛЕНО: сброс currentTarget при смене системы
+    // Это предотвращает ошибки, если автобой пытался атаковать цель из предыдущей системы
+    if (this.ctx.autoCombat) {
+      this.ctx.autoCombat.currentTarget = null;
+    }
+    
     // spawn NPC
     const activeQuestDefs = Object.keys(this.ctx.quest?.active ?? {}).map((qid) => this.ctx.content?.questsById?.[qid]).filter(Boolean);
     const spawned = spawnSystemActors({
@@ -120,6 +127,13 @@ export class BootstrapSystem extends System {
       r.energy = r.energy ?? r.energyMax;
 
       r.maxSpeed = 260 * (stats.speed ?? 1.0);
+      
+      // ✅ ДОБАВЛЕНО: инициализация accel и turnSpeed
+      // Эти поля используются в shipMovement.js и autoCombat.js для расчёта движения и поворотов.
+      // Если они не инициализированы, расчёты могут возвращать NaN или undefined,
+      // что приводит к хаотичному поведению корабля.
+      r.accel = stats.accel ?? 180;      // Ускорение корабля (единиц/сек²)
+      r.turnSpeed = stats.turnSpeed ?? 2.5; // Скорость поворота (рад/сек)
     }
 
     // quest line last log (без падений)

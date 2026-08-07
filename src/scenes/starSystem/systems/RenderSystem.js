@@ -158,6 +158,12 @@ export class RenderSystem extends System {
     for (const peer of peers) {
       const r = peer?.ship;
       if (!r) continue;
+      
+      // ✅ ДОБАВЛЕНО: проверка мёртвых/удалённых online-кораблей
+      // Это гарантирует, что если peer-корабль был уничтожен или помечен как мёртвый,
+      // он не будет отрисовываться в сцене
+      if (peer.alive === false || r.dead) continue;
+      
       r3d.drawModel(shipModel, {
         position: [r.x ?? 0, 0, r.z ?? 0],
         scale: [1, 1, 1],
