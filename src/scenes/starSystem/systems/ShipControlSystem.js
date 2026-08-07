@@ -38,7 +38,27 @@ export class ShipControlSystem extends System {
 
 if (this.ctx.autoCombat?.enabled) {
       const playerFaction = ship.factionId ?? state.player?.factionId ?? "player";
-      const targetData = findAutoTarget(r, state.ships || [], playerFaction);
+      
+      // ✅ ДОБАВЛЕНО: инициализируем хранилище текущей цели, если его нет.
+      // currentTarget сохраняется между кадрами, чтобы игрок добивал выбранного врага,
+      // а не метался между ближайшими.
+      if (!("currentTarget" in this.ctx.autoCombat)) {
+        this.ctx.autoCombat.currentTarget = null;
+      }
+      
+      // ✅ ИЗМЕНЕНО: передаём currentTarget в findAutoTarget.
+      // Если цель жива и в радиусе — она будет возвращена снова (игрок продолжает её атаковать).
+      // Если цель мертва или улетела — функция сама найдёт новую.
+      const targetData = findAutoTarget(
+        r,
+        state.ships || [],
+        playerFaction,
+        this.ctx.autoCombat.currentTarget
+      );
+      
+      // ✅ ДОБАВЛЕНО: сохраняем цель для следующего кадра.
+      // Если targetData === null (целей нет), currentTarget обнулится автоматически.
+      this.ctx.autoCombat.currentTarget = targetData;
       
       if (targetData) {
         // 🚨 Используем продвинутый dogfight-мозг

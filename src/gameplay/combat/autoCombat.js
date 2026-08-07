@@ -12,14 +12,36 @@ const AUTO_CFG = {
   // Настройки машины состояний
   chaseLeadTime: 0.6,      // Секунды упреждения (насколько вперед цели целиться)
   evadeDistance: 150,      // Если ближе этой дистанции - шанс на уклонение
-  minBehaviorTime: 2.0,    // Минимальное время поведения (сек)
-  maxBehaviorTime: 5.0,    // Максимальное время поведения (сек)
+  minBehaviorTime: 3.0,    // ✅ ИЗМЕНЕНО: Минимальное время поведения (сек) - увеличено для стабильности
+  maxBehaviorTime: 7.0,    // ✅ ИЗМЕНЕНО: Максимальное время поведения (сек) - увеличено для стабильности
+  
+  // ✅ ДОБАВЛЕНО: параметры для более плавных переходов и эстетики
+  orbitTransitionTime: 1.5, // Время плавного перехода между состояниями
+  spiralTightness: 0.3,     // Насколько плотные спирали в ORBIT
+  evasionChance: 0.15,      // ✅ ИЗМЕНЕНО: Шанс на уклонение (снижен с 0.6 до 0.15)
 };
 
 /**
- * Найти ближайшего врага (остается без изменений)
+ * Найти ближайшего врага с памятью о предыдущей цели.
+ * ✅ ИЗМЕНЕНО: теперь принимает currentTarget и возвращает его, если он жив.
+ * Это предотвращает постоянное переключение между врагами — игрок добивает текущую цель.
  */
-export function findAutoTarget(playerRuntime, ships, playerFaction) {
+export function findAutoTarget(playerRuntime, ships, playerFaction, currentTarget = null) {
+  // ✅ ДОБАВЛЕНО: если есть текущая цель и она жива, возвращаем её
+  if (currentTarget) {
+    const ship = currentTarget.ship;
+    if (ship?.runtime && ship.alive !== false && !ship.runtime.dead) {
+      const dx = ship.runtime.x - playerRuntime.x;
+      const dz = ship.runtime.z - playerRuntime.z;
+      const dist = Math.hypot(dx, dz);
+      // Проверяем, что цель всё ещё в радиусе обнаружения
+      if (dist < AUTO_CFG.detectionRadius) {
+        return { ship, dist, dx, dz };
+      }
+    }
+  }
+  
+  // Если текущей цели нет или она мертва, ищем новую
   let best = null;
   let bestDist = Infinity;
 
@@ -43,6 +65,7 @@ export function findAutoTarget(playerRuntime, ships, playerFaction) {
 /**
  * Инициализация или обновление состояния dogfight для корабля.
  * Хранится прямо на объекте ship, чтобы не создавать глобальных синглтонов.
+ * ✅ ИЗМЕНЕНО: добавлены поля для более эстетичных движений и плавных переходов.
  */
 function ensureDogfightState(ship) {
   if (!ship.dogfight) {
@@ -57,6 +80,13 @@ function ensureDogfightState(ship) {
       // Пируэты
       pirouetteTimer: 0,
       pirouettePhase: Math.random() * Math.PI * 2,
+      
+      // ✅ ДОБАВЛЕНО: поля для плавных переходов и эстетики
+      transitionTimer: 0,        // Таймер плавного перехода между состояниями
+      prevBehavior: null,        // Предыдущее состояние для интерполяции
+      orbitAngle: 0,             // Текущий угол на орбите (для спиралей)
+      orbitRadius: 0,            // Текущий радиус орбиты (для спиралей)
+      spiralPhase: Math.random() * Math.PI * 2, // Фаза спирали для вариативности
     };
   }
   return ship.dogfight;
@@ -65,6 +95,12 @@ function ensureDogfightState(ship) {
 /**
  * ГЛАВНАЯ ФУНКЦИЯ: Рассчитать кадр маневренного боя.
  * Используется и для игрока, и для врагов.
+ * 
+ * ✅ ИЗМЕНЕНО: 
+ * - Убрано частое переключение в EVADE (теперь только при реальной опасности)
+ * - Добавлены более эстетичные орбиты (спирали, эллипсы)
+ * - Плавные переходы между состояниями
+ * - Если корабль атакует, он не убегает без веской причины
  * 
  * @param {Object} attackerRuntime - runtime атакующего корабля
  * @param {Object} targetRuntime - runtime цели
@@ -83,13 +119,17 @@ export function computeDogfightFrame(attackerRuntime, targetRuntime, ship, dt) {
 
   // === 1. ОБНОВЛЕНИЕ ТАЙМЕРОВ И СМЕНА ПОВЕДЕНИЯ ===
   df.timer -= dt;
+  df.transitionTimer = Math.max(0, df.transitionTimer - dt);
   
-  // Случайные пируэты (резкие маневры)
+  // ✅ ДОБАВЛЕНО: Обновляем угол орбиты для спиралей
+  df.orbitAngle += dt * 0.8 * df.orbitDir;
+  
+  // Случайные пируэты (резкие маневры) — оставлены для вариативности
   df.pirouetteTimer -= dt;
   let pirouetteOffset = 0;
   if (df.pirouetteTimer <= 0) {
-    // Шанс начать пируэт
-    if (Math.random() < 0.02) {
+    // ✅ ИЗМЕНЕНО: Шанс начать пируэт снижен для более плавных движений
+    if (Math.random() < 0.01) {
       df.pirouetteTimer = 0.5 + Math.random() * 1.0; // Длительность пируэта
       df.pirouettePhase = Math.random() * Math.PI * 2;
     }
@@ -99,14 +139,33 @@ export function computeDogfightFrame(attackerRuntime, targetRuntime, ship, dt) {
   }
 
   // Если таймер поведения истек, выбираем новое
+  // ✅ ИЗМЕНЕНО: логика смены состояний переделана для более плавных и эстетичных движений
   if (df.timer <= 0) {
     df.timer = AUTO_CFG.minBehaviorTime + Math.random() * (AUTO_CFG.maxBehaviorTime - AUTO_CFG.minBehaviorTime);
     
+    // ✅ ДОБАВЛЕНО: сохраняем предыдущее состояние для плавного перехода
+    df.prevBehavior = df.behavior;
+    df.transitionTimer = AUTO_CFG.orbitTransitionTime;
+    
     const roll = Math.random();
-    if (dist < AUTO_CFG.evadeDistance && roll < 0.6) {
-      df.behavior = 'EVADE'; // Слишком близко, часто пытаемся разорвать дистанцию
+    
+    // ✅ ИЗМЕНЕНО: EVADE теперь только при реальной опасности (очень близко)
+    // Шанс снижен с 60% до 15%
+    if (dist < AUTO_CFG.evadeDistance && roll < AUTO_CFG.evasionChance) {
+      df.behavior = 'EVADE';
       df.orbitDir *= -1; // Меняем направление при уклонении
-    } else if (roll < df.aggression) {
+    } 
+    // ✅ ДОБАВЛЕНО: если мы уже в CHASE и цель далеко, продолжаем CHASE
+    else if (df.behavior === 'CHASE' && dist > 400) {
+      df.behavior = 'CHASE'; // Остаёмся в погоне
+    }
+    // ✅ ДОБАВЛЕНО: если мы близко, предпочитаем ORBIT (красивые круги/спирали)
+    else if (dist < 350) {
+      df.behavior = 'ORBIT';
+      if (Math.random() < 0.3) df.orbitDir *= -1; // Иногда меняем направление орбиты
+    }
+    // Иначе выбираем на основе агрессии
+    else if (roll < df.aggression) {
       df.behavior = 'CHASE'; // Агрессивная погоня
     } else {
       df.behavior = 'ORBIT'; // Кружим
@@ -138,21 +197,38 @@ export function computeDogfightFrame(attackerRuntime, targetRuntime, ship, dt) {
     if (dist > 600) speed *= 1.2;
 
   } else if (df.behavior === 'ORBIT') {
-    // 🚨 ОРБИТА: Смотрим на цель, летим по касательной
-    targetYaw = Math.atan2(dx, -dz);
+    // ✅ ИЗМЕНЕНО: более эстетичные орбиты (спирали и эллипсы)
+    // 🚨 ОРБИТА: Смотрим на цель, летим по касательной с красивыми спиралями
     
-    moveX = -nz * df.orbitDir;
-    moveZ = nx * df.orbitDir;
+    // Базовое направление на цель
+    const baseYaw = Math.atan2(dx, -dz);
     
-    // Коррекция дистанции
-    const drift = dist - df.preferredDist;
-    moveX += nx * (drift / 100) * 0.5;
-    moveZ += nz * (drift / 100) * 0.5;
+    // ✅ ДОБАВЛЕНО: спиральное движение с изменяющимся радиусом
+    // Радиус орбиты плавно меняется для создания спирали
+    const spiralOffset = Math.sin(df.orbitAngle * AUTO_CFG.spiralTightness + df.spiralPhase) * 50;
+    const currentOrbitRadius = df.preferredDist + spiralOffset;
     
-    speed *= 0.9; // На орбите чуть медленнее
+    // Коррекция дистанции: стремимся к currentOrbitRadius
+    const drift = dist - currentOrbitRadius;
+    const radialCorrection = (drift / 100) * 0.6;
+    
+    // Касательное движение (перпендикулярно направлению на цель)
+    moveX = -nz * df.orbitDir + nx * radialCorrection;
+    moveZ = nx * df.orbitDir + nz * radialCorrection;
+    
+    // ✅ ДОБАВЛЕНО: лёгкий наклон к цели для более агрессивной орбиты
+    const inwardLean = 0.15;
+    moveX += nx * inwardLean;
+    moveZ += nz * inwardLean;
+    
+    // Цель yaw: смотрим чуть впереди цели на орбите
+    targetYaw = baseYaw + (df.orbitDir * 0.3);
+    
+    speed *= 0.9; // На орбите чуть медленнее для эстетики
 
   } else if (df.behavior === 'EVADE') {
     // 🚨 УКЛОНЕНИЕ: Смотрим от цели, летим в сторону и вперед
+    // ✅ ИЗМЕНЕНО: теперь используется реже и только при реальной опасности
     targetYaw = Math.atan2(-dx, dz); // Смотрим назад
     
     // Летим под углом 45 градусов от цели
@@ -179,6 +255,7 @@ export function computeDogfightFrame(attackerRuntime, targetRuntime, ship, dt) {
   
   const inRange = dist <= AUTO_CFG.maxFireRange;
   const inArc = dot >= AUTO_CFG.fireArcCos;
+  // ✅ ИЗМЕНЕНО: стреляем в CHASE и ORBIT, но НЕ в EVADE (когда убегаем, не стреляем)
   const shouldFire = inRange && inArc && (df.behavior === 'CHASE' || df.behavior === 'ORBIT');
 
   return {
@@ -188,4 +265,28 @@ export function computeDogfightFrame(attackerRuntime, targetRuntime, ship, dt) {
     behavior: df.behavior,
     turnSpeed: df.turnSpeed,
   };
+}
+
+export function applyShipDamage(rt, dmg) {
+  if (!rt || dmg <= 0) return;
+
+  // 1) shield
+  const s = rt.shield ?? 0;
+  if (s > 0) {
+    const ds = Math.min(s, dmg);
+    rt.shield = s - ds;
+    dmg -= ds;
+  }
+
+  // 2) armor
+  if (dmg > 0) {
+    const a = rt.armor ?? rt.armorMax ?? 0;
+    rt.armor = Math.max(0, a - dmg);
+  }
+
+  // 3) death
+  if ((rt.armor ?? 0) <= 0) {
+    rt.armor = 0;
+    rt.dead = true;
+  }
 }

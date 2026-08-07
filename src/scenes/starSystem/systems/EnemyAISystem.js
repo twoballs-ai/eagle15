@@ -19,6 +19,15 @@ export class EnemyAISystem extends System {
     const playerFaction = playerShip?.factionId ?? state.player?.factionId ?? "player";
     const ships = state.ships || [];
 
+    // ✅ ДОБАВЛЕНО: явная пометка мёртвых кораблей перед фильтрацией
+    // Это гарантирует, что корабли с runtime.dead === true будут помечены как alive = false
+    // и затем удалены из списка
+    for (const ship of ships) {
+      if (ship?.runtime?.dead && ship.alive !== false) {
+        ship.alive = false;
+      }
+    }
+
     const aliveShips = ships.filter((ship) => {
       if (!ship) return false;
       if (ship === playerShip) return true;
