@@ -27,6 +27,11 @@ export class NpcInteractionSystem extends System {
     const ship = state.ships?.find(s => s.id === shipId);
     if (ship) {
       const playerFaction = state.playerShip?.factionId ?? state.player?.factionId ?? "player";
+      // 🚨 Сбрасываем целевую точку игрока, чтобы корабль не летел дальше
+      if (state.playerShip?.runtime) {
+        state.playerShip.runtime.targetX = null;
+        state.playerShip.runtime.targetZ = null;
+      }
       this.requestInteraction(ship, playerFaction, true);
     }
   }
@@ -182,6 +187,13 @@ export class NpcInteractionSystem extends System {
   }
 
   requestInteraction(ship, playerFaction, forceOpen = false) {
+    const state = this.s.get("state");
+    // 🚨 Сбрасываем целевую точку игрока, чтобы корабль не летел дальше к точке клика
+    if (state.playerShip?.runtime) {
+      state.playerShip.runtime.targetX = null;
+      state.playerShip.runtime.targetZ = null;
+    }
+    
     const relation = getFactionRelation(playerFaction, ship.factionId);
     const dialog = this.ctx.ui?.enemyDialog;
     if (!dialog) return;
