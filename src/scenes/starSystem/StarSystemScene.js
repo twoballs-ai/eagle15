@@ -10,26 +10,29 @@ import { EnemyFireSystem } from "./systems/EnemyFireSystem.js";
 import { ProjectilesSystem } from "./systems/ProjectilesSystem.js";
 import { CollisionsSystem } from "./systems/CollisionsSystem.js";
 import { PoiQuestSystem } from "./systems/PoiQuestSystem.js";
-import { RelationIconsSystem } from "./systems/RelationIconsSystem.js";
+// import { RelationIconsSystem } from "./systems/RelationIconsSystem.js";
 import { HudSystem } from "./systems/HudSystem.js";
 import { RenderSystem } from "./systems/RenderSystem.js";
 import { DebugOverlaySystem } from "./systems/DebugOverlaySystem.js";
 import { OnlineSyncSystem } from "./systems/OnlineSyncSystem.js";
 import { NpcInteractionSystem } from "../../gameplay/interaction/NpcInteractionSystem.js";
+// ✅ ДОБАВЛЕНО: импортируем новую систему для NPCStatusWidget
+import { NPCStatusSystem } from "./systems/NPCStatusSystem.js";
+
 export class StarSystemScene extends Scene {
   constructor(services) {
     super(services);
     this.name = "Star System";
     this.ctx = createStarSystemCtx(services);
-this.isGameplay = true;
+    this.isGameplay = true;
     // порядок важен
     this.add(new TimeSystem(services, this.ctx));
     this.add(new BootstrapSystem(services, this.ctx));
-this.add(new CutsceneSystem(services, this.ctx));
+    this.add(new CutsceneSystem(services, this.ctx));
     this.add(new CameraInputSystem(services, this.ctx));
     this.add(new ShipControlSystem(services, this.ctx));
     this.add(new EnemyAISystem(services, this.ctx));
-this.add(new NpcInteractionSystem(services, this.ctx));
+    this.add(new NpcInteractionSystem(services, this.ctx));
     this.add(new OnlineSyncSystem(services, this.ctx));
     this.add(new EnemyFireSystem(services, this.ctx));
     this.add(new ProjectilesSystem(services, this.ctx));
@@ -38,12 +41,18 @@ this.add(new NpcInteractionSystem(services, this.ctx));
     this.add(new PoiQuestSystem(services, this.ctx));
 
     this.add(new RenderSystem(services, this.ctx));
+    
+    // ✅ ДОБАВЛЕНО: NPCStatusSystem должна вызываться ПОСЛЕ RenderSystem,
+    // чтобы VP матрица была актуальна для проекции 3D координат NPC на экран.
+    // Это заменяет старый RelationIconsSystem, который делал то же самое.
+    this.add(new NPCStatusSystem(services, this.ctx));
+    
     // Иконки отношений должны считать проекцию после того,
     // как RenderSystem обновил VP матрицу на текущий кадр.
-    this.add(new RelationIconsSystem(services, this.ctx));
-        this.add(new HudSystem(services, this.ctx));
+    // this.add(new RelationIconsSystem(services, this.ctx));
+    
+    this.add(new HudSystem(services, this.ctx));
 
     this.add(new DebugOverlaySystem(services, this.ctx));
-
   }
 }

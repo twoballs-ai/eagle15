@@ -1,8 +1,9 @@
-// ui/widgets/EnemyStatusWidget.js
-// Виджет отображения характеристик врага над кораблем (RPG-style health bar)
+// ui/widgets/NPCStatusWidget.js
+// Виджет отображения характеристик NPC над кораблем (RPG-style health bar)
+// Отображается для ВСЕХ NPC (враги, союзники, нейтралы)
 
 import { projectWorldToScreen } from "../../gameplay/math/project.js";
-import { isHostile } from "../../data/faction/factionRelationsUtil.js";
+import { getFactionRelation } from "../../data/faction/factionRelationsUtil.js";
 
 function clamp01(v) {
   if (!Number.isFinite(v)) return 0;
@@ -23,19 +24,17 @@ function injectStyles() {
   const st = document.createElement("style");
   st.id = "enemy-status-widget-styles";
   st.textContent = `
-    /* ===== Контейнер для всех вражеских баров ===== */
+    /* ===== Контейнер для всех NPC баров ===== */
     .esw-container {
       position: absolute;
-      left: 0;
-      top: 0;
-      width: 100%;
-      height: 100%;
+      /* Позиция и размеры задаются динамически через _syncContainerToCanvas()
+         для точного совпадения с canvas, даже если он смещён на странице */
       pointer-events: none;
       overflow: hidden;
       z-index: 60;
     }
 
-    /* ===== Отдельный бар над врагом ===== */
+    /* ===== Отдельный бар над NPC ===== */
     .esw-enemy-bar {
       position: absolute;
       transform: translate(-50%, -100%);
@@ -54,19 +53,38 @@ function injectStyles() {
       opacity: 1;
     }
 
-    /* ===== Имя врага ===== */
+    /* ===== Имя NPC ===== */
     .esw-name {
       font-size: 11px;
       font-weight: 700;
-      color: #ff6b6b;
-      text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 8px rgba(255,107,107,0.5);
+      color: #fff;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 8px rgba(255,255,255,0.3);
       letter-spacing: 0.05em;
       text-transform: uppercase;
       white-space: nowrap;
       background: rgba(0,0,0,0.6);
       padding: 2px 8px;
       border-radius: 4px;
-      border: 1px solid rgba(255,107,107,0.3);
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    /* Цвета для разных отношений */
+    .esw-name.hostile {
+      color: #ff6b6b;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 8px rgba(255,107,107,0.5);
+      border-color: rgba(255,107,107,0.3);
+    }
+
+    .esw-name.neutral {
+      color: #ffd24d;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 8px rgba(255,210,77,0.4);
+      border-color: rgba(255,210,77,0.3);
+    }
+
+    .esw-name.ally {
+      color: #4dff88;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 8px rgba(77,255,136,0.4);
+      border-color: rgba(77,255,136,0.3);
     }
 
     /* ===== Обёртка прогресс-бара ===== */
@@ -128,7 +146,7 @@ function injectStyles() {
       pointer-events: none;
     }
 
-    /* ===== Фракция/класс врага ===== */
+    /* ===== Фракция/класс NPC ===== */
     .esw-faction {
       font-size: 9px;
       color: rgba(255,255,255,0.6);
@@ -140,12 +158,13 @@ function injectStyles() {
   document.head.appendChild(st);
 }
 
-export class EnemyStatusWidget {
-  // ✅ ИЗМЕНЕНО: добавлен параметр services в конструктор
-  constructor({ id = "enemy-status-widget", ctx, services } = {}) {
+export class NPCStatusWidget {
+  // ✅ ИЗМЕНЕНО: добавлен параметр services и canvas в конструктор
+  constructor({ id = "enemy-status-widget", ctx, services, canvas } = {}) {
     this.id = id;
     this.ctx = ctx;
     this.s = services; // ✅ ДОБАВЛЕНО: сохраняем services для доступа к r3d и view
+    this.canvas = canvas; // ✅ ДОБАВЛЕНО: ссылка на canvas для точной синхронизации позиции
     this.el = null;
     this.bars = new Map();
     this._lastStamp = new Map();
@@ -157,7 +176,36 @@ export class EnemyStatusWidget {
     const el = document.createElement("div");
     el.className = "esw-container";
     this.el = el;
+    
+    // ✅ ДОБАВЛЕНО: Если canvas не передан напрямую, пытаемся получить из services
+    if (!this.canvas && this.s) {
+      this.canvas = this.s.get("canvas") ?? null;
+    }
+    
     parent.appendChild(el);
+    // Сразу синхронизируем позицию контейнера с canvas
+    this._syncContainerToCanvas();
+  }
+
+  // ✅ ДОБАВЛЕНО: Синхронизация позиции и размеров контейнера с canvas.
+  // Это гарантирует, что бары будут точно над canvas, даже если canvas смещён на странице
+  // (например, из-за letterbox overlay или изменения размера окна).
+  _syncContainerToCanvas() {
+    if (!this.el) return;
+    const canvas = this.canvas;
+    if (!canvas) {
+      // Фоллбэк: контейнер во весь родительский элемент (как было раньше)
+      this.el.style.left = "0px";
+      this.el.style.top = "0px";
+      this.el.style.width = "100%";
+      this.el.style.height = "100%";
+      return;
+    }
+    const rect = canvas.getBoundingClientRect();
+    this.el.style.left = `${rect.left}px`;
+    this.el.style.top = `${rect.top}px`;
+    this.el.style.width = `${rect.width}px`;
+    this.el.style.height = `${rect.height}px`;
   }
 
   setVisible(v) {
@@ -172,7 +220,7 @@ export class EnemyStatusWidget {
       container.className = "esw-enemy-bar";
 
       container.innerHTML = `
-        <div class="esw-name" data-k="name">Враг</div>
+        <div class="esw-name" data-k="name">NPC</div>
         <div class="esw-bar-wrap">
           <div class="esw-bar-fill esw-fill-health" data-k="health"></div>
           <div class="esw-bar-text" data-k="healthText">0 / 0</div>
@@ -201,8 +249,14 @@ export class EnemyStatusWidget {
   }
 
   // ✅ ИСПРАВЛЕНО: Используем ...args для безопасного парсинга аргументов
-  // HudScope может вызывать update(dt), update(ctx, dt) или update(game, scene, dt).
+  // Теперь этот метод вызывается из NPCStatusSystem.render() без аргументов,
+  // но мы сохраняем совместимость с вызовами вида update(dt) из HudScope (на случай будущих изменений).
   update(...args) {
+    // ✅ ДОБАВЛЕНО: Синхронизируем контейнер с canvas каждый кадр.
+    // Это критически важно, потому что canvas может менять положение/размер
+    // (например, при изменении размера окна или показе letterbox overlay).
+    this._syncContainerToCanvas();
+
     let dt = 0;
     for (const arg of args) {
       if (typeof arg === "number") {
@@ -215,7 +269,7 @@ export class EnemyStatusWidget {
     // Это гарантирует, что мы найдем state независимо от того, как вызван update.
     const services = this.s;
     const state = services?.get("state") ?? this.ctx?.state ?? null;
-    
+
     const r3d = services?.get("r3d");
     const getView = services?.get("getView");
     const getViewPx = services?.get("getViewPx");
@@ -227,6 +281,11 @@ export class EnemyStatusWidget {
 
     const view = getView();
     const viewPx = (typeof getViewPx === "function" ? getViewPx() : null) ?? view;
+    // ✅ КЛЮЧЕВОЙ МОМЕНТ: получаем актуальную VP матрицу.
+    // Когда этот метод вызывается из NPCStatusSystem.render(),
+    // RenderSystem уже обновил VP матрицу на текущий кадр.
+    // Раньше, при вызове через HudScope.update(), VP матрица могла быть устаревшей,
+    // и проекция 3D координат на экран получалась неправильной.
     const vp = r3d.getVP?.();
 
     if (!vp) {
@@ -245,9 +304,10 @@ export class EnemyStatusWidget {
       if (ship === state.playerShip) continue;
       if (ship.alive === false || ship.runtime.dead) continue;
 
-      // ✅ ИЗМЕНЕНО: используем правильную функцию isHostile вместо упрощённой проверки
-      // Это учитывает все правила фракционных отношений из factionRelationsUtil.js
-      if (!isHostile(playerFaction, ship.factionId)) continue;
+      // ✅ ИЗМЕНЕНО: теперь виджет отображается для ВСЕХ NPC, а не только врагов
+      // Получаем отношение фракции для стилизации
+      const rel = getFactionRelation(playerFaction, ship.factionId);
+      const relation = rel === "hostile" ? "hostile" : rel === "ally" ? "ally" : "neutral";
 
       aliveIds.add(ship.id);
 
@@ -314,7 +374,10 @@ export class EnemyStatusWidget {
 
       // Обновление имени и фракции
       if (bar.nameEl) {
-        bar.nameEl.textContent = ship.name || ship.shipClass || "Враг";
+        bar.nameEl.textContent = ship.name || ship.shipClass || "NPC";
+        // Добавляем класс отношения для цветовой индикации
+        bar.nameEl.classList.remove("hostile", "neutral", "ally");
+        bar.nameEl.classList.add(relation);
       }
       if (bar.factionEl) {
         const factionName = ship.factionId || "Неизвестно";
@@ -322,7 +385,7 @@ export class EnemyStatusWidget {
       }
     }
 
-    // Удаление баров мёртвых врагов
+    // Удаление баров мёртвых NPC
     for (const [id, bar] of this.bars) {
       if (!aliveIds.has(id)) {
         bar.el.remove();

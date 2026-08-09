@@ -5,7 +5,9 @@ import { HudScope } from "../../../ui/hud/HudScope.js";
 import { MinimapWidget } from "../../../ui/widgets/MinimapWidget.js";
 import { QuestWidget } from "../../../ui/widgets/QuestWidget.js";
 import { ShipStatusWidget } from "../../../ui/widgets/ShipStatusWidget.js";
-import { EnemyStatusWidget } from "../../../ui/widgets/EnemyStatusWidget.js";
+// ✅ ИМПОРТ УБРАН: NPCStatusWidget теперь управляется NPCStatusSystem.
+// import { EnemyStatusWidget } from "../../../ui/widgets/EnemyStatusWidget.js";
+import { InteractionTargetWidget } from "../../../ui/widgets/InteractionTargetWidget.js";
 import { MobileControlsWidget } from "../../../ui/widgets/MobileControlsWidget.js";
 import { BottomControlPanel } from "../../../ui/widgets/BottomControlPanel.js";
 
@@ -29,13 +31,26 @@ export class HudSystem extends System {
       enabled: true,
     });
 
-    // 🚨 ДОБАВЛЕНО: Виджет отображения характеристик врагов (RPG-style health bars над кораблями)
-    // ✅ ИСПРАВЛЕНО: передаем services: this.s в конструктор, чтобы виджет мог получить доступ к r3d и view
-    this.scope.register(new EnemyStatusWidget({ id: "enemy-status", ctx: this.ctx, services: this.s }), {
+    // ✅ ДОБАВЛЕНО: Компактный виджет цели взаимодействия справа от ShipStatusWidget
+    // Показывается только во время активного взаимодействия с NPC/врагом/кораблём.
+    // Он статичный (не зависит от мировой проекции), поэтому остаётся в HudScope.
+    this.scope.register(new InteractionTargetWidget({ id: "interaction-target", ctx: this.ctx, services: this.s }), {
       slot: "overlay",
-      order: 5,
+      order: 1,
       enabled: true,
     });
+
+    // ✅ РЕГИСТРАЦИЯ УБРАНА: NPCStatusWidget теперь управляется NPCStatusSystem,
+    // потому что ему нужна мировая проекция 3D->2D, которая требует актуальной VP матрицы.
+    // HudScope вызывает update() в фазе update(), ДО того как RenderSystem обновит VP матрицу.
+    // NPCStatusSystem вызывает виджет в фазе render(), ПОСЛЕ RenderSystem, когда VP уже актуальна.
+    //
+    // Старый код (удалён):
+    // this.scope.register(new EnemyStatusWidget({ id: "enemy-status", ctx: this.ctx, services: this.s }), {
+    //   slot: "overlay",
+    //   order: 5,
+    //   enabled: true,
+    // });
 
     this.scope.register(new QuestWidget({ id: "quest-panel" }), {
       slot: "top-left",

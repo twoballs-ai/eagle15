@@ -59,9 +59,9 @@ export class BottomControlPanel {
     const actions = [
       { id: "inventory", label: "Инвентарь", key: "I", icon: "📦" },
       { id: "quests", label: "Миссии", key: "J", icon: "📜" },
-      { id: "map", label: "Система", key: "M", icon: "️" },
+      { id: "map", label: "Система", key: "M", icon: "🗺️" },
       { id: "galaxy", label: "Галактика", key: "G", icon: "🌌" },
-      { id: "settings", label: "Меню", key: "Esc", icon: "️" },
+      { id: "settings", label: "Меню", key: "Esc", icon: "⚙️" },
     ];
 
     actions.forEach((action) => {

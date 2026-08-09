@@ -7,7 +7,7 @@ import { createContentRegistry } from "../../data/content/index.js";
 
 import { createColliderSystem } from "../../gameplay/collisions/colliders.js";
 import { createProjectileSystem } from "../../gameplay/weapons/projectiles.js";
-import { RelationIconsOverlay } from "../../ui/relationIconsOverlay.js";
+// import { RelationIconsOverlay } from "../../ui/relationIconsOverlay.js";
 import { createEnemyFireModule } from "../../gameplay/combat/enemyFire.js";
 import { WEAPON_PRESETS } from "../../gameplay/weapons/projectiles.js";
 
@@ -94,7 +94,7 @@ weapons: {
       fireArcCos: 0.25,
       jitter: 0.02,
     }),
-    relIcons: new RelationIconsOverlay({ canvas }),
+    // relIcons: new RelationIconsOverlay({ canvas }),
     systemPlaneY: -90,
     celestialTriggerMul: 1.6,
     celestialInteractMul: 1.0,
