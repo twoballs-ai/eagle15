@@ -89,6 +89,12 @@ export class NpcInteractionSystem extends System {
             dialog.close();
           }
         }
+        
+        // ✅ ДОБАВЛЕНО: Если этот корабль был целью автобоя и улетел — сбрасываем цель
+        if (this.ctx.autoCombat?.currentTarget === ship) {
+          this.ctx.autoCombat.currentTarget = null;
+        }
+        
         continue;
       }
       
@@ -166,6 +172,8 @@ export class NpcInteractionSystem extends System {
           if (this.ctx.autoCombat) {
             this.ctx.autoCombat.enabled = true;
             this.ctx.autoCombat.orbitDir = Math.random() > 0.5 ? 1 : -1;
+            // ✅ ДОБАВЛЕНО: устанавливаем цель автобоя, чтобы InteractionTargetWidget видел её
+            this.ctx.autoCombat.currentTarget = ship;
           }
           
           this.ctx.ui?.eventIndicator?.removeShipEvents(ship.id);
@@ -182,6 +190,15 @@ export class NpcInteractionSystem extends System {
           });
           this.ctx.lastLog = `${ship.name ?? "Вражеский корабль"} начал атаку!`;
         }
+      }
+    }
+    
+    // ✅ ДОБАВЛЕНО: Очистка текущей цели взаимодействия, если она мертва или улетела
+    // Это гарантирует, что виджет не будет показывать статы уже уничтоженного корабля
+    if (this.ctx.autoCombat?.currentTarget) {
+      const t = this.ctx.autoCombat.currentTarget;
+      if (!t || t.alive === false || t.runtime?.dead) {
+        this.ctx.autoCombat.currentTarget = null;
       }
     }
   }
@@ -257,6 +274,8 @@ export class NpcInteractionSystem extends System {
               if (this.ctx.autoCombat) {
                 this.ctx.autoCombat.enabled = true;
                 this.ctx.autoCombat.orbitDir = Math.random() > 0.5 ? 1 : -1;
+                // ✅ ДОБАВЛЕНО: устанавливаем цель автобоя для InteractionTargetWidget
+                this.ctx.autoCombat.currentTarget = ship;
               }
               
               this.ctx.ui?.eventIndicator?.removeShipEvents(ship.id);

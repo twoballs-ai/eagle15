@@ -308,15 +308,84 @@ export class InteractionTargetWidget {
     }
 
     // ===== Поиск текущей цели взаимодействия =====
-    // Ищем цель в нескольких возможных местах state/ctx,
-    // чтобы быть совместимыми с NpcInteractionSystem и другими источниками.
-    const target =
-      state.interaction?.target ??
-      state.interaction?.currentTarget ??
-      this.ctx?.interaction?.target ??
-      this.ctx?.interaction?.currentTarget ??
-      this.ctx?.interactionTarget ??
-      null;
+    // ✅ КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: теперь читаем из реальных источников взаимодействия
+    // в порядке приоритета, вместо несуществующих полей state.interaction
+    let target = null;
+    let interactionSource = null; // для разных подсказок
+
+    // Приоритет 1: Открытый диалог (EnemyDialogWidget.currentShip)
+    // Это самое явное взаимодействие — игрок сейчас разговаривает с этим кораблём
+    const dialogShip = this.ctx?.ui?.enemyDialog?.currentShip ?? null;
+    if (dialogShip && dialogShip.alive !== false && !dialogShip.runtime?.dead) {
+      target = dialogShip;
+      interactionSource = "dialog";
+    }
+
+    // Приоритет 2: Цель автобоя (autoCombat.currentTarget)
+    // Активный бой с конкретной целью, которую выбрал авто-пилот
+    if (!target) {
+      const autoTarget = this.ctx?.autoCombat?.currentTarget ?? null;
+      if (
+        autoTarget &&
+        autoTarget.alive !== false &&
+        !autoTarget.runtime?.dead &&
+        this.ctx?.autoCombat?.enabled
+      ) {
+        target = autoTarget;
+        interactionSource = "auto-combat";
+      }
+    }
+
+    // Приоритет 3: Ближайший корабль в состоянии боя или с активным предупреждением
+    // Это покрывает случаи, когда игрок в бою без автобоя (manual combat)
+    // или когда идёт обратный отсчёт 30 секунд до атаки
+    if (!target) {
+      const ships = state.ships || [];
+      const playerShip = state.playerShip;
+      const player = playerShip?.runtime;
+
+      if (player) {
+        let closestInteraction = null;
+        let closestDist = Infinity;
+
+        for (const ship of ships) {
+          if (!ship?.runtime || ship === playerShip) continue;
+          if (ship.alive === false || ship.runtime.dead) continue;
+
+          // Считаем "взаимодействием" любой активный контакт:
+          // - combat: корабль в бою (атакует игрока или атакован игроком)
+          // - warningState: идёт 30-секундный отсчёт перед атакой
+          // - dialog: корабль в режиме диалога (хотя обычно диалог закрывается при combat)
+          const isInteracting =
+            ship.aiState === "combat" ||
+            !!ship.warningState ||
+            ship.aiState === "dialog";
+
+          if (!isInteracting) continue;
+
+          const dist = Math.hypot(
+            (player.x ?? 0) - (ship.runtime.x ?? 0),
+            (player.z ?? 0) - (ship.runtime.z ?? 0)
+          );
+
+          if (dist < closestDist) {
+            closestDist = dist;
+            closestInteraction = ship;
+          }
+        }
+
+        if (closestInteraction) {
+          target = closestInteraction;
+          if (closestInteraction.aiState === "combat") {
+            interactionSource = "manual-combat";
+          } else if (closestInteraction.warningState) {
+            interactionSource = "warning";
+          } else {
+            interactionSource = "dialog";
+          }
+        }
+      }
+    }
 
     // Если цели нет — скрываем виджет
     if (!target) {
@@ -352,8 +421,13 @@ export class InteractionTargetWidget {
     }
 
     // ===== Иконка =====
+    // ✅ ИСПРАВЛЕНО: иконка зависит от типа взаимодействия, а не только от отношения
     if (this._refs.icon) {
-      this._refs.icon.textContent = hostile ? "!" : "◆";
+      let iconText = "◆";
+      if (interactionSource === "dialog") iconText = "💬";
+      else if (interactionSource === "auto-combat" || interactionSource === "manual-combat") iconText = hostile ? "!" : "◆";
+      else if (interactionSource === "warning") iconText = "⚠";
+      this._refs.icon.textContent = iconText;
     }
 
     // ===== Роль / класс / фракция =====
@@ -369,7 +443,7 @@ export class InteractionTargetWidget {
     const shieldMax = r.shieldMax ?? r.maxShield ?? 0;
 
     // Stamp для оптимизации: обновляем DOM только при изменении значений
-    const stamp = `${Math.round(armor)}|${Math.round(armorMax)}|${Math.round(shield)}|${Math.round(shieldMax)}|${target.id ?? targetName}`;
+    const stamp = `${Math.round(armor)}|${Math.round(armorMax)}|${Math.round(shield)}|${Math.round(shieldMax)}|${target.id ?? targetName}|${interactionSource ?? ""}`;
 
     if (stamp !== this._lastStamp) {
       this._lastStamp = stamp;
@@ -404,12 +478,21 @@ export class InteractionTargetWidget {
     }
 
     // ===== Подсказка о взаимодействии =====
-    // Если цель враждебная — подсказка другая
-    const hintText = hostile
-      ? "[ ATTACK ] Враждебная цель"
-      : friendly
-      ? "[ F ] Союзник"
-      : "[ F ] Взаимодействие";
+    // ✅ ИЗМЕНЕНО: подсказка зависит от источника взаимодействия
+    let hintText = "[ F ] Взаимодействие";
+    if (interactionSource === "dialog") {
+      hintText = hostile ? "[ ESC ] Диалог с врагом" : "[ F ] Диалог";
+    } else if (interactionSource === "auto-combat") {
+      hintText = "[ АВТОБОЙ ] Цель захвачена";
+    } else if (interactionSource === "manual-combat") {
+      hintText = "[ БОЙ ] Активный контакт";
+    } else if (interactionSource === "warning") {
+      hintText = "[ ОТВЕТЬ ] Идёт отсчёт!";
+    } else if (hostile) {
+      hintText = "[ ATTACK ] Враждебная цель";
+    } else if (friendly) {
+      hintText = "[ F ] Союзник";
+    }
 
     if (this._refs.hint && this._refs.hint.textContent !== hintText) {
       this._refs.hint.textContent = hintText;
