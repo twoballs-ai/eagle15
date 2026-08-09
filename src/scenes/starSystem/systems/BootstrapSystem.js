@@ -109,10 +109,28 @@ export class BootstrapSystem extends System {
       ship.talkRadius = 280;
       ship.dialogShown = false;
       ship.nextAutoDialogAt = 0;
+      
+      // ✅ Инициализация статов для NPC кораблей
+      const r = ship.runtime;
+      const stats = ship.stats;
+      if (r && stats) {
+        r.armorMax = Math.round(stats.hull ?? 100);
+        r.armor = r.armor ?? r.armorMax;
+        
+        r.shieldMax = Math.round(stats.shields ?? 0);
+        r.shield = r.shield ?? r.shieldMax;
+        
+        r.energyMax = Math.round(stats.energy ?? 100);
+        r.energy = r.energy ?? r.energyMax;
+        
+        r.maxSpeed = 260 * (stats.speed ?? 1.0);
+        r.accel = stats.accel ?? 420;
+        r.turnSpeed = stats.turnSpeed ?? 2.6;
+      }
     });
     this.ctx.spawnPoints = spawned.spawnPoints;
 
-    // init ship stats
+    // init ship stats (player)
     const r = state.playerShip?.runtime;
     const stats = state.playerShip?.stats;
     if (r && stats) {

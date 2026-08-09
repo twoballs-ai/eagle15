@@ -9,6 +9,7 @@ export function createShip({
   classId,
   specializationId = null,
   factionId = "neutral",
+  customStats = null,
 }) {
   const race = SHIP_RACES[raceId];
   const cls = SHIP_CLASSES[classId];
@@ -22,8 +23,12 @@ export function createShip({
     throw new Error(`Ship spec mismatch: ${spec.id}`);
   }
 
+  // Если переданы customStats (например для NPC), используем их
+  // Иначе берём baseStats из класса
+  const baseStats = customStats || { ...cls.baseStats };
+
   const stats = {
-    ...cls.baseStats,
+    ...baseStats,
   };
 
   if (spec?.statModifiers) {
@@ -32,12 +37,18 @@ export function createShip({
     }
   }
 
-  // race bonuses (множители)
-  for (const k in race.bonuses) {
-    if (stats[k] != null) {
-      stats[k] *= race.bonuses[k];
+  // race bonuses (множители) - применяем только если это не customStats
+  if (!customStats) {
+    for (const k in race.bonuses) {
+      if (stats[k] != null) {
+        stats[k] *= race.bonuses[k];
+      }
     }
   }
+
+  // ✅ Инициализируем runtime с полями брони и щитов из stats
+  const hull = Math.round(stats.hull ?? 100);
+  const shields = Math.round(stats.shields ?? 0);
 
   return {
   id,
@@ -66,6 +77,16 @@ export function createShip({
       accel: 420,
       turnSpeed: 2.6, // рад/сек
       drag: 1.8,      // 1/сек
+      
+      // ✅ Броня и щиты — сразу из stats
+      armor: hull,
+      armorMax: hull,
+      shield: shields,
+      shieldMax: shields,
+      
+      // ✅ Энергия тоже нужна
+      energy: Math.round(stats.energy ?? 100),
+      energyMax: Math.round(stats.energy ?? 100),
     },
   };
 }
