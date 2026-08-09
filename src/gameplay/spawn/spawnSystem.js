@@ -6,6 +6,8 @@ import { getSpawnPointsForSystem } from "../../data/system/spawnPointsBySystem.j
 import { SPAWN_TABLES } from "../../data/system/spawnTables.js";
 import { resolveWorldSpawnDirectives } from "../../data/content/world/spawns/worldSpawns.js";
 import { getAct1SpawnOverride } from "../../data/content/acts/act1/spawns.js";
+import { generateCaptainName } from "../../data/content/npc/captainNames.js";
+import { getRandomShipType, getShipStats } from "../../data/content/npc/shipTemplates.js";
 
 function hashString(str) {
   let h = 2166136261;
@@ -107,23 +109,36 @@ export function spawnSystemActors({
 
         const charId = makeId("npc", ++charN);
         const shipId = makeId("ship", ++shipN);
+        
+        // Генерируем уникальное имя для капитана
+        const captainName = generateCaptainName(rng);
+        const raceId = pick(rng, ["human", "synth"]);
+        const classId = pick(rng, ["soldier", "ace", "engineer"]);
 
         const npc = createNPC({
           id: charId,
-          name: isEnemy ? `Raider-${charN}` : `Pilot-${charN}`,
-          raceId: pick(rng, ["human", "synth"]),
-          classId: "soldier",
+          name: captainName,
+          raceId: raceId,
+          classId: classId,
           factionId: table.factionId,
           factionRankId: isEnemy ? "outsider" : "member",
           reputation: 0,
         });
 
+        // Выбираем тип корабля и генерируем статы
+        const shipType = getRandomShipType(rng);
+        const shipStats = getShipStats(shipType, rng);
+        
+        const shipRaceId = pick(rng, table.shipRaceIds);
+        const shipClassId = shipType; // используем template key как classId
+
         const ship = createShip({
           id: shipId,
-          name: isEnemy ? `Raider Ship ${shipN}` : `Civic Ship ${shipN}`,
-          raceId: pick(rng, table.shipRaceIds),
-          classId: pick(rng, table.shipClasses),
+          name: `${shipStats.type}-${shipN}`,
+          raceId: shipRaceId,
+          classId: shipClassId,
           factionId: table.factionId,
+          customStats: shipStats,
         });
 
         ship.ownerId = npc.id;
