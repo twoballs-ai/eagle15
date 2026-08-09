@@ -1,8 +1,8 @@
-
 // ui/widgets/EnemyStatusWidget.js
 // Виджет отображения характеристик врага над кораблем (RPG-style health bar)
 
 import { projectWorldToScreen } from "../../gameplay/math/project.js";
+import { isHostile } from "../../data/faction/factionRelationsUtil.js";
 
 function clamp01(v) {
   if (!Number.isFinite(v)) return 0;
@@ -141,11 +141,13 @@ function injectStyles() {
 }
 
 export class EnemyStatusWidget {
-  constructor({ id = "enemy-status-widget", ctx } = {}) {
+  // ✅ ИЗМЕНЕНО: добавлен параметр services в конструктор
+  constructor({ id = "enemy-status-widget", ctx, services } = {}) {
     this.id = id;
     this.ctx = ctx;
+    this.s = services; // ✅ ДОБАВЛЕНО: сохраняем services для доступа к r3d и view
     this.el = null;
-    this.bars = new Map(); // Map<shipId, {el, nameEl, healthFill, shieldFill, healthText, shieldText}>
+    this.bars = new Map();
     this._lastStamp = new Map();
   }
 
@@ -198,9 +200,22 @@ export class EnemyStatusWidget {
     return bar;
   }
 
-  update(game, scene, dt) {
-    const state = game?.state;
+  // ✅ ИСПРАВЛЕНО: Используем ...args для безопасного парсинга аргументов
+  // HudScope может вызывать update(dt), update(ctx, dt) или update(game, scene, dt).
+  update(...args) {
+    let dt = 0;
+    for (const arg of args) {
+      if (typeof arg === "number") {
+        dt = arg;
+        break;
+      }
+    }
+
+    // ✅ ИЗМЕНЕНО: получаем state из services или ctx, а не только из game.state
+    // Это гарантирует, что мы найдем state независимо от того, как вызван update.
     const services = this.s;
+    const state = services?.get("state") ?? this.ctx?.state ?? null;
+    
     const r3d = services?.get("r3d");
     const getView = services?.get("getView");
     const getViewPx = services?.get("getViewPx");
@@ -222,7 +237,7 @@ export class EnemyStatusWidget {
     this.setVisible(true);
 
     const ships = state?.ships || [];
-    const playerFaction = state?.player?.factionId ?? "neutral";
+    const playerFaction = state?.playerShip?.factionId ?? state?.player?.factionId ?? "player";
     const aliveIds = new Set();
 
     for (const ship of ships) {
@@ -230,9 +245,9 @@ export class EnemyStatusWidget {
       if (ship === state.playerShip) continue;
       if (ship.alive === false || ship.runtime.dead) continue;
 
-      // Проверяем, враг ли это
-      const isHostile = ship.isEnemy || (ship.factionId && ship.factionId !== playerFaction);
-      if (!isHostile) continue;
+      // ✅ ИЗМЕНЕНО: используем правильную функцию isHostile вместо упрощённой проверки
+      // Это учитывает все правила фракционных отношений из factionRelationsUtil.js
+      if (!isHostile(playerFaction, ship.factionId)) continue;
 
       aliveIds.add(ship.id);
 
@@ -241,7 +256,7 @@ export class EnemyStatusWidget {
 
       // Проекция 3D координат на экран
       const wx = r.x;
-      const wy = (r.y ?? 0) + 20; // Чуть выше корабля
+      const wy = (r.y ?? 0) + 20;
       const wz = r.z;
 
       const s = projectWorldToScreen(wx, wy, wz, vp, viewPx);

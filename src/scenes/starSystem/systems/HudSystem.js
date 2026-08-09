@@ -30,7 +30,8 @@ export class HudSystem extends System {
     });
 
     // 🚨 ДОБАВЛЕНО: Виджет отображения характеристик врагов (RPG-style health bars над кораблями)
-    this.scope.register(new EnemyStatusWidget({ id: "enemy-status", ctx: this.ctx }), {
+    // ✅ ИСПРАВЛЕНО: передаем services: this.s в конструктор, чтобы виджет мог получить доступ к r3d и view
+    this.scope.register(new EnemyStatusWidget({ id: "enemy-status", ctx: this.ctx, services: this.s }), {
       slot: "overlay",
       order: 5,
       enabled: true,
