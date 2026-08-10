@@ -78,10 +78,10 @@ weapons: {
       currentIndex: 0,
     },
     // 🚨 ДОБАВЛЕНО: Состояние автобоя
-    autoCombat: {
-      enabled: false,
-      orbitDir: 1, // 1 или -1 (по часовой / против)
-    },
+autoCombat: {
+  enabled: true, // ✅ Всегда включён по умолчанию
+  orbitDir: 1,
+},
     ui: {
       enemyDialog: new EnemyDialogWidget(),
       commsLog: null,

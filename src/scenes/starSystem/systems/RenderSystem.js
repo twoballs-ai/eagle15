@@ -69,19 +69,22 @@ export class RenderSystem extends System {
     const bullets = this.ctx.projectiles.list;
     if (!bullets || bullets.length === 0) return;
 
-    const gl = this.s.get("gl"); // Получаем контекст WebGL для VFX
+    const gl = this.s.get("gl"); 
     const time = this.ctx.time;
+    
+    // ✅ ДОБАВЛЕНО: Получаем список кораблей, чтобы луч знал, где искать цель
+    const state = this.s.get("state");
+    const ships = state?.ships || [];
 
     for (const b of bullets) {
       if (b.alive === false) continue;
 
-      // Находим пресет (по умолчанию "pulse")
       const preset = WEAPON_PRESETS.find(p => p.id === b.presetId) || WEAPON_PRESETS[0];
       const vfx = preset.vfx || {};
 
-      // ✅ Каждый тип оружия рисуется своим отдельным компонентом
       if (vfx.type === "impulse_laser") {
-        renderImpulseLaser(r3d, gl, b, vfx, time);
+        // ✅ ИСПРАВЛЕНО: передаём ships перед time
+        renderImpulseLaser(r3d, gl, b, vfx, ships, time);
       }
       else if (vfx.type === "tracer") {
         renderScatterTracer(r3d, gl, b, vfx, time);
@@ -92,7 +95,6 @@ export class RenderSystem extends System {
       else if (vfx.type === "rocket_model") {
         renderRocketVFX(r3d, gl, b, vfx, time);
       }
-      // ✅ Если тип не распознан — ничего не рисуем (без кругов-заглушек)
     }
   }
 

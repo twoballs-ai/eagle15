@@ -1,9 +1,12 @@
 // src/gameplay/quest/QuestStateV2.js
+import { addPlayerXP } from "../../data/level/playerLevel.js";
+import { LEVEL_CONFIG } from "../../data/level/levelConfig.js";
+
 export class QuestStateV2 {
   // 🚨 ИЗМЕНЕНО: Принимаем основной объект state, а не ключ localStorage
   constructor(state) {
     this.state = state;
-    
+
     // Защита на случай, если questState еще не инициализирован
     if (!this.state.questState) {
       this.state.questState = {
@@ -14,7 +17,7 @@ export class QuestStateV2 {
         log: []
       };
     }
-    
+
     // Короткая ссылка для удобства
     this.qs = this.state.questState;
   }
@@ -100,12 +103,26 @@ export class QuestStateV2 {
     this.qs.completed[questDef.id] = { completedAt: Date.now() };
 
     this.addLog(`Квест завершён: ${questDef.title}`);
+
+    // 🎁 НАГРАДА XP за завершение квеста
+    const xpReward = questDef.type === "main"
+      ? LEVEL_CONFIG.xpRewards.questCompleted
+      : (questDef.type === "side" ? LEVEL_CONFIG.xpRewards.miniQuestCompleted : LEVEL_CONFIG.xpRewards.questCompleted);
+
+    addPlayerXP(this.state, xpReward, `quest_completed:${questDef.id}`);
+
     return true;
   }
 
   // ===== POI visited =====
   markVisited(poiId) {
+    const wasVisited = !!this.qs.visitedPoi[poiId];
     this.qs.visitedPoi[poiId] = true;
+
+    // 🎁 НАГРАДА XP за первое посещение POI (только один раз)
+    if (!wasVisited) {
+      addPlayerXP(this.state, LEVEL_CONFIG.xpRewards.poiDiscovered, `poi_discovered:${poiId}`);
+    }
   }
   isVisited(poiId) {
     return !!this.qs.visitedPoi[poiId];

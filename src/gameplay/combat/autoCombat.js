@@ -27,21 +27,23 @@ const AUTO_CFG = {
  * Это предотвращает постоянное переключение между врагами — игрок добивает текущую цель.
  */
 export function findAutoTarget(playerRuntime, ships, playerFaction, currentTarget = null) {
-  // ✅ ДОБАВЛЕНО: если есть текущая цель и она жива, возвращаем её
+  // Если есть текущая цель — добиваем её (если она всё ещё атакует нас)
   if (currentTarget) {
     const ship = currentTarget.ship;
     if (ship?.runtime && ship.alive !== false && !ship.runtime.dead) {
-      const dx = ship.runtime.x - playerRuntime.x;
-      const dz = ship.runtime.z - playerRuntime.z;
-      const dist = Math.hypot(dx, dz);
-      // Проверяем, что цель всё ещё в радиусе обнаружения
-      if (dist < AUTO_CFG.detectionRadius) {
-        return { ship, dist, dx, dz };
+      // ✅ КЛЮЧЕВОЕ: цель всё ещё должна нас атаковать
+      if (ship.aiState === "combat") {
+        const dx = ship.runtime.x - playerRuntime.x;
+        const dz = ship.runtime.z - playerRuntime.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist < AUTO_CFG.detectionRadius * 1.5) {
+          return { ship, dist, dx, dz };
+        }
       }
     }
   }
   
-  // Если текущей цели нет или она мертва, ищем новую
+  // Ищем НОВОГО атакующего врага
   let best = null;
   let bestDist = Infinity;
 
@@ -49,6 +51,10 @@ export function findAutoTarget(playerRuntime, ships, playerFaction, currentTarge
     if (!ship?.runtime || ship.alive === false || ship.runtime.dead) continue;
     if (ship.runtime === playerRuntime) continue;
     if (!isHostile(playerFaction, ship.factionId)) continue;
+    
+    // ✅ КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: ищем ТОЛЬКО тех, кто УЖЕ в состоянии combat
+    // Враг должен сам решить напасть (через таймер предупреждения или диалог)
+    if (ship.aiState !== "combat") continue;
 
     const dx = ship.runtime.x - playerRuntime.x;
     const dz = ship.runtime.z - playerRuntime.z;

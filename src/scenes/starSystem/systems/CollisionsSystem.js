@@ -8,6 +8,8 @@ import {
   LAYER,
 } from "../../../gameplay/collisions/colliders.js";
 import { applyShipDamage } from "../../../gameplay/combat/applyShipDamage.js";
+import { addPlayerXP } from "../../../data/level/playerLevel.js";
+import { LEVEL_CONFIG } from "../../../data/level/levelConfig.js";
 
 export class CollisionsSystem extends System {
   constructor(services, ctx) { super(services); this.ctx = ctx; }
@@ -32,8 +34,24 @@ export class CollisionsSystem extends System {
       if (!targetRuntime) continue;
 
       const dmg = bullet?.damage ?? this.ctx.projectiles.damage ?? 10;
+      const wasDead = !!(targetRuntime.dead || (targetRuntime.armor ?? 0) <= 0);
+
       applyShipDamage(targetRuntime, dmg);
-      if ((targetRuntime.armor ?? 0) <= 0) targetRuntime.dead = true;
+
+      // 🎁 НАГРАДА XP за урон по врагу (только если это враг, а не игрок)
+      const isEnemy = h.target.layer === LAYER.NPC;
+      if (isEnemy && !wasDead) {
+        addPlayerXP(this.s.get("state"), LEVEL_CONFIG.xpRewards.damageDealt, `damage_dealt:${h.target.id}`);
+      }
+
+      const isNowDead = (targetRuntime.armor ?? 0) <= 0;
+      if (isNowDead) targetRuntime.dead = true;
+
+      // 🎁 НАГРАДА XP за убийство врага
+      if (isEnemy && !wasDead && isNowDead) {
+        addPlayerXP(this.s.get("state"), LEVEL_CONFIG.xpRewards.killHostile, `kill_hostile:${h.target.id}`);
+      }
+
       if (bullet) bullet.alive = false;
     }
   }
