@@ -1,3 +1,7 @@
+// src/ui/widgets/ShipStatusWidget.js
+
+import { getXPForNextLevel } from "../../data/level/playerLevel.js";
+
 function apply(el, styles) { Object.assign(el.style, styles); }
 
 function clamp01(v) {
@@ -78,6 +82,33 @@ function injectStyles() {
       flex: 1;
     }
 
+    /* ===== НОВОЕ: Строка с именем и бейджем уровня ===== */
+    .ssw-pilot-name-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    /* ===== НОВОЕ: Золотой бейдж уровня ===== */
+    .ssw-level-badge {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #fbbf24, #f59e0b);
+      border: 1.5px solid #fde68a;
+      border-radius: 50%;
+      color: #78350f;
+      font-size: 12px;
+      font-weight: 900;
+      text-shadow: 0 1px 1px rgba(255,255,255,0.4);
+      box-shadow: 0 2px 6px rgba(251, 191, 36, 0.5), inset 0 1px 0 rgba(255,255,255,0.5);
+      flex-shrink: 0;
+      letter-spacing: 0;
+    }
+
     .ssw-pilot-name {
       font-size: 15px;
       font-weight: 700;
@@ -86,6 +117,8 @@ function injectStyles() {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      flex: 1;
+      min-width: 0;
     }
 
     .ssw-pilot-meta {
@@ -94,6 +127,66 @@ function injectStyles() {
       margin-top: 2px;
       font-weight: 500;
       letter-spacing: 0.02em;
+    }
+
+    /* ===== НОВОЕ: Прогресс-бар XP ===== */
+    .ssw-xp-wrap {
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ssw-xp-label {
+      font-size: 9px;
+      font-weight: 700;
+      color: #fde68a;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      flex-shrink: 0;
+      text-shadow: 0 0 6px rgba(253, 230, 138, 0.4);
+    }
+
+    .ssw-xp-bar {
+      position: relative;
+      flex: 1;
+      height: 6px;
+      background: rgba(0,0,0,0.55);
+      border-radius: 3px;
+      overflow: hidden;
+      box-shadow: inset 0 1px 2px rgba(0,0,0,0.85);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .ssw-xp-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #fbbf24, #f59e0b);
+      border-radius: 2px;
+      transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+      position: relative;
+      box-shadow: 0 0 8px rgba(251, 191, 36, 0.4);
+    }
+
+    .ssw-xp-fill::after {
+      content: '';
+      position: absolute;
+      top: 1px;
+      left: 2px;
+      right: 2px;
+      height: 2px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.5), transparent);
+      border-radius: 1px;
+    }
+
+    .ssw-xp-text {
+      font-size: 9px;
+      font-weight: 700;
+      color: rgba(253, 230, 138, 0.9);
+      flex-shrink: 0;
+      font-variant-numeric: tabular-nums;
+      min-width: 70px;
+      text-align: right;
     }
 
     .ssw-pilot-sub {
@@ -296,8 +389,20 @@ export class ShipStatusWidget {
           </svg>
         </div>
         <div class="ssw-pilot-info">
-          <div class="ssw-pilot-name" data-k="pilotName">—</div>
+          <!-- НОВОЕ: Имя в одной строке с бейджем уровня -->
+          <div class="ssw-pilot-name-row">
+            <div class="ssw-level-badge" data-k="levelBadge">1</div>
+            <div class="ssw-pilot-name" data-k="pilotName">—</div>
+          </div>
           <div class="ssw-pilot-meta" data-k="pilotMeta">—</div>
+          <!-- НОВОЕ: Прогресс-бар XP под метой пилота -->
+          <div class="ssw-xp-wrap">
+            <div class="ssw-xp-label">XP</div>
+            <div class="ssw-xp-bar">
+              <div class="ssw-xp-fill" data-k="xpFill"></div>
+            </div>
+            <div class="ssw-xp-text" data-k="xpText">0 / 100</div>
+          </div>
           <div class="ssw-pilot-sub">Пилот</div>
         </div>
       </div>
@@ -362,6 +467,10 @@ export class ShipStatusWidget {
 
     this.$pilotName = el.querySelector('[data-k="pilotName"]');
     this.$pilotMeta = el.querySelector('[data-k="pilotMeta"]');
+    // НОВОЕ: ссылки на элементы уровня и XP
+    this.$levelBadge = el.querySelector('[data-k="levelBadge"]');
+    this.$xpFill     = el.querySelector('[data-k="xpFill"]');
+    this.$xpText     = el.querySelector('[data-k="xpText"]');
     this.$armor     = el.querySelector('[data-k="armor"]');
     this.$shield    = el.querySelector('[data-k="shield"]');
     this.$energy    = el.querySelector('[data-k="energy"]');
@@ -398,11 +507,21 @@ export class ShipStatusWidget {
     const weaponName = scene?.ctx?.weapons?.available?.[scene?.ctx?.weapons?.currentIndex]?.name ?? "—";
     const credits    = Math.max(0, Math.floor(state?.credits ?? 0));
 
+    // НОВОЕ: читаем данные уровня из state
+    const playerLevel = state?.playerLevel ?? 1;
+    const playerXP    = state?.playerXP    ?? 0;
+    const xpNeeded    = getXPForNextLevel(playerLevel);
+    const xpPercent   = xpNeeded > 0 ? Math.min(100, (playerXP / xpNeeded) * 100) : 0;
+
     // Снимаем шум: округляем значения перед сравнением
     const stamp = [
       player?.name   ?? "",
       player?.raceId ?? "",
       player?.classId ?? "",
+      // НОВОЕ: добавляем уровень и XP в stamp
+      Math.round(playerLevel),
+      Math.round(playerXP),
+      Math.round(xpNeeded),
       Math.round(armor),     Math.round(armorMax),
       Math.round(shield),    Math.round(shieldMax),
       Math.round(energy),    Math.round(energyMax),
@@ -419,6 +538,11 @@ export class ShipStatusWidget {
     const race = player?.raceId || "—";
     const cls  = player?.classId || "—";
     if (this.$pilotMeta) this.$pilotMeta.textContent = `${race} • ${cls}`;
+
+    // НОВОЕ: обновление бейджа уровня и прогресс-бара XP
+    if (this.$levelBadge) this.$levelBadge.textContent = playerLevel;
+    if (this.$xpFill)     this.$xpFill.style.width = `${xpPercent}%`;
+    if (this.$xpText)     this.$xpText.textContent = `${Math.round(playerXP)} / ${xpNeeded}`;
 
     if (this.$weapon)  this.$weapon.textContent  = (weaponName || "—").toUpperCase();
     if (this.$credits) this.$credits.textContent = `₡ ${formatCredits(credits)}`;

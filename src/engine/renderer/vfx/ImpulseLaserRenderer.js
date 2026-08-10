@@ -1,54 +1,151 @@
 // src/engine/renderer/vfx/ImpulseLaserRenderer.js
-/**
- * Процедурный рендерер импульсного лазера.
- * Создает эффект энергетического выстрела без PNG, используя наложение геометрических примитивов с аддитивным смешиванием.
- */
-export function renderImpulseLaser(r3d, gl, projectile, vfxConfig, time = 0) {
-  const { x, z, vx, vz } = projectile;
-  const y = 1.2; // Высота отрисовки (согласована с остальной сценой)
 
-  const trailLength = vfxConfig.beamLength || 0.12;
-  const tailX = x - vx * trailLength;
-  const tailZ = z - vz * trailLength;
+function findShipRuntime(projectile, ships) {
+    if (projectile.targetId == null) return null;
 
-  const color = vfxConfig.color || [0.2, 0.9, 1.0];
-  const coreColor = vfxConfig.coreColor || [1.0, 1.0, 1.0];
+    for (const ship of ships) {
+        if (ship?.id === projectile.targetId && ship.runtime) {
+            return ship.runtime;
+        }
+    }
 
-  // Сохраняем состояние WebGL
-  const prevBlend = gl.getParameter(gl.BLEND);
-  const prevBlendSrc = gl.getParameter(gl.BLEND_SRC_RGB);
-  const prevBlendDst = gl.getParameter(gl.BLEND_DST_RGB);
+    return null;
+}
 
-  // Включаем аддитивное смешивание для свечения
-  gl.enable(gl.BLEND);
-  gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+export function renderImpulseLaser(
+    r3d,
+    gl,
+    projectile,
+    vfxConfig,
+    ships,
+    time = 0
+) {
+    const target = findShipRuntime(projectile, ships);
 
-  // Слой 1: Внешнее широкое свечение луча
-  r3d.drawLineStrip(new Float32Array([x, y, z, tailX, y, tailZ]), [color[0], color[1], color[2], 0.2]);
-  // Слой 2: Среднее свечение луча
-  r3d.drawLineStrip(new Float32Array([x, y, z, tailX, y, tailZ]), [color[0], color[1], color[2], 0.5]);
-  // Слой 3: Яркое белое ядро луча
-  r3d.drawLineStrip(new Float32Array([x, y, z, tailX, y, tailZ]), [coreColor[0], coreColor[1], coreColor[2], 0.95]);
+    if (!target) return;
 
-  // ✅ Головка: короткий яркий отрезок на кончике (замена drawCircleAt)
-  // Направление движения (нормализованное)
-  const speed = Math.sqrt(vx * vx + vz * vz);
-  if (speed > 0) {
-    const nx = vx / speed;
-    const nz = vz / speed;
-    // Короткий отрезок вперёд от текущей позиции (яркая "голова" импульса)
-    const headLen = 3.0; // длина головки в мировых единицах
-    const headX = x + nx * headLen;
-    const headZ = z + nz * headLen;
-    // Белая вспышка на кончике
-    r3d.drawLineStrip(new Float32Array([x, y, z, headX, y, headZ]), [1.0, 1.0, 1.0, 1.0]);
-    // Цветной ореол вокруг головки (чуть длиннее)
-    const glowX = x + nx * headLen * 1.8;
-    const glowZ = z + nz * headLen * 1.8;
-    r3d.drawLineStrip(new Float32Array([x, y, z, glowX, y, glowZ]), [color[0], color[1], color[2], 0.4]);
-  }
+    const sx = projectile.x;
+    const sz = projectile.z;
 
-  // Восстанавливаем состояние
-  if (!prevBlend) gl.disable(gl.BLEND);
-  else gl.blendFunc(prevBlendSrc, prevBlendDst);
+    const ex = target.x;
+    const ez = target.z;
+
+    const y = 1.2;
+
+    const color = vfxConfig.color || [0.2, 0.9, 1.0];
+    const coreColor = vfxConfig.coreColor || [1, 1, 1];
+
+    const dx = ex - sx;
+    const dz = ez - sz;
+    const dist = Math.hypot(dx, dz);
+
+    if (dist < 1) return;
+
+    const nx = dx / dist;
+    const nz = dz / dist;
+
+    // Луч чуть не доходит до центра корабля
+    const impactOffset = 8;
+
+    const ix = ex - nx * impactOffset;
+    const iz = ez - nz * impactOffset;
+
+    const beam = new Float32Array([
+        sx, y, sz,
+        ix, y, iz
+    ]);
+
+    const prevBlend = gl.getParameter(gl.BLEND);
+    const prevSrc = gl.getParameter(gl.BLEND_SRC_RGB);
+    const prevDst = gl.getParameter(gl.BLEND_DST_RGB);
+
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+
+    // =====================================================
+    // ВНЕШНЕЕ СВЕЧЕНИЕ
+    // =====================================================
+
+    r3d.drawLineStrip(
+        beam,
+        [color[0], color[1], color[2], 0.12]
+    );
+
+    r3d.drawLineStrip(
+        beam,
+        [color[0], color[1], color[2], 0.28]
+    );
+
+    // =====================================================
+    // ОСНОВНОЙ ЛУЧ
+    // =====================================================
+
+    r3d.drawLineStrip(
+        beam,
+        [color[0], color[1], color[2], 0.65]
+    );
+
+    // =====================================================
+    // БЕЛОЕ ЯДРО
+    // =====================================================
+
+    r3d.drawLineStrip(
+        beam,
+        [coreColor[0], coreColor[1], coreColor[2], 0.95]
+    );
+
+    // =====================================================
+    // ВСПЫШКА У СТВОЛА
+    // =====================================================
+
+    const muzzleLen = 14;
+
+    const mx = sx + nx * muzzleLen;
+    const mz = sz + nz * muzzleLen;
+
+    r3d.drawLineStrip(
+        new Float32Array([
+            sx, y, sz,
+            mx, y, mz
+        ]),
+        [1, 1, 1, 1]
+    );
+
+    r3d.drawLineStrip(
+        new Float32Array([
+            sx, y, sz,
+            mx + nx * 8, y, mz + nz * 8
+        ]),
+        [color[0], color[1], color[2], 0.45]
+    );
+
+    // =====================================================
+    // ВСПЫШКА ПОПАДАНИЯ
+    // =====================================================
+
+    const hitLen = 16;
+
+    r3d.drawLineStrip(
+        new Float32Array([
+            ix - nx * hitLen, y, iz - nz * hitLen,
+            ix + nx * hitLen, y, iz + nz * hitLen
+        ]),
+        [1, 1, 1, 1]
+    );
+
+    r3d.drawLineStrip(
+        new Float32Array([
+            ix - nx * hitLen * 1.8, y, iz - nz * hitLen * 1.8,
+            ix + nx * hitLen * 1.8, y, iz + nz * hitLen * 1.8
+        ]),
+        [color[0], color[1], color[2], 0.5]
+    );
+
+    // =====================================================
+
+    if (!prevBlend) {
+        gl.disable(gl.BLEND);
+    } else {
+        gl.blendFunc(prevSrc, prevDst);
+    }
 }

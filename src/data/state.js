@@ -63,6 +63,18 @@ export function createState(save = null) {
       pirates: -10, // Пример: пираты сразу немного не любят новичков
       neutral: 0,
     },
+     // ===== СИСТЕМА УРОВНЕЙ ИГРОКА =====
+    // Текущий уровень (от 1 до 50)
+    playerLevel: save?.playerLevel ?? 1,
+
+    // XP в рамках текущего уровня
+    playerXP: save?.playerXP ?? 0,
+
+    // Всего XP заработано за всё время (статистика)
+    totalXPEarned: save?.totalXPEarned ?? 0,
+
+    // Лог последних начислений XP (для UI)
+    xpLog: save?.xpLog ?? [],
   };
 
   return applySaveToState(state, save);
