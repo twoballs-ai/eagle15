@@ -2,6 +2,8 @@ import { System } from "../../../engine/core/lifecycle.js";
 import { raycastToGround } from "../../../gameplay/cameraRay.js";
 import { tryFire, getWeaponPreset, WEAPON_PRESETS } from "../../../gameplay/weapons/projectiles.js";
 import { findAutoTarget } from "../../../gameplay/combat/autoCombat.js";
+import { stepShipMovement } from "../../../gameplay/shipMovement.js";
+import { getAutopilotControls } from "../../../gameplay/shipController.js";
 
 export class ShipControlSystem extends System {
   constructor(services, ctx) {
@@ -82,62 +84,46 @@ export class ShipControlSystem extends System {
     this.ctx.autoCombat.currentTarget = targetData;
 
     // ==================================================
-    // 🚀 ДВИЖЕНИЕ: всегда по targetX/Z или стоянка
+    // 🚀 ДВИЖЕНИЕ: используем autopilot controls + physics
     // ==================================================
     const hasTarget = Number.isFinite(r.targetX) && Number.isFinite(r.targetZ);
 
+    let controls = null;
+
     if (hasTarget) {
-      const dx = r.targetX - r.x;
-      const dz = r.targetZ - r.z;
+      // ✅ Движение к точке через autopilot controls
+      controls = getAutopilotControls(r);
+    } else if (targetData) {
+      // ✅ Нет точки, но есть враг — стоим на месте, поворачиваемся к врагу
+      const targetRuntime = targetData.ship.runtime;
+      const dx = targetRuntime.x - r.x;
+      const dz = targetRuntime.z - r.z;
       const dist = Math.hypot(dx, dz);
-
-      const arrivalRadius = 60;
-      const stopRadius = 12;
-      const cruiseSpeed = 220;
-      const minSpeed = 25;
-
-      if (dist < stopRadius) {
-        r.targetX = null;
-        r.targetZ = null;
-        r.vx *= Math.pow(0.1, dt);
-        r.vz *= Math.pow(0.1, dt);
-      } else {
-        // Если нет врага — поворачиваемся к точке
-        if (!targetData) {
-          const targetYaw = Math.atan2(dx, -dz);
-          let yawDiff = targetYaw - (r.yaw ?? 0);
-          while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
-          while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
-          r.yaw = (r.yaw ?? 0) + yawDiff * Math.min(1, dt * 2.5);
-        }
-
-        let desiredSpeed = cruiseSpeed;
-        if (dist < arrivalRadius) {
-          const t = (dist - stopRadius) / (arrivalRadius - stopRadius);
-          desiredSpeed = minSpeed + (cruiseSpeed - minSpeed) * Math.max(0, t);
-        }
-
-        const fx = Math.sin(r.yaw);
-        const fz = -Math.cos(r.yaw);
-        const k = Math.min(1, dt * 2);
-        r.vx = lerp(r.vx, fx * desiredSpeed, k);
-        r.vz = lerp(r.vz, fz * desiredSpeed, k);
+      
+      if (dist > 0) {
+        const targetYaw = Math.atan2(dx, -dz);
+        let yawDiff = targetYaw - (r.yaw ?? 0);
+        while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
+        while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
+        
+        // Только поворот, без движения
+        r.yaw = (r.yaw ?? 0) + yawDiff * Math.min(1, dt * 3.0);
       }
-
-      r.x += r.vx * dt;
-      r.z += r.vz * dt;
+      
+      // Тормозим до остановки
+      controls = { throttle: 0, turn: 0, boost: false, manual: false };
     } else {
-      // Нет целевой точки — стоим на месте
-      r.vx *= Math.pow(0.05, dt);
-      r.vz *= Math.pow(0.05, dt);
-      if (Math.hypot(r.vx, r.vz) < 1) {
-        r.vx = 0;
-        r.vz = 0;
-      }
+      // ✅ Нет ни точки, ни врага — стоим на месте
+      controls = { throttle: 0, turn: 0, boost: false, manual: false };
     }
 
+    // Применяем физику движения
+    const { fx, fz } = stepShipMovement(r, controls, dt, {
+      boundsRadius: this.ctx.boundsRadius,
+    });
+
     // ==================================================
-    // 🎯 АВТОБОЙ: автоматическая стрельба по атакующему врагу
+    // 🎯 АВТОБОЙ: автоматическая стрельба (независимо от движения)
     // ==================================================
     if (targetData) {
       this.ctx.autoCombat.enabled = true;
@@ -145,72 +131,66 @@ export class ShipControlSystem extends System {
       const targetShip = targetData.ship;
       const targetRuntime = targetShip.runtime;
 
-      // Поворот к врагу для стрельбы
       const dx = targetRuntime.x - r.x;
       const dz = targetRuntime.z - r.z;
       const dist = Math.hypot(dx, dz);
-      const targetYaw = Math.atan2(dx, -dz);
+      
+      if (dist > 0) {
+        const nx = dx / dist;
+        const nz = dz / dist;
+        const fxFire = Math.sin(r.yaw ?? 0);
+        const fzFire = -Math.cos(r.yaw ?? 0);
+        const dot = fxFire * nx + fzFire * nz;
 
-      let yawDiff = targetYaw - (r.yaw ?? 0);
-      while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
-      while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
-      r.yaw = (r.yaw ?? 0) + yawDiff * Math.min(1, dt * 3.0);
+        const maxFireRange = 550;
+        const fireArcCos = 0.6;
+        const inRange = dist <= maxFireRange;
+        const inArc = dot >= fireArcCos;
+        const shouldFire = inRange && inArc;
 
-      // Проверка стрельбы
-      const nx = dx / dist;
-      const nz = dz / dist;
-      const fx = Math.sin(r.yaw ?? 0);
-      const fz = -Math.cos(r.yaw ?? 0);
-      const dot = fx * nx + fz * nz;
+        if (shouldFire && weapon) {
+          for (let i = 0; i < weapon.pellets; i++) {
+            const side = weapon.pellets > 1 ? (i - (weapon.pellets - 1) * 0.5) * 1.2 : 0;
 
-      const maxFireRange = 550;
-      const fireArcCos = 0.6;
-      const inRange = dist <= maxFireRange;
-      const inArc = dot >= fireArcCos;
-      const shouldFire = inRange && inArc;
-
-      if (shouldFire && weapon) {
-        for (let i = 0; i < weapon.pellets; i++) {
-          const side = weapon.pellets > 1 ? (i - (weapon.pellets - 1) * 0.5) * 1.2 : 0;
-
-          tryFire(
-            this.ctx.projectiles,
-            r,
-            ship.id,
-            dt,
-            true,
-            {
-              teamId: playerFaction,
-              targetId: targetShip.id,
-              targetX: targetRuntime.x,
-              targetZ: targetRuntime.z,
-              damage: weapon.damage,
-              bulletSpeed: weapon.bulletSpeed,
-              bulletLife: weapon.bulletLife,
-              spread: weapon.spread,
-              fireCooldown: weapon.fireCooldown,
-              muzzleSide: side,
-              presetId: weapon.id,
-              ignoreCooldown: i > 0,
-            },
-          );
+            tryFire(
+              this.ctx.projectiles,
+              r,
+              ship.id,
+              dt,
+              true,
+              {
+                teamId: playerFaction,
+                targetId: targetShip.id,
+                targetX: targetRuntime.x,
+                targetZ: targetRuntime.z,
+                damage: weapon.damage,
+                bulletSpeed: weapon.bulletSpeed,
+                bulletLife: weapon.bulletLife,
+                spread: weapon.spread,
+                fireCooldown: weapon.fireCooldown,
+                muzzleSide: side,
+                presetId: weapon.id,
+                ignoreCooldown: i > 0,
+              },
+            );
+          }
         }
       }
     } else {
       this.ctx.autoCombat.enabled = false;
     }
 
-    this.updateFlame(dt, r);
+    this.updateFlame(dt, r, fx, fz);
     this.applyFollowCamera(dt, r);
   }
 
-  updateFlame(dt, r) {
+  updateFlame(dt, r, fx, fz) {
     if (!this.ctx.flame) return;
 
-    const fx = Math.sin(r.yaw ?? 0);
-    const fz = -Math.cos(r.yaw ?? 0);
-
-    const throttle = Math.hypot(r.vx ?? 0, r.vz ?? 0) > 10 ? 1.0 : 0.2;
+    // ✅ ИСПРАВЛЕНО: берём throttle из реальной скорости
+    // Если скорость < 5, throttle = 0 (огонь не горит)
+    const speed = Math.hypot(r.vx ?? 0, r.vz ?? 0);
+    const throttle = speed > 5 ? Math.min(1.0, speed / 100) : 0;
 
     this.ctx.flame.update(
       dt,
