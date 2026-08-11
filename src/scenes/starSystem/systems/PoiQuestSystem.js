@@ -1,10 +1,11 @@
+// src/scenes/starSystem/systems/PoiQuestSystem.js
 import { System } from "../../../engine/core/lifecycle.js";
 import { PoiRuntimeOrbit } from "../../../gameplay/poi/poiRuntimeOrbit.js";
 
 export class PoiQuestSystem extends System {
-  constructor(services, ctx) { 
-    super(services); 
-    this.ctx = ctx; 
+  constructor(services, ctx) {
+    super(services);
+    this.ctx = ctx;
   }
 
   enter() {
@@ -12,7 +13,7 @@ export class PoiQuestSystem extends System {
     if (!this.ctx.quest.flags) {
       this.ctx.quest.flags = {};
     }
-    
+
     this.updateQuestLine();
   }
 
@@ -21,7 +22,7 @@ export class PoiQuestSystem extends System {
       this.ctx.poiHint = "Катсцена… (ESC чтобы пропустить)";
       return;
     }
-    
+
     const state = this.s.get("state");
     const actions = this.s.get("actions");
 
@@ -31,7 +32,19 @@ export class PoiQuestSystem extends System {
     // debug sample log (раз в сек)
     this.debugPoiOncePerSecond(dt);
 
-    // celestial focus
+    // ✅ ВАЖНО: сначала обновляем POI (квесты), потом celestial focus (визуал/подсказки)
+    const { entered, focus: poiFocus } = this.ctx.poi.update(shipR);
+    for (const p of entered) {
+      if (!this.ctx.quest.isVisited(p.id)) {
+        this.ctx.quest.markVisited(p.id);
+        this.ctx.story?.onPoiEnter({ poi: p, systemId: this.ctx.systemId, ctx: this.ctx });
+        // 🛡️ ИСПРАВЛЕНО: защита от undefined log через ?.at?.(-1)
+        this.ctx.lastLog = this.ctx.quest.log?.at?.(-1)?.text ?? "";
+        this.updateQuestLine();
+      }
+    }
+
+    // celestial focus — только для подсказок, НЕ прерывает обработку POI
     const cel = this.findCelestialFocus(shipR);
     if (cel) {
       this.ctx.poiFocus = { id: cel.id, name: cel.name, worldX: cel.x, worldZ: cel.z };
@@ -42,14 +55,28 @@ export class PoiQuestSystem extends System {
       } else {
         this.ctx.poiHint = cel.name;
       }
-      return;
+    } else {
+      // нет celestial focus — используем POI focus
+      this.ctx.poiFocus = poiFocus ?? null;
+      this.ctx.poiHint = "";
+
+      if (poiFocus) {
+        if (poiFocus.id === "poi_beacon") {
+          const f = this.ctx.quest.flags || {};
+          const ok = !!(f["act1.ship_stabilized"] && f["act1.nav_restored"] && f["act1.got_parts"] && f["act1.installed_upgrade"]);
+          this.ctx.poiHint = ok ? "E: активировать маяк" : "Маяк заблокирован (сначала почини корабль)";
+        } else {
+          this.ctx.poiHint = poiFocus.name;
+        }
+      }
     }
 
     // DEV reset
     if (actions.take("reset")) {
       this.ctx.quest.reset();
       this.ctx.quest.addLog("Квест сброшен (dev).");
-      this.ctx.lastLog = this.ctx.quest.log.at(-1)?.text ?? "";
+      // 🛡️ ИСПРАВЛЕНО: защита от undefined log через ?.at?.(-1)
+      this.ctx.lastLog = this.ctx.quest.log?.at?.(-1)?.text ?? "";
       this.updateQuestLine();
 
       this.ctx.poi = new PoiRuntimeOrbit({
@@ -58,30 +85,6 @@ export class PoiQuestSystem extends System {
       });
       this.ctx.poiFocus = null;
       this.ctx.poiHint = "";
-    }
-
-    const { entered, focus } = this.ctx.poi.update(shipR);
-    for (const p of entered) {
-      if (!this.ctx.quest.isVisited(p.id)) {
-        this.ctx.quest.markVisited(p.id);
-        this.ctx.story?.onPoiEnter({ poi: p, systemId: this.ctx.systemId, ctx: this.ctx });
-        this.ctx.lastLog = this.ctx.quest.log.at(-1)?.text ?? "";
-        this.updateQuestLine();
-      }
-    }
-
-    this.ctx.poiFocus = focus ?? null;
-    this.ctx.poiHint = "";
-
-    if (focus) {
-      if (focus.id === "poi_beacon") {
-        // 🛡️ ЗАЩИТА: добавлено || {} на случай, если flags вдруг пропал
-        const f = this.ctx.quest.flags || {}; 
-        const ok = !!(f["act1.ship_stabilized"] && f["act1.nav_restored"] && f["act1.got_parts"] && f["act1.installed_upgrade"]);
-        this.ctx.poiHint = ok ? "E: активировать маяк" : "Маяк заблокирован (сначала почини корабль)";
-      } else {
-        this.ctx.poiHint = focus.name;
-      }
     }
 
     if (actions.take("interact")) this.tryInteractFocusedPoi();
@@ -94,7 +97,8 @@ export class PoiQuestSystem extends System {
     // всё решение — в story triggers
     this.ctx.story?.onPoiInteract({ poi: focus, systemId: this.ctx.systemId, ctx: this.ctx });
 
-    this.ctx.lastLog = this.ctx.quest.log.at(-1)?.text ?? "";
+    // 🛡️ ИСПРАВЛЕНО: защита от undefined log через ?.at?.(-1)
+    this.ctx.lastLog = this.ctx.quest.log?.at?.(-1)?.text ?? "";
     this.updateQuestLine();
   }
 
@@ -104,7 +108,8 @@ export class PoiQuestSystem extends System {
     } else {
       this.ctx.quest.addLog(`Взаимодействие: ${cel.name} (опасная зона/сканирование)`);
     }
-    this.ctx.lastLog = this.ctx.quest.log.at(-1)?.text ?? "";
+    // 🛡️ ИСПРАВЛЕНО: защита от undefined log через ?.at?.(-1)
+    this.ctx.lastLog = this.ctx.quest.log?.at?.(-1)?.text ?? "";
   }
 
   // ===== helpers (вынесены) =====
@@ -129,27 +134,17 @@ export class PoiQuestSystem extends System {
     let best = null;
     let bestDist = Infinity;
 
-    // sun
-    {
-      const sunVisualR = this.ctx.system.star.radius * 10;
-      const interactR = sunVisualR * 1.05 * this.ctx.celestialInteractMul;
-      const triggerR = interactR * this.ctx.celestialTriggerMul;
+    // ✅ Солнце исключено из фокуса — у него нет триггеров и зон взаимодействия
 
-      const dist = Math.hypot(shipR.x, shipR.z);
-      if (dist < triggerR && dist < bestDist) {
-        bestDist = dist;
-        best = { kind: "sun", id: "cel:sun", name: "Солнце", x: 0, z: 0, dist, interactR };
-      }
-    }
-
-    // planets
+    // planets — только близкий контакт
     for (const p of this.ctx.system.planets || []) {
       const a = this.ctx.time * p.speed + p.phase;
       const x = Math.cos(a) * p.orbitRadius;
       const z = Math.sin(a) * p.orbitRadius;
 
       const interactR = (p.size ?? 10) * 1.2 * this.ctx.celestialInteractMul;
-      const triggerR = interactR * this.ctx.celestialTriggerMul;
+      // triggerR = interactR, чтобы планеты не перехватывали фокус издалека
+      const triggerR = interactR;
 
       const dx = x - shipR.x;
       const dz = z - shipR.z;
@@ -167,7 +162,7 @@ export class PoiQuestSystem extends System {
   updateQuestLine() {
     // 🛡️ ЗАЩИТА: если flags нет, используем пустой объект, чтобы игра не упала
     const f = this.ctx.quest.flags || {};
-    
+
     const a = f["act1.nav_restored"] ? "Навигация ✅" : "Навигация ⬜";
     const b = f["act1.ship_stabilized"] ? "Стабилизация ✅" : "Стабилизация ⬜";
     const c = f["act1.got_parts"] ? "Детали ✅" : "Детали ⬜";
@@ -193,6 +188,6 @@ export class PoiQuestSystem extends System {
       const pos = this.ctx.resolvePoiPos(p);
       return { id: p.id, name: p.name, kind: p.kind, x: pos?.x?.toFixed?.(1), z: pos?.z?.toFixed?.(1) };
     });
-    
+
   }
 }

@@ -428,8 +428,10 @@ export class InteractionTargetWidget {
       refs.icon.textContent = iconText;
     }
 
-    // ===== Роль / класс / фракция =====
-    const roleText = target.shipClass || target.talkType || targetFaction || "—";
+    // ===== Роль / класс / фракция / важность =====
+    const importanceIcon = target.importance === "important" ? "★ " : "";
+    const levelInfo = target.level ? ` (ур. ${target.level})` : "";
+    const roleText = importanceIcon + (target.shipClass || target.talkType || targetFaction || "—") + levelInfo;
     if (refs.role && refs.role.textContent !== roleText) {
       refs.role.textContent = String(roleText).toUpperCase();
     }

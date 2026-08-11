@@ -96,7 +96,9 @@ autoCombat: {
     }),
     // relIcons: new RelationIconsOverlay({ canvas }),
     systemPlaneY: -90,
-    celestialTriggerMul: 1.6,
+    // ✅ УМЕНЬШЕНО: celestialTriggerMul больше не используется (теперь = 1.0)
+    // Это предотвращает захват фокуса солнцем/планетами издалека
+    celestialTriggerMul: 1.0,
     celestialInteractMul: 1.0,
     inputLock: {
       camera: false,
@@ -112,7 +114,7 @@ autoCombat: {
   };
 ctx.enemyFire.setProjectileSystem(ctx.projectiles);
   // ===== Инициализация виджетов связи =====
-  ctx.ui.commsLog = new CommsWidget({ 
+  ctx.ui.commsLog = new CommsWidget({
     id: "comms-widget",
     ctx,
     onMessageClick: (msg) => {
@@ -120,9 +122,9 @@ ctx.enemyFire.setProjectileSystem(ctx.projectiles);
     }
   });
 
-  ctx.ui.eventIndicator = new EventIndicatorWidget({ 
+  ctx.ui.eventIndicator = new EventIndicatorWidget({
     id: "event-indicator",
-    ctx 
+    ctx
   });
   // ==========================================
 

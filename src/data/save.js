@@ -92,6 +92,19 @@ export function makeSaveFromState(state) {
     // 🚨 НОВОЕ: Сохраняем квесты и ID вместе с основным состоянием
     playerId: state.playerId,
     questState: state.questState,
+
+    // ===== 🚨 КРИТИЧЕСКОЕ ДОБАВЛЕНИЕ: Сохранение persistent NPC =====
+    // Без этого persistent NPC (квестодатели, торговцы) теряются при перезагрузке игры.
+    // PersistentNpcManager.serialize() возвращает { npcs: [[id, npc], ...] },
+    // что является JSON-safe структурой и легко восстанавливается.
+    // При следующей загрузке BootstrapSystem десериализует эти данные обратно в менеджер.
+    persistentNpcData: state.persistentNpcManager?.serialize?.() ?? null,
+
+    // ===== СИСТЕМА УРОВНЕЙ =====
+    playerLevel: state.playerLevel ?? 1,
+    playerXP: state.playerXP ?? 0,
+    totalXPEarned: state.totalXPEarned ?? 0,
+    xpLog: Array.isArray(state.xpLog) ? state.xpLog.slice(-50) : [],
   };
 }
 
@@ -134,6 +147,20 @@ export function applySaveToState(state, save) {
       log: Array.isArray(save.questState.log) ? save.questState.log : []
     };
   }
+
+  // ===== 🚨 КРИТИЧЕСКОЕ ДОБАВЛЕНИЕ: Сохраняем persistentNpcData для BootstrapSystem =====
+  // BootstrapSystem.enter() создаст PersistentNpcManager и вызовет .deserialize() с этими данными.
+  // Это единственный правильный путь восстановить persistent NPC между сессиями.
+  // Не создаём менеджер здесь, потому что BootstrapSystem — единая точка инициализации системы.
+  if (save.persistentNpcData) {
+    state.persistentNpcData = save.persistentNpcData;
+  }
+
+  // ===== СИСТЕМА УРОВНЕЙ =====
+  if (Number.isFinite(save.playerLevel)) state.playerLevel = save.playerLevel;
+  if (Number.isFinite(save.playerXP)) state.playerXP = save.playerXP;
+  if (Number.isFinite(save.totalXPEarned)) state.totalXPEarned = save.totalXPEarned;
+  if (Array.isArray(save.xpLog)) state.xpLog = save.xpLog;
 
   return state;
 }

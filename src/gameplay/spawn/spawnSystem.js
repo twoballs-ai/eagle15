@@ -1,4 +1,4 @@
-import { generateRandomNpc, generatePirate } from "../../data/npc/generators.js";
+import { generatePirate, generateMerchant } from "../../data/npc/generators.js";
 import { getSpawnAlertLevelFromQuests } from "../story/actRules.js";
 
 export function spawnSystemActors({
@@ -22,7 +22,7 @@ export function spawnSystemActors({
     const persistentNpcs = persistentNpcManager.getForSystem(systemId);
     for (const npc of persistentNpcs) {
       if (npc.alive === false) continue;
-      
+
       npc.runtime = {
         x: npc.spawnPosition?.x ?? (Math.random() - 0.5) * 600,
         z: npc.spawnPosition?.z ?? (Math.random() - 0.5) * 600,
@@ -34,18 +34,20 @@ export function spawnSystemActors({
   }
 
   // ==========================================
-  // 2. Временные NPC (случайные)
+  // 2. Временные NPC (случайные встречи)
   // ==========================================
   const randomNpcCount = Math.min(5, 2 + (spawnAlertLevel ?? 0));
-  
+
   for (let i = 0; i < randomNpcCount; i++) {
-    // С небольшим шансом спавним пирата, иначе рандомный
-    const npc = (Math.random() < 0.3)
+    // С небольшим шансом спавним пирата, иначе торговец
+    const usePirate = Math.random() < 0.3;
+    const npc = usePirate
       ? generatePirate(seed + i)
-      : generateRandomNpc(seed + i);
-    
+      : generateMerchant(seed + i);
+
     if (!npc) continue;
 
+    // Устанавливаем позицию спавна
     npc.runtime = {
       x: (Math.random() - 0.5) * 1000,
       z: (Math.random() - 0.5) * 1000,

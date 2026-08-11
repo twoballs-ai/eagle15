@@ -26,16 +26,9 @@ this.bindings = bindings ?? {
   moveLeft:    { keys: ["KeyA", "ArrowLeft"] },
   moveRight:   { keys: ["KeyD", "ArrowRight"] },
 
-  // камера
-  camUp:       { keys: ["KeyQ"] },
-  camDown:     { keys: ["KeyE"] },
+  // камера (только yaw: Z и C)
   camYawLeft:  { keys: ["KeyZ"] },
   camYawRight: { keys: ["KeyC"] },
-  camPitchUp:  { keys: ["KeyR"] },
-  camPitchDown:{ keys: ["KeyF"] },
-
-  // по желанию (сброс камеры)
-  camReset: { keys: ["KeyX"] },
 };
   }
 
