@@ -7,6 +7,7 @@ import { spawnSystemActors } from "../../../gameplay/spawn/spawnSystem.js";
 import { getSpawnAlertLevelFromQuests } from "../../../gameplay/story/actRules.js";
 import { KNOWN_EVENT_IDS } from "../../../data/content/events_router.js";
 import { sanitizeAndValidatePoiDef } from "../../../data/content/validation.js";
+import { PersistentNpcManager } from "../../../data/npc/persistent.js";
 
 export class BootstrapSystem extends System {
   constructor(services, ctx) {
@@ -88,17 +89,20 @@ export class BootstrapSystem extends System {
     if (this.ctx.autoCombat) {
       this.ctx.autoCombat.currentTarget = null;
     }
-    
+    // Инициализация менеджера постоянных NPC
+if (!state.persistentNpcManager) {
+  state.persistentNpcManager = new PersistentNpcManager();
+}
     // spawn NPC
     const activeQuestDefs = Object.keys(this.ctx.quest?.active ?? {}).map((qid) => this.ctx.content?.questsById?.[qid]).filter(Boolean);
-    const spawned = spawnSystemActors({
-      galaxySeed: galaxy.seed,
-      systemId: sid,
-      playerFactionId: state.player?.factionId ?? "union",
-      spawnAlertLevel: getSpawnAlertLevelFromQuests(activeQuestDefs),
-      actId: this.ctx.act?.current ?? "act1",
-    });
-
+const spawned = spawnSystemActors({
+  galaxySeed: galaxy.seed,
+  systemId: sid,
+  playerFactionId: state.player?.factionId ?? "union",
+  spawnAlertLevel: getSpawnAlertLevelFromQuests(activeQuestDefs),
+  actId: this.ctx.act?.current ?? "act1",
+  persistentNpcManager: state.persistentNpcManager,
+});
     state.characters = spawned.characters;
     state.ships = [state.playerShip, ...spawned.ships].filter(Boolean);
 
