@@ -147,7 +147,6 @@ export class RenderSystem extends System {
     }
   }
 
-
   drawOnlineShips3D(r3d) {
     const state = this.s.get("state");
     const assets = this.s.get("assets");
@@ -178,7 +177,6 @@ export class RenderSystem extends System {
       });
     }
   }
-
 
   drawNpcFov3D(r3d) {
     const state = this.s.get("state");
@@ -283,14 +281,19 @@ export class RenderSystem extends System {
       if (!planetModel) continue;
 
       const s = p.size * scaleMul;
-      const pAmb = p?.visual?.ambient ?? 0.85;
+      
+      // ✅ ИЗМЕНЕНО: снижаем ambient до 0.45, чтобы тени от нормалей стали видны.
+      // Раньше было 0.85, что "съедало" весь рельеф, делая планету плоской.
+      const pAmb = p?.visual?.ambient ?? 0.45; 
       const pEm = p?.visual?.emissive ?? 0.0;
+      
       r3d.drawModel(planetModel, {
         position: [x, ySys, z],
         scale: [s, s, s],
         rotationY: this.ctx.time * 0.2,
         ambient: pAmb,
         emissive: pEm,
+        normalScale: 1.3, // ✅ ДОБАВЛЕНО: немного усиливаем рельеф для выразительности
       });
 
       if (p?.visual?.clouds) {
@@ -350,7 +353,7 @@ export class RenderSystem extends System {
     );
   }
 
-    drawAutopilotRoute3D(r3d) {
+  drawAutopilotRoute3D(r3d) {
     const state = this.s.get("state");
     const r = state.playerShip?.runtime;
     if (!r) return;

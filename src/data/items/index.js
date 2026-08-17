@@ -1,7 +1,8 @@
 // data/items/index.js
 // Единая точка экспорта для всех предметов
 
-export {
+// 1. Сначала импортируем для локального использования в этом файле
+import {
   WEAPONS_CATALOG,
   WEAPONS_BY_ID,
   getWeapon,
@@ -9,7 +10,7 @@ export {
   getWeaponsByRarity
 } from './weapons.js';
 
-export {
+import {
   MODULES_CATALOG,
   MODULES_BY_ID,
   getModule,
@@ -18,7 +19,22 @@ export {
   getModulesByType
 } from './modules.js';
 
-// Объединённый каталог всех предметов
+// 2. Затем экспортируем всё наружу для других модулей
+export {
+  WEAPONS_CATALOG,
+  WEAPONS_BY_ID,
+  getWeapon,
+  getWeaponsBySlotType,
+  getWeaponsByRarity,
+  MODULES_CATALOG,
+  MODULES_BY_ID,
+  getModule,
+  getModulesBySlotType,
+  getModulesByRarity,
+  getModulesByType
+};
+
+// 3. Теперь мы можем безопасно использовать локальные переменные для объединения
 export const ITEMS_CATALOG = [
   ...WEAPONS_CATALOG,
   ...MODULES_CATALOG,

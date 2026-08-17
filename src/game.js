@@ -37,6 +37,8 @@ import { OnlineClient } from "./gameplay/network/OnlineClient.js";
 
 import { logger, LOG_LEVELS } from "./engine/debug/Logger.js";
 
+import { WEAPONS_CATALOG, MODULES_CATALOG } from "./data/items/index.js";
+
 export class Game {
   static async create(args) {
     const savedMain = await loadSave("main");
@@ -240,7 +242,7 @@ export class Game {
   _buildSlotArray(slotConfig) {
     if (!slotConfig) return [];
     const arr = [];
-    
+
     // 1. Поддержка старого формата: число (например, weapon: 1)
     if (typeof slotConfig === 'number') {
       for (let i = 0; i < slotConfig; i++) {
@@ -248,7 +250,7 @@ export class Game {
       }
       return arr;
     }
-    
+
     // 2. Поддержка нового формата: объект (например, { main: 1, auxiliary: 1 })
     if (typeof slotConfig === 'object') {
       for (const [type, count] of Object.entries(slotConfig)) {
@@ -296,6 +298,16 @@ export class Game {
     }
 
     this.state.playerShip.stats = applyPilotModifiersToShipStats(shipBase, pilot.modifiers);
+
+    // Добавляем тестовые предметы в инвентарь: все модули и оружие для тестирования
+    const testItems = [
+      ...WEAPONS_CATALOG.map(w => ({ id: w.id, n: 1 })),
+      ...MODULES_CATALOG.map(m => ({ id: m.id, n: 1 })),
+    ];
+
+    for (const item of testItems) {
+      this.inventory.add(item.id, item.n);
+    }
 
     await this._ensureAssetsLoaded();
     await writeSave(this._currentSaveSlot, makeSaveFromState(this.state));

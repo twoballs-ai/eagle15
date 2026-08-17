@@ -55,9 +55,10 @@ export class Renderer3D {
     // temp orbit buffer (xyz * 256)
     this._orbit = new Float32Array(3 * 256);
     this._crossPts = new Float32Array(12);
-this._rings = new ThickRings(gl, { maxSegments: 256 });
-this._extrudedRings = new ExtrudedRings(gl, { maxSegments: 256 });
-this._overlay = new OverlayQuad(gl);
+    this._rings = new ThickRings(gl, { maxSegments: 256 });
+    this._extrudedRings = new ExtrudedRings(gl, { maxSegments: 256 });
+    this._overlay = new OverlayQuad(gl);
+    
     // cached per begin()
     this._vp = mat4.create();
     this._m = mat4.create();
@@ -120,45 +121,45 @@ this._overlay = new OverlayQuad(gl);
   }
 
   // ---- minimap / second pass: render into a screen-rect ----
-beginViewportRect(view, x, y, w, h) {
-  const gl = this.gl;
+  beginViewportRect(view, x, y, w, h) {
+    const gl = this.gl;
 
-  this._savedViewport = gl.getParameter(gl.VIEWPORT);
-  this._savedScissorBox = gl.getParameter(gl.SCISSOR_BOX);
-  this._savedScissorTest = gl.isEnabled(gl.SCISSOR_TEST);
+    this._savedViewport = gl.getParameter(gl.VIEWPORT);
+    this._savedScissorBox = gl.getParameter(gl.SCISSOR_BOX);
+    this._savedScissorTest = gl.isEnabled(gl.SCISSOR_TEST);
 
-  const yBottom = view.h - (y + h);
-  gl.enable(gl.SCISSOR_TEST);
-  gl.viewport(x, yBottom, w, h);
-  gl.scissor(x, yBottom, w, h);
-}
-
-endViewportRect() {
-  const gl = this.gl;
-
-  if (!this._savedScissorTest) gl.disable(gl.SCISSOR_TEST);
-  else gl.enable(gl.SCISSOR_TEST);
-
-  if (this._savedScissorBox) {
-    gl.scissor(
-      this._savedScissorBox[0],
-      this._savedScissorBox[1],
-      this._savedScissorBox[2],
-      this._savedScissorBox[3]
-    );
-    this._savedScissorBox = null;
+    const yBottom = view.h - (y + h);
+    gl.enable(gl.SCISSOR_TEST);
+    gl.viewport(x, yBottom, w, h);
+    gl.scissor(x, yBottom, w, h);
   }
 
-  if (this._savedViewport) {
-    gl.viewport(
-      this._savedViewport[0],
-      this._savedViewport[1],
-      this._savedViewport[2],
-      this._savedViewport[3]
-    );
-    this._savedViewport = null;
+  endViewportRect() {
+    const gl = this.gl;
+
+    if (!this._savedScissorTest) gl.disable(gl.SCISSOR_TEST);
+    else gl.enable(gl.SCISSOR_TEST);
+
+    if (this._savedScissorBox) {
+      gl.scissor(
+        this._savedScissorBox[0],
+        this._savedScissorBox[1],
+        this._savedScissorBox[2],
+        this._savedScissorBox[3]
+      );
+      this._savedScissorBox = null;
+    }
+
+    if (this._savedViewport) {
+      gl.viewport(
+        this._savedViewport[0],
+        this._savedViewport[1],
+        this._savedViewport[2],
+        this._savedViewport[3]
+      );
+      this._savedViewport = null;
+    }
   }
-}
 
   // ---- models ----
   async loadGLB(url) {
@@ -167,20 +168,22 @@ endViewportRect() {
     this._modelCache.set(url, model);
     return model;
   }
+
   drawModel(model, {
-    position=[0,0,0],
-    scale=[1,1,1],
+    position = [0, 0, 0],
+    scale = [1, 1, 1],
 
-    rotationY=0,
-    rotationX=0,
-    rotationZ=0,
+    rotationY = 0,
+    rotationX = 0,
+    rotationZ = 0,
 
-    basisX=0,
-    basisY=0,
-    basisZ=0,
+    basisX = 0,
+    basisY = 0,
+    basisZ = 0,
 
-    ambient=0.85,
-    emissive=0.0,
+    ambient = 0.85,
+    emissive = 0.0,
+    normalScale = 1.0, // ✅ ДОБАВЛЕНО: сила рельефа (1.0 = стандарт, >1.0 = усиленный рельеф)
   } = {}) {
     mat4.identity(this._m);
     mat4.translate(this._m, this._m, position);
@@ -196,24 +199,27 @@ endViewportRect() {
     if (rotationZ) mat4.rotateZ(this._m, this._m, rotationZ);
 
     mat4.scale(this._m, this._m, scale);
-    this.models.draw(model, this._vp, this._m, { ambient, emissive });
+    
+    // ✅ ДОБАВЛЕНО: передача normalScale в ModelRenderer
+    this.models.draw(model, this._vp, this._m, { ambient, emissive, normalScale });
   }
 
+  drawOverlay(colorRGBA) {
+    this._overlay.draw(colorRGBA);
+  }
 
-drawOverlay(colorRGBA) {
-  this._overlay.draw(colorRGBA);
-}
+  drawRingAt(x, y, z, radius, thickness = 6, segments = 96, colorRGBA = [1, 1, 1, 1], opts = {}) {
+    this._rings.drawRing(this._vp, x, y, z, radius, thickness, segments, colorRGBA, opts);
+  }
 
-drawRingAt(x, y, z, radius, thickness = 6, segments = 96, colorRGBA = [1,1,1,1], opts = {}) {
-  this._rings.drawRing(this._vp, x, y, z, radius, thickness, segments, colorRGBA, opts);
-}
-drawExtrudedRingAt(x, y, z, radius, thickness = 10, height = 6, segments = 96, colorRGBA = [1,0,0,1], opts = {}) {
-  this._extrudedRings.drawRing(this._vp, x, y, z, radius, thickness, height, segments, colorRGBA, opts);
-}
+  drawExtrudedRingAt(x, y, z, radius, thickness = 10, height = 6, segments = 96, colorRGBA = [1, 0, 0, 1], opts = {}) {
+    this._extrudedRings.drawRing(this._vp, x, y, z, radius, thickness, height, segments, colorRGBA, opts);
+  }
+
   // ✅ добавили timeSec
-drawGalaxySpiral(view, camera, dpr = 1, timeSec = 0, tiltMul = 1.0) {
-  this._galaxySpiral.draw(this._vp, dpr, timeSec, tiltMul);
-}
+  drawGalaxySpiral(view, camera, dpr = 1, timeSec = 0, tiltMul = 1.0) {
+    this._galaxySpiral.draw(this._vp, dpr, timeSec, tiltMul);
+  }
 
   regenGalaxySpiral(seed) {
     this._galaxySpiral.regen(seed);

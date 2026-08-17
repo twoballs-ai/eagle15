@@ -3,6 +3,11 @@ import { Renderer2D } from "@/engine/renderer2d.js";
 import { Renderer3D } from "@/engine/renderer3d.js";
 import { Game } from "@/game.js";
 import { installGLTraceFile } from "@/engine/debug/glTrace.js";
+import { WEAPONS_CATALOG, MODULES_CATALOG } from "@/data/items/index.js";
+
+// Экспортируем каталоги в глобальную область видимости для тестирования в консоли
+window.WEAPONS_CATALOG = WEAPONS_CATALOG;
+window.MODULES_CATALOG = MODULES_CATALOG;
 
 const canvas = document.getElementById("game");
 const statsEl = document.getElementById("stats");
