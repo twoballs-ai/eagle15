@@ -16,7 +16,7 @@ export class InventoryScreen {
     this._searchEl = null;
 
     this._q = "";
-    
+
     // Выбор для экипировки: { type: 'ship'|'inventory', index: number, slotArrayName?: string, slotIndex?: number }
     this._selection = null;
   }
@@ -106,7 +106,7 @@ export class InventoryScreen {
         "inventory service не найден. Проверь services.set('inventory', ...)";
       return;
     }
-    
+
     // ===== ОТРИСОВКА СЛОТОВ КОРАБЛЯ =====
     this._renderShipSlots(state);
 
@@ -272,6 +272,33 @@ export class InventoryScreen {
       return;
     }
 
+    // ===== ПРОВЕРКА ТИПА ПРЕДМЕТА =====
+    // Оружие можно экипировать только в слоты оружия (weaponSlots)
+    // Модули можно экипировать только в слоты модулей (utilitySlots)
+    const isWeaponSlot = slotArrayName === 'weaponSlots';
+    const isModuleSlot = slotArrayName === 'utilitySlots';
+
+    // Определяем тип предмета по префиксу ID или явному полю type
+    const itemId = invItem.id;
+    const isWeaponItem = itemId.startsWith('weapon_') || invItem.type === 'weapon';
+    const isModuleItem = itemId.startsWith('module_') || invItem.type === 'module';
+
+    // Проверка соответствия типа предмета типу слота
+    if (isWeaponSlot && !isWeaponItem) {
+      console.warn(`Нельзя экипировать предмет "${itemId}" в слот оружия - это не оружие`);
+      this._selection = null;
+      this.refresh();
+      return;
+    }
+
+    if (isModuleSlot && !isModuleItem) {
+      console.warn(`Нельзя экипировать предмет "${itemId}" в слот модуля - это не модуль`);
+      this._selection = null;
+      this.refresh();
+      return;
+    }
+
+    // Дополнительная проверка: соответствует ли конкретный тип слота типу предмета
     const shipSlots = state.playerShip[slotArrayName];
     const shipSlot = shipSlots[slotIndex];
 
@@ -279,6 +306,26 @@ export class InventoryScreen {
       this._selection = null;
       this.refresh();
       return;
+    }
+
+    // Проверяем соответствие slotType предмета и слота (если оба определены)
+    if (shipSlot.slotType && (isWeaponItem || isModuleItem)) {
+      // Для оружия проверяем slotType
+      if (isWeaponItem) {
+        const weaponData = this._getWeaponData(itemId);
+        if (weaponData && weaponData.slotType && weaponData.slotType !== shipSlot.slotType) {
+          console.warn(`Оружие "${itemId}" (слот: ${weaponData.slotType}) не подходит к слоту "${shipSlot.slotType}"`);
+          // Не блокируем полностью, но предупреждаем (можно сделать строгую проверку если нужно)
+        }
+      }
+      // Для модулей проверяем slotType
+      if (isModuleItem) {
+        const moduleData = this._getModuleData(itemId);
+        if (moduleData && moduleData.slotType && moduleData.slotType !== shipSlot.slotType) {
+          console.warn(`Модуль "${itemId}" (слот: ${moduleData.slotType}) не подходит к слоту "${shipSlot.slotType}"`);
+          // Не блокируем полностью, но предупреждаем
+        }
+      }
     }
 
     // Если в слоте корабля уже что-то есть, возвращаем это в инвентарь
@@ -302,7 +349,7 @@ export class InventoryScreen {
 
     // Экипируем предмет из инвентаря в слот корабля
     shipSlot.item = { id: invItem.id, n: invItem.n };
-    
+
     // Удаляем предмет из инвентаря
     inv.setSlot(inventoryIndex, null);
 
@@ -311,6 +358,48 @@ export class InventoryScreen {
 
     // Обновляем UI
     this.refresh();
+  }
+
+  /**
+   * Получить данные об оружии из каталога
+   */
+  _getWeaponData(itemId) {
+    try {
+      // Импортируем динамически если возможно, или используем заглушку
+      const itemsCatalog = this._get("itemsCatalog");
+      if (itemsCatalog?.getWeapon) {
+        return itemsCatalog.getWeapon(itemId);
+      }
+      // Заглушка: парсим ID для определения типа
+      if (itemId.startsWith('weapon_')) {
+        return { slotType: itemId.includes('turret') ? 'turret' : itemId.includes('missile') ? 'missile' : 'main' };
+      }
+    } catch (e) {
+      // Игнорируем ошибки импорта
+    }
+    return null;
+  }
+
+  /**
+   * Получить данные о модуле из каталога
+   */
+  _getModuleData(itemId) {
+    try {
+      const itemsCatalog = this._get("itemsCatalog");
+      if (itemsCatalog?.getModule) {
+        return itemsCatalog.getModule(itemId);
+      }
+      // Заглушка: парсим ID для определения типа
+      if (itemId.startsWith('module_')) {
+        const typeMatch = itemId.match(/module_(\w+)_/);
+        if (typeMatch) {
+          return { slotType: typeMatch[1] };
+        }
+      }
+    } catch (e) {
+      // Игнорируем ошибки импорта
+    }
+    return null;
   }
 
   _injectStyles() {

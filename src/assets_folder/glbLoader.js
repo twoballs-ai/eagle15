@@ -191,7 +191,7 @@ async function loadEmbeddedImageBlob(gltf, bin, imageIndex) {
 }
 
 function createVaoPrimitive(gl, attribs, indices) {
-  // attribs: { position:{array,numComp}, normal?, uv? }
+  // attribs: { position:{array,numComp}, normal?, uv?, tangent? }
   const vao = gl.createVertexArray();
   gl.bindVertexArray(vao);
 
@@ -220,6 +220,16 @@ function createVaoPrimitive(gl, attribs, indices) {
     gl.bufferData(gl.ARRAY_BUFFER, attribs.uv.array, gl.STATIC_DRAW);
     gl.enableVertexAttribArray(2);
     gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 0, 0);
+  }
+
+  // TANGENT at location 4 (optional, required for normal mapping)
+  if (attribs.tangent) {
+    const b = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, b);
+    gl.bufferData(gl.ARRAY_BUFFER, attribs.tangent.array, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(4);
+    // glTF tangents are VEC4 (xyz = tangent, w = handedness)
+    gl.vertexAttribPointer(4, 4, gl.FLOAT, false, 0, 0);
   }
 
   let indexed = false;

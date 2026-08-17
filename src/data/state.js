@@ -53,6 +53,33 @@ export function createState(save = null) {
         ["silicon_dust", 30], ["polymer_slurry", 20],
       ];
       if (i < seed.length) return { id: seed[i][0], n: seed[i][1] };
+
+      // Добавляем стартовое оружие и модули для тестирования
+      const starterItems = [
+        // Оружие
+        { id: "weapon_pulse_laser", n: 1 },
+        { id: "weapon_scattergun", n: 1 },
+        { id: "weapon_railgun", n: 1 },
+        // Модули двигателя
+        { id: "module_engine_basic", n: 1 },
+        { id: "module_engine_advanced", n: 1 },
+        // Модули щита
+        { id: "module_shield_basic", n: 1 },
+        { id: "module_shield_advanced", n: 1 },
+        // Утилити модули
+        { id: "module_cargo_boost", n: 2 },
+        { id: "module_energy_cell", n: 1 },
+        { id: "module_armor_plating", n: 1 },
+        { id: "module_scanner_basic", n: 1 },
+        { id: "module_cooling_system", n: 1 },
+        { id: "module_targeting_computer", n: 1 },
+      ];
+
+      const starterIndex = i - seed.length;
+      if (starterIndex >= 0 && starterIndex < starterItems.length) {
+        return starterItems[starterIndex];
+      }
+
       return null;
     }),
 
@@ -71,7 +98,7 @@ export function createState(save = null) {
       pirates: -10,
       neutral: 0,
     },
-    
+
     playerLevel: save?.playerLevel ?? 1,
     playerXP: save?.playerXP ?? 0,
     totalXPEarned: save?.totalXPEarned ?? 0,
