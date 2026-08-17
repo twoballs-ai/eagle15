@@ -1,33 +1,17 @@
 // gameplay/combat/enemyFire.js
-
 import { tryFire } from "../weapons/projectiles.js";
+import { getWeapon } from "../../data/items/weapons.js";
 
 function dist2(ax, az, bx, bz) {
   const dx = ax - bx;
-
   const dz = az - bz;
-
   return dx * dx + dz * dz;
 }
 
 export function createEnemyFireModule(opts = {}) {
   const cfg = {
     range: 520,
-
     fireArcCos: 0.35,
-
-    fireRate: 1.2,
-
-    jitter: 0.002,
-
-    damage: 18,
-
-    bulletSpeed: 2500,
-
-    bulletLife: 0.8,
-
-    weaponPresetId: "pulse",
-
     ...opts,
   };
 
@@ -38,137 +22,71 @@ export function createEnemyFireModule(opts = {}) {
   }
 
   function update(dt, ships, playerShip) {
-    if (!playerShip?.runtime) {
-      return;
-    }
-
+    if (!playerShip?.runtime) return;
     const p = playerShip.runtime;
 
     for (const ship of ships || []) {
-      if (ship === playerShip) {
-        continue;
-      }
-
-      if (!ship?.runtime) {
-        continue;
-      }
-
-      if (ship.alive === false || ship.runtime.dead) {
-        continue;
-      }
-
-      // Только боевые NPC
-      if (ship.aiState !== "combat") {
-        continue;
-      }
+      if (ship === playerShip || !ship?.runtime || ship.alive === false || ship.runtime.dead) continue;
+      if (ship.aiState !== "combat") continue;
 
       const r = ship.runtime;
-
-      // ----------------------------------------------
-      // cooldown
-      // ----------------------------------------------
-
-      if (r._fireCD == null) {
-        r._fireCD = 1 / cfg.fireRate;
-      }
-
-      r._fireCD -= dt;
-
-      // ----------------------------------------------
-      // distance
-      // ----------------------------------------------
+      if (!r._weaponCooldowns) r._weaponCooldowns = new Map();
+      r._weaponCooldowns.forEach((val, key) => r._weaponCooldowns.set(key, val - dt));
 
       const d2 = dist2(r.x, r.z, p.x, p.z);
-
-      if (d2 > cfg.range * cfg.range) {
-        continue;
-      }
-
-      // ----------------------------------------------
-      // direction to player
-      // ----------------------------------------------
+      if (d2 > cfg.range * cfg.range) continue;
 
       const d = Math.sqrt(d2) || 1;
-
       const tx = (p.x - r.x) / d;
-
       const tz = (p.z - r.z) / d;
 
-      // ----------------------------------------------
-      // facing
-      // ----------------------------------------------
-
       const fx = Math.sin(r.yaw ?? 0);
-
       const fz = -Math.cos(r.yaw ?? 0);
-
       const facing = fx * tx + fz * tz;
 
-      if (facing < cfg.fireArcCos) {
-        continue;
+      if (facing < cfg.fireArcCos) continue;
+      if (!projectileSystem) continue;
+
+      // ✅ ЦИКЛ ПО ВСЕМ СЛОТАМ ОРУЖИЯ ВРАГА
+      if (ship.weaponSlots) {
+        ship.weaponSlots.forEach((slot, slotIndex) => {
+          if (!slot?.item) return;
+
+          const weaponData = getWeapon(slot.item.id);
+          if (!weaponData) return;
+
+          const cdKey = `slot_${slotIndex}`;
+          const currentCd = r._weaponCooldowns.get(cdKey) || 0;
+
+          if (currentCd <= 0) {
+            r._weaponCooldowns.set(cdKey, weaponData.fireCooldown);
+
+            const pellets = weaponData.pellets || 1;
+            for (let i = 0; i < pellets; i++) {
+              const side = pellets > 1 ? (i - (pellets - 1) * 0.5) * 1.2 : 0;
+              tryFire(
+                projectileSystem, r, ship.id, dt, true,
+                {
+                  teamId: ship.factionId ?? "enemy",
+                  targetId: playerShip.id,
+                  targetX: p.x,
+                  targetZ: p.z,
+                  damage: weaponData.damage,
+                  bulletSpeed: weaponData.bulletSpeed,
+                  bulletLife: weaponData.bulletLife,
+                  spread: weaponData.spread,
+                  fireCooldown: weaponData.fireCooldown,
+                  muzzleSide: side,
+                  presetId: weaponData.id,
+                  ignoreCooldown: i > 0,
+                }
+              );
+            }
+          }
+        });
       }
-
-      // ----------------------------------------------
-      // cooldown
-      // ----------------------------------------------
-
-      if (r._fireCD > 0) {
-        continue;
-      }
-
-      r._fireCD = 1 / cfg.fireRate;
-
-      // ----------------------------------------------
-      // FIRE
-      // ----------------------------------------------
-
-      if (!projectileSystem) {
-        continue;
-      }
-
-      const presetId = ship.weaponPresetId ?? cfg.weaponPresetId;
-
-      tryFire(
-        projectileSystem,
-
-        r,
-
-        ship.id,
-
-        dt,
-
-        true,
-
-        {
-          teamId: ship.factionId ?? "enemy",
-
-          targetId: playerShip.id,
-
-          targetX: p.x,
-
-          targetZ: p.z,
-
-          damage: cfg.damage,
-
-          bulletSpeed: cfg.bulletSpeed,
-
-          bulletLife: cfg.bulletLife,
-
-          spread: cfg.jitter,
-
-          fireCooldown: 1 / cfg.fireRate,
-
-          presetId,
-        },
-      );
     }
   }
 
-  return {
-    cfg,
-
-    update,
-
-    setProjectileSystem,
-  };
+  return { cfg, update, setProjectileSystem };
 }

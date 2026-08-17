@@ -7,9 +7,9 @@ import { createContentRegistry } from "../../data/content/index.js";
 
 import { createColliderSystem } from "../../gameplay/collisions/colliders.js";
 import { createProjectileSystem } from "../../gameplay/weapons/projectiles.js";
-// import { RelationIconsOverlay } from "../../ui/relationIconsOverlay.js";
+import { WEAPONS_CATALOG } from "../../data/items/weapons.js"; // ✅ ЗАМЕНЕНО на новый каталог
+
 import { createEnemyFireModule } from "../../gameplay/combat/enemyFire.js";
-import { WEAPON_PRESETS } from "../../gameplay/weapons/projectiles.js";
 
 import { LetterboxOverlay } from "../../ui/letterboxOverlay.js";
 import { CutsceneCaption } from "../../ui/cutsceneCaption.js";
@@ -65,23 +65,21 @@ export function createStarSystemCtx(services) {
     flame: new EngineFlame(gl, { max: 2000 }),
     colliders: createColliderSystem({ cellSize: 140 }),
     projectiles: createProjectileSystem({
-      bulletSpeed: 1100,
-      bulletLife: 1.1,
-      fireCooldown: 0.09,
-      muzzleAhead: 16,
-      damage: 14,
-      hitRadius: 6,
-      spread: 0.01,
+      hitRadius: 6, // ✅ Упрощено, так как damage/speed теперь берутся из оружия
     }),
-weapons: {
-      available: WEAPON_PRESETS,
+    
+    // ✅ ОБНОВЛЕНО: используем новый каталог вместо удалённого WEAPON_PRESETS
+    weapons: {
+      available: WEAPONS_CATALOG,
       currentIndex: 0,
     },
+    
     // 🚨 ДОБАВЛЕНО: Состояние автобоя
-autoCombat: {
-  enabled: true, // ✅ Всегда включён по умолчанию
-  orbitDir: 1,
-},
+    autoCombat: {
+      enabled: true, // ✅ Всегда включён по умолчанию
+      orbitDir: 1,
+    },
+    
     ui: {
       enemyDialog: new EnemyDialogWidget(),
       commsLog: null,
@@ -94,10 +92,8 @@ autoCombat: {
       fireArcCos: 0.25,
       jitter: 0.02,
     }),
-    // relIcons: new RelationIconsOverlay({ canvas }),
+    
     systemPlaneY: -90,
-    // ✅ УМЕНЬШЕНО: celestialTriggerMul больше не используется (теперь = 1.0)
-    // Это предотвращает захват фокуса солнцем/планетами издалека
     celestialTriggerMul: 1.0,
     celestialInteractMul: 1.0,
     inputLock: {
@@ -112,7 +108,9 @@ autoCombat: {
       poiZones: true,
     },
   };
-ctx.enemyFire.setProjectileSystem(ctx.projectiles);
+
+  ctx.enemyFire.setProjectileSystem(ctx.projectiles);
+
   // ===== Инициализация виджетов связи =====
   ctx.ui.commsLog = new CommsWidget({
     id: "comms-widget",

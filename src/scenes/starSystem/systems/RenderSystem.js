@@ -1,7 +1,6 @@
-// scenes/starSystem/systems/RenderSystem.js
 import { System } from "../../../engine/core/lifecycle.js";
 import { getBasis } from "../../../assets_folder/modelBasis.js";
-import { buildTracersXYZ, WEAPON_PRESETS } from "../../../gameplay/weapons/projectiles.js";
+import { buildTracersXYZ } from "../../../gameplay/weapons/projectiles.js"; // ✅ Убрали WEAPON_PRESETS
 import { ASSETS } from "../../../assets_folder/manifest.js";
 // ✅ УДАЛЁН импорт из vfx.js
 // ✅ ДОБАВЛЕНЫ импорты отдельных компонентов оружия
@@ -11,6 +10,8 @@ import { renderRailgunBeam } from "../../../engine/renderer/vfx/RailgunBeamRende
 import { renderRocketVFX } from "../../../engine/renderer/vfx/RocketVFXRenderer.js";
 import { stepShipMovement } from "../../../gameplay/shipMovement.js";
 import { getAutopilotControls } from "../../../gameplay/shipController.js";
+import { getWeapon } from "../../../data/items/weapons.js";
+
 
 export class RenderSystem extends System {
   constructor(services, ctx) {
@@ -62,28 +63,29 @@ export class RenderSystem extends System {
     }
   }
 
-  // ----------------- MAIN DRAW -----------------
+
+
+
+// ... (класс RenderSystem остается без изменений, кроме метода drawProjectiles3D)
 
   drawProjectiles3D(r3d) {
     if (!this.ctx.projectiles) return;
     const bullets = this.ctx.projectiles.list;
     if (!bullets || bullets.length === 0) return;
 
-    const gl = this.s.get("gl");
+    const gl = this.s.get("gl"); 
     const time = this.ctx.time;
-
-    // ✅ ДОБАВЛЕНО: Получаем список кораблей, чтобы луч знал, где искать цель
     const state = this.s.get("state");
     const ships = state?.ships || [];
 
     for (const b of bullets) {
       if (b.alive === false) continue;
 
-      const preset = WEAPON_PRESETS.find(p => p.id === b.presetId) || WEAPON_PRESETS[0];
-      const vfx = preset.vfx || {};
+      // ✅ Ищем данные ТОЛЬКО в новом каталоге
+      const weaponData = getWeapon(b.presetId);
+      const vfx = weaponData?.vfx || {};
 
       if (vfx.type === "impulse_laser") {
-        // ✅ ИСПРАВЛЕНО: передаём ships перед time
         renderImpulseLaser(r3d, gl, b, vfx, ships, time);
       }
       else if (vfx.type === "tracer") {
@@ -94,6 +96,12 @@ export class RenderSystem extends System {
       }
       else if (vfx.type === "rocket_model") {
         renderRocketVFX(r3d, gl, b, vfx, time);
+      }
+      else if (vfx.type === "plasma_blob") {
+        renderScatterTracer(r3d, gl, b, { ...vfx, type: "tracer" }, time); // Fallback
+      }
+      else if (vfx.type === "continuous_beam") {
+        renderRailgunBeam(r3d, gl, b, { ...vfx, type: "laser_beam" }, time); // Fallback
       }
     }
   }
