@@ -87,7 +87,11 @@ export function makeSaveFromState(state) {
     inventorySlots: Array.isArray(state?.inventorySlots)
       ? state.inventorySlots.map((s) => (s ? { id: s.id, n: s.n } : null))
       : [],
-    playerShip: state.playerShip ? { stats: state.playerShip.stats } : null,
+    playerShip: state.playerShip ? {
+      stats: state.playerShip.stats,
+      weaponSlots: state.playerShip.weaponSlots?.map((s) => (s ? { id: s.id } : null)) ?? [],
+      utilitySlots: state.playerShip.utilitySlots?.map((s) => (s ? { id: s.id } : null)) ?? [],
+    } : null,
 
     // 🚨 НОВОЕ: Сохраняем квесты и ID вместе с основным состоянием
     playerId: state.playerId,
@@ -134,6 +138,14 @@ export function applySaveToState(state, save) {
 
   if (save.playerShip?.stats && state.playerShip) {
     state.playerShip.stats = { ...state.playerShip.stats, ...save.playerShip.stats };
+  }
+
+  // Восстанавливаем слоты оружия и утилити корабля
+  if (Array.isArray(save.playerShip?.weaponSlots)) {
+    state.playerShip.weaponSlots = save.playerShip.weaponSlots.map((s) => (s?.id ? { id: s.id } : null));
+  }
+  if (Array.isArray(save.playerShip?.utilitySlots)) {
+    state.playerShip.utilitySlots = save.playerShip.utilitySlots.map((s) => (s?.id ? { id: s.id } : null));
   }
 
   // 🚨 НОВОЕ: Восстанавливаем квесты и ID

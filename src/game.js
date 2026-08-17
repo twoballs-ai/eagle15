@@ -249,7 +249,7 @@ export class Game {
 
   async startNewGame(cfg) {
     logger.info("Game", "Начало новой игры", { name: cfg.name, race: cfg.raceId, class: cfg.classId, ship: cfg.shipClassId });
-    
+
     this.started = true;
     this._currentSaveSlot = "main";
 
@@ -267,8 +267,24 @@ export class Game {
     this.state.playerShipClassId = cfg.shipClassId ?? this.state.playerShipClassId ?? "scout";
 
     const shipBase = SHIP_CLASSES[this.state.playerShipClassId]?.baseStats || SHIP_CLASSES.scout.baseStats;
+    const shipSlots = SHIP_CLASSES[this.state.playerShipClassId]?.slots || SHIP_CLASSES.scout.slots;
 
-    if (!this.state.playerShip) this.state.playerShip = { stats: { ...shipBase } };
+    if (!this.state.playerShip) {
+      this.state.playerShip = {
+        stats: { ...shipBase },
+        weaponSlots: Array.from({ length: shipSlots?.weapon ?? 1 }, () => null),
+        utilitySlots: Array.from({ length: shipSlots?.utility ?? 1 }, () => null),
+      };
+    }
+
+    // Инициализируем слоты если их нет (для старых сохранений)
+    if (!this.state.playerShip.weaponSlots) {
+      this.state.playerShip.weaponSlots = Array.from({ length: shipSlots?.weapon ?? 1 }, () => null);
+    }
+    if (!this.state.playerShip.utilitySlots) {
+      this.state.playerShip.utilitySlots = Array.from({ length: shipSlots?.utility ?? 1 }, () => null);
+    }
+
     this.state.playerShip.stats = applyPilotModifiersToShipStats(shipBase, pilot.modifiers);
 
     await this._ensureAssetsLoaded();
@@ -278,14 +294,14 @@ export class Game {
     this.createGameScreen.hide();
     this.mainMenu.hide();
     this.ui.hud.show();
-    
+
     const startId = this.state.currentSystemId ?? (this.galaxy.systems[0]?.id ?? "sol");
     this.openStarSystem(startId);
   }
 
   async loadAndEnter(slot = "main") {
     logger.info("Game", `Загрузка сохранения из слота: ${slot}`);
-    
+
     const saved = await loadSave(slot);
     if (!saved) {
       logger.warn("Game", `Попытка загрузки несуществующего слота: ${slot}`);
@@ -303,7 +319,7 @@ export class Game {
     this.createGameScreen.hide();
     this.mainMenu.hide();
     this.ui.hud.show();
-    
+
     const startId = this.state.currentSystemId ?? (this.galaxy.systems[0]?.id ?? "sol");
     this.openStarSystem(startId);
   }
@@ -316,7 +332,7 @@ export class Game {
       logger.warn("Game", `openStarSystem проигнорирован (игра не запущена): ${sid}`);
       return;
     }
-    
+
     logger.debug("Game", `Переход в звёздную систему: ${sid}`);
     this.state.currentSystemId = sid;
     this.menu?.close?.();
@@ -334,7 +350,7 @@ export class Game {
     if (!sid) return;
 
     logger.info("Game", `Перегенерация системы: ${sid}`, { randomizeStar, randomizePlanets });
-    
+
     this.state.devGenerator = this.state.devGenerator ?? {};
     this.state.devGenerator[sid] = {
       seed: (Math.random() * 0xffffffff) >>> 0,
@@ -351,7 +367,7 @@ export class Game {
 
   async _ensureAssetsLoaded() {
     if (this._assetsLoaded) return;
-    
+
     logger.info("Game", "Загрузка базовых ассетов...");
     const assets = this.services.get("assets");
     const U = ASSETS.normalizeUrl;

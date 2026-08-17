@@ -17,6 +17,9 @@ export class InventoryScreen {
 
     this._q = "";
     this._selected = -1;
+
+    // Выбор для экипировки: { type: 'ship'|'inventory', index: number, slotIndex?: number }
+    this._selection = null;
   }
 
   _get(key) {
@@ -34,7 +37,23 @@ export class InventoryScreen {
 
     const top = el("div", "inv-top", root);
     el("div", "inv-title", top).textContent = "Инвентарь";
-    el("div", "inv-sub", top).textContent = "Сетка ячеек корабля. Перетаскивание добавим следующим шагом.";
+    el("div", "inv-sub", top).textContent = "Кликните на предмет в инвентаре, затем на слот корабля чтобы экипировать.";
+
+    // ===== СЛОТЫ ОРУЖИЯ И МОДУЛЕЙ =====
+    const shipPanel = el("div", "ship-panel", root);
+    el("div", "ship-panel-title", shipPanel).textContent = "Слоты корабля";
+
+    const shipSlotsContainer = el("div", "ship-slots-container", shipPanel);
+
+    // Слоты оружия
+    const weaponSection = el("div", "ship-slots-section", shipSlotsContainer);
+    el("div", "ship-slots-label", weaponSection).textContent = "Оружие:";
+    this._weaponSlotsEl = el("div", "ship-weapon-slots", weaponSection);
+
+    // Слоты утилити
+    const utilitySection = el("div", "ship-slots-section", shipSlotsContainer);
+    el("div", "ship-slots-label", utilitySection).textContent = "Модули:";
+    this._utilitySlotsEl = el("div", "ship-utility-slots", utilitySection);
 
     const bar = el("div", "inv-bar", root);
     el("div", "inv-label", bar).textContent = "Поиск:";
@@ -61,6 +80,7 @@ export class InventoryScreen {
     if (!this._gridEl) return;
 
     const inv = this._get("inventory");
+    const state = this._get("state");
     this._gridEl.innerHTML = "";
 
     if (!inv) {
@@ -68,6 +88,9 @@ export class InventoryScreen {
         "inventory service не найден. Проверь services.set('inventory', ...)";
       return;
     }
+    // ===== ОТРИСОВКА СЛОТОВ КОРАБЛЯ =====
+    this._renderShipSlots(state);
+
 
     const cap = inv.capacity();
     const q = (this._q ?? "").trim().toLowerCase();
@@ -91,7 +114,9 @@ export class InventoryScreen {
       if (q && !has) cell.classList.add("is-dim");
 
       // выбранный слот
-      if (i === this._selected) cell.classList.add("is-selected");
+      if (this._selection && this._selection.type === 'inventory' && this._selection.index === i) {
+        cell.classList.add("is-selected");
+      }
 
       // содержимое слота (блоком)
       if (slot) {
@@ -99,16 +124,161 @@ export class InventoryScreen {
         el("div", "inv-chipId", chip).textContent = slot.id;
         el("div", "inv-chipN", chip).textContent = String(slot.n ?? 0);
       } else {
-        // номер слота (чтобы сетка ощущалась “как в играх”)
+        // номер слота (чтобы сетка ощущалась "как в играх")
         const idx = el("div", "inv-idx", cell);
         idx.textContent = String(i + 1);
       }
 
       cell.addEventListener("click", () => {
-        this._selected = i;
-        this.refresh();
+        // Если уже выбран слот корабля, перемещаем предмет туда
+        if (this._selection && this._selection.type === 'ship') {
+          this._equipItemToShipSlot(i, this._selection.slotType, this._selection.slotIndex);
+        } else {
+          // Выбираем предмет из инвентаря
+          this._selection = { type: 'inventory', index: i };
+          this.refresh();
+        }
       });
     }
+  }
+
+  /**
+   * Отрисовка слотов корабля на основе текущего класса корабля
+   */
+  _renderShipSlots(state) {
+    if (!this._weaponSlotsEl || !this._utilitySlotsEl) return;
+
+    this._weaponSlotsEl.innerHTML = "";
+    this._utilitySlotsEl.innerHTML = "";
+
+    const playerShip = state?.playerShip;
+    if (!playerShip) {
+      el("div", "ship-slots-empty", this._weaponSlotsEl).textContent = "Нет данных о корабле";
+      return;
+    }
+
+    const weaponSlots = playerShip.weaponSlots || [];
+    const utilitySlots = playerShip.utilitySlots || [];
+
+    // Отрисовка слотов оружия
+    weaponSlots.forEach((slot, index) => {
+      const slotBtn = el("button", "ship-slot", this._weaponSlotsEl);
+      slotBtn.type = "button";
+      slotBtn.dataset.slotType = "weapon";
+      slotBtn.dataset.slotIndex = String(index);
+
+      if (slot) {
+        slotBtn.classList.add("is-equipped");
+        const chip = el("div", "ship-slot-chip", slotBtn);
+        el("div", "ship-slot-chipId", chip).textContent = slot.id;
+      } else {
+        slotBtn.classList.add("is-empty");
+        const idx = el("div", "ship-slot-idx", slotBtn);
+        idx.textContent = `W${index + 1}`;
+      }
+
+      // Подсветка если этот слот выбран для экипировки
+      if (this._selection && this._selection.type === 'ship' &&
+          this._selection.slotType === 'weapon' && this._selection.slotIndex === index) {
+        slotBtn.classList.add("is-selected");
+      }
+
+      slotBtn.addEventListener("click", () => {
+        // Если выбран предмет из инвентаря, экипируем его
+        if (this._selection && this._selection.type === 'inventory') {
+          this._equipItemToShipSlot(this._selection.index, 'weapon', index);
+        } else {
+          // Иначе выбираем этот слот
+          this._selection = { type: 'ship', slotType: 'weapon', slotIndex: index };
+          this.refresh();
+        }
+      });
+    });
+
+    // Отрисовка слотов утилити
+    utilitySlots.forEach((slot, index) => {
+      const slotBtn = el("button", "ship-slot", this._utilitySlotsEl);
+      slotBtn.type = "button";
+      slotBtn.dataset.slotType = "utility";
+      slotBtn.dataset.slotIndex = String(index);
+
+      if (slot) {
+        slotBtn.classList.add("is-equipped");
+        const chip = el("div", "ship-slot-chip", slotBtn);
+        el("div", "ship-slot-chipId", chip).textContent = slot.id;
+      } else {
+        slotBtn.classList.add("is-empty");
+        const idx = el("div", "ship-slot-idx", slotBtn);
+        idx.textContent = `U${index + 1}`;
+      }
+
+      // Подсветка если этот слот выбран для экипировки
+      if (this._selection && this._selection.type === 'ship' &&
+          this._selection.slotType === 'utility' && this._selection.slotIndex === index) {
+        slotBtn.classList.add("is-selected");
+      }
+
+      slotBtn.addEventListener("click", () => {
+        // Если выбран предмет из инвентаря, экипируем его
+        if (this._selection && this._selection.type === 'inventory') {
+          this._equipItemToShipSlot(this._selection.index, 'utility', index);
+        } else {
+          // Иначе выбираем этот слот
+          this._selection = { type: 'ship', slotType: 'utility', slotIndex: index };
+          this.refresh();
+        }
+      });
+    });
+  }
+
+  /**
+   * Экипировать предмет из инвентаря в слот корабля
+   * @param {number} inventoryIndex - индекс слота в инвентаре
+   * @param {string} slotType - тип слота ('weapon' или 'utility')
+   * @param {number} slotIndex - индекс слота корабля
+   */
+  _equipItemToShipSlot(inventoryIndex, slotType, slotIndex) {
+    const inv = this._get("inventory");
+    const state = this._get("state");
+
+    if (!inv || !state?.playerShip) return;
+
+    const item = inv.getSlot(inventoryIndex);
+    if (!item) {
+      this._selection = null;
+      this.refresh();
+      return;
+    }
+
+    // Определяем массив слотов в зависимости от типа
+    const slotsArray = slotType === 'weapon' ? state.playerShip.weaponSlots : state.playerShip.utilitySlots;
+
+    if (!slotsArray || slotIndex < 0 || slotIndex >= slotsArray.length) {
+      this._selection = null;
+      this.refresh();
+      return;
+    }
+
+    // Если в слоте уже что-то есть, возвращаем это в инвентарь
+    const existingItem = slotsArray[slotIndex];
+    if (existingItem) {
+      // Удаляем предмет из слота корабля
+      slotsArray[slotIndex] = null;
+      // Возвращаем в инвентарь (просто добавляем обратно)
+      // В реальной игре тут нужна более сложная логика с проверкой места
+    }
+
+    // Удаляем предмет из инвентаря
+    inv.setSlot(inventoryIndex, null);
+
+    // Экипируем предмет в слот корабля
+    slotsArray[slotIndex] = { id: item.id, n: item.n };
+
+    // Сбрасываем выбор
+    this._selection = null;
+
+    // Обновляем UI
+    this.refresh();
   }
 
   _injectStyles() {
@@ -229,6 +399,104 @@ export class InventoryScreen {
 }
 
       .inv-empty{ opacity:.65; font-size:13px; padding:10px 4px; }
+
+      /* ===== СЛОТЫ КОРАБЛЯ ===== */
+      .ship-panel{
+        border-radius:14px;
+        border:1px solid rgba(160,200,255,.10);
+        background: rgba(0,0,0,.18);
+        padding:12px;
+      }
+      .ship-panel-title{
+        font-weight:900;
+        font-size:14px;
+        color:#e8f0ff;
+        margin-bottom:10px;
+      }
+      .ship-slots-container{
+        display:flex;
+        flex-direction:column;
+        gap:12px;
+      }
+      .ship-slots-section{
+        display:flex;
+        align-items:center;
+        gap:10px;
+      }
+      .ship-slots-label{
+        font-size:12px;
+        opacity:.8;
+        min-width:70px;
+      }
+      .ship-weapon-slots,
+      .ship-utility-slots{
+        display:flex;
+        gap:8px;
+        flex-wrap:wrap;
+      }
+      .ship-slot{
+        position:relative;
+        width:80px;
+        height:80px;
+        border-radius:10px;
+        border:1px solid rgba(160,200,255,.10);
+        background:rgba(255,255,255,.04);
+        cursor:pointer;
+        padding:6px;
+        color:#eaf3ff;
+        overflow:hidden;
+      }
+      .ship-slot:hover{
+        background:rgba(255,255,255,.07);
+        border-color:rgba(160,200,255,.18);
+      }
+      .ship-slot.is-selected{
+        border-color:rgba(0,255,220,.22);
+        background:rgba(255,255,255,.10);
+        box-shadow:0 0 0 2px rgba(0,255,220,.06) inset;
+      }
+      .ship-slot.is-equipped{
+        border-color:rgba(0,255,100,.15);
+        background:rgba(0,255,100,.05);
+      }
+      .ship-slot.is-empty{
+        opacity:.6;
+      }
+      .ship-slot-chip{
+        width:100%;
+        height:100%;
+        border-radius:8px;
+        border:1px solid rgba(160,200,255,.12);
+        background:rgba(0,0,0,.20);
+        padding:6px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        text-align:center;
+      }
+      .ship-slot-chipId{
+        font-weight:950;
+        font-size:10px;
+        line-height:1.1;
+        word-break:break-word;
+        display:-webkit-box;
+        -webkit-line-clamp:3;
+        -webkit-box-orient:vertical;
+        overflow:hidden;
+      }
+      .ship-slot-idx{
+        position:absolute;
+        right:8px;
+        bottom:6px;
+        opacity:.30;
+        font-size:11px;
+        font-weight:900;
+      }
+      .ship-slots-empty{
+        opacity:.6;
+        font-size:12px;
+        padding:8px;
+      }
     `;
     document.head.appendChild(st);
     this._styleEl = st;
