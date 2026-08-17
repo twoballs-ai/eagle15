@@ -26,16 +26,16 @@ export class ModelRenderer {
       void main() {
         vec4 worldPos = uM * vec4(aPos, 1.0);
         gl_Position = uVP * worldPos;
-        
+
         // Преобразуем нормали и касательные в мировое пространство
         vec3 N = normalize(uNormalMatrix * aNrm);
         vec3 T = normalize(uNormalMatrix * aTangent.xyz);
-        
+
         // Вычисляем бинормаль (Bitangent) с учетом handedness (aTangent.w)
         vB = normalize(cross(N, T) * aTangent.w);
         vT = T;
         vN = N;
-        
+
         vUV = aUV;
         vWorldPos = worldPos.xyz;
       }
@@ -71,12 +71,12 @@ export class ModelRenderer {
         }
 
         vec3 n = normalize(vN);
-        
+
         // ✅ Если есть карта нормалей, модифицируем нормаль поверхности
         if (uHasNormalTex == 1) {
             // Читаем нормаль из текстуры (диапазон 0..1) и переводим в -1..1
             vec3 normalMap = texture(uNormalTex, vUV).rgb * 2.0 - 1.0;
-            
+
             // Применяем масштаб рельефа (упрощенно, через усиление Z)
             normalMap.z = mix(1.0, normalMap.z, uNormalScale);
             normalMap = normalize(normalMap);
@@ -90,15 +90,17 @@ export class ModelRenderer {
         float spec = 0.0;
 
         if (length(n) > 0.0001) {
-          // Направленный свет (Солнце)
-          vec3 L = normalize(vec3(0.4, 0.9, 0.2));
+          // ✅ Направление света должно идти ОТ звезды к планете
+          // Вычисляем направление на основе позиции солнца и планеты
+          vec3 sunPos = vec3(0.0, -160.0, 0.0); // Позиция системы (из drawSystem3D)
+          vec3 L = normalize(sunPos - vWorldPos); // Направление ОТ поверхности К солнцу
           diff = max(dot(n, L), 0.0);
 
-          // Specular (Blinn-Phong)
-          vec3 V = normalize(vec3(0.0, 0.0, 1.0)); 
+          // Specular (Blinn-Phong) - делаем более мягким для планет
+          vec3 V = normalize(vec3(0.0, 0.0, 1.0));
           vec3 H = normalize(L + V);
           float NdotH = max(dot(n, H), 0.0);
-          spec = pow(NdotH, 32.0) * uSpecular;
+          spec = pow(NdotH, 16.0) * uSpecular; // Уменьшили резкость блика с 32 до 16
         }
 
         // ✅ ВАЖНО: Уменьшаем влияние ambient при наличии нормалей, чтобы рельеф отбрасывал тени
@@ -120,12 +122,12 @@ export class ModelRenderer {
     this.uBaseColor = gl.getUniformLocation(this.prog, "uBaseColor");
     this.uBaseTex = gl.getUniformLocation(this.prog, "uBaseTex");
     this.uHasTex = gl.getUniformLocation(this.prog, "uHasTex");
-    
+
     // ✅ Новые uniform-переменные для нормалей
     this.uNormalTex = gl.getUniformLocation(this.prog, "uNormalTex");
     this.uHasNormalTex = gl.getUniformLocation(this.prog, "uHasNormalTex");
     this.uNormalScale = gl.getUniformLocation(this.prog, "uNormalScale");
-    
+
     this.uAmbient = gl.getUniformLocation(this.prog, "uAmbient");
     this.uEmissive = gl.getUniformLocation(this.prog, "uEmissive");
     this.uSpecular = gl.getUniformLocation(this.prog, "uSpecular");
@@ -156,7 +158,7 @@ export class ModelRenderer {
     for (const prim of model.primitives) {
       gl.uniform4fv(this.uBaseColor, prim.material.baseColorFactor);
       gl.uniform1i(this.uHasTex, prim.material.baseColorTex ? 1 : 0);
-      
+
       // ✅ Настройка карты нормалей
       gl.uniform1i(this.uHasNormalTex, prim.material.normalTex ? 1 : 0);
       if (prim.material.normalTex) {

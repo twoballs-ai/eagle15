@@ -69,9 +69,9 @@ export class RenderSystem extends System {
     const bullets = this.ctx.projectiles.list;
     if (!bullets || bullets.length === 0) return;
 
-    const gl = this.s.get("gl"); 
+    const gl = this.s.get("gl");
     const time = this.ctx.time;
-    
+
     // ✅ ДОБАВЛЕНО: Получаем список кораблей, чтобы луч знал, где искать цель
     const state = this.s.get("state");
     const ships = state?.ships || [];
@@ -159,12 +159,12 @@ export class RenderSystem extends System {
     for (const peer of peers) {
       const r = peer?.ship;
       if (!r) continue;
-      
+
       // ✅ ДОБАВЛЕНО: проверка мёртвых/удалённых online-кораблей
       // Это гарантирует, что если peer-корабль был уничтожен или помечен как мёртвый,
       // он не будет отрисовываться в сцене
       if (peer.alive === false || r.dead) continue;
-      
+
       r3d.drawModel(shipModel, {
         position: [r.x ?? 0, 0, r.z ?? 0],
         scale: [1, 1, 1],
@@ -281,12 +281,12 @@ export class RenderSystem extends System {
       if (!planetModel) continue;
 
       const s = p.size * scaleMul;
-      
+
       // ✅ ИЗМЕНЕНО: снижаем ambient до 0.45, чтобы тени от нормалей стали видны.
       // Раньше было 0.85, что "съедало" весь рельеф, делая планету плоской.
-      const pAmb = p?.visual?.ambient ?? 0.45; 
+      const pAmb = p?.visual?.ambient ?? 0.45;
       const pEm = p?.visual?.emissive ?? 0.0;
-      
+
       r3d.drawModel(planetModel, {
         position: [x, ySys, z],
         scale: [s, s, s],
@@ -296,13 +296,15 @@ export class RenderSystem extends System {
         normalScale: 1.3, // ✅ ДОБАВЛЕНО: немного усиливаем рельеф для выразительности
       });
 
-      if (p?.visual?.clouds) {
+      if ((p?.visual?.clouds ?? 0) > 0.01) {
+        // ✅ ОБНОВЛЕНО: облака теперь используют отдельную карту нормалей и вращаются независимо
         r3d.drawModel(planetModel, {
           position: [x, ySys, z],
           scale: [s * 1.08, s * 1.08, s * 1.08],
           rotationY: -this.ctx.time * 0.1,
-          ambient: 0.98,
-          emissive: 0.09,
+          ambient: 0.65, // Уменьшили ambient для облаков, чтобы был виден объем
+          emissive: 0.02,
+          normalScale: 0.8, // Немного сглаживаем рельеф для облачного слоя
         });
       }
       if (p?.visual?.atmosphere) {
@@ -371,7 +373,7 @@ export class RenderSystem extends System {
     // Минимум 60 шагов, максимум 150 (чтобы не просаживать FPS на огромных дистанциях)
     const maxSteps = Math.min(150, Math.max(60, Math.ceil(dist / 15)));
     const dt = 0.12; // Чуть увеличенный шаг времени для более плавной и длинной кривой
-    
+
     const pts = new Float32Array((maxSteps + 1) * 3);
 
     const rr = {
@@ -386,7 +388,7 @@ export class RenderSystem extends System {
     };
 
     let k = 0;
-    // ⚠️ ВАЖНО: Поднимаем линию на Y=1.5. Это предотвращает "слипание" (z-fighting) 
+    // ⚠️ ВАЖНО: Поднимаем линию на Y=1.5. Это предотвращает "слипание" (z-fighting)
     // линии с поверхностью планеты или другими объектами.
     pts[k++] = rr.x; pts[k++] = 1.5; pts[k++] = rr.z;
 
@@ -400,7 +402,7 @@ export class RenderSystem extends System {
 
       // 3. Умная остановка: если мы уже почти прилетели, не рисуем линию в никуда
       const currentDist = Math.hypot(rr.targetX - rr.x, rr.targetZ - rr.z);
-      if (currentDist < 8) break; 
+      if (currentDist < 8) break;
     }
 
     // 4. Рисуем основную траекторию (неоновый голубой, полупрозрачный)
@@ -408,14 +410,14 @@ export class RenderSystem extends System {
       r3d.drawLineStrip(pts.subarray(0, k), [0.2, 0.9, 1.0, 0.6]);
     }
 
-    // 5. Бонус: "Узлы" маршрута каждые 12 шагов. 
+    // 5. Бонус: "Узлы" маршрута каждые 12 шагов.
     // Это создает эффект голографической разметки, а не скучной сплошной линии
     for (let i = 12; i < k / 3; i += 12) {
       const idx = i * 3;
       const nx = pts[idx];
       const ny = pts[idx + 1];
       const nz = pts[idx + 2];
-      
+
       // Маленькие светящиеся точки вдоль маршрута
       r3d.drawCircleAt(nx, ny, nz, 1.8, 12, [0.2, 0.9, 1.0, 0.9]);
     }

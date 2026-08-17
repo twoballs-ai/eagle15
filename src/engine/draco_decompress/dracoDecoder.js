@@ -97,6 +97,14 @@ export async function decodeDracoPrimitive(gltf, bin, prim) {
     uv = { array: uvArray, numComp: 2, count: uvAcc.count, normalized: false, componentType: 5126 };
   }
 
+  // ✅ Загружаем TANGENT из Draco (если есть)
+  let tangent = null;
+  if (attrs.TANGENT != null && map.TANGENT != null) {
+    const tAcc = gltf.accessors[attrs.TANGENT];
+    const tArray = copyAttributeFloat32(draco, decoder, geom, map.TANGENT, 4); // TANGENT это VEC4
+    tangent = { array: tArray, numComp: 4, count: tAcc.count, normalized: false, componentType: 5126 };
+  }
+
   const idxArray = decodeIndicesU32(draco, decoder, geom);
   const indices = { array: idxArray, numComp: 1, count: idxArray.length, normalized: false, componentType: 5125 };
 
@@ -104,5 +112,5 @@ export async function decodeDracoPrimitive(gltf, bin, prim) {
   draco.destroy(decoder);
   draco.destroy(geom);
 
-  return { position, normal, uv, indices };
+  return { position, normal, uv, tangent, indices }; // ✅ Возвращаем tangent
 }

@@ -308,6 +308,11 @@ if (meshIndex == null) meshIndex = 0;
       ? dracoDecoded.uv
       : (attrs.TEXCOORD_0 != null ? getAccessorTypedView(gltf, bin, attrs.TEXCOORD_0) : null);
 
+    // ✅ Загружаем TANGENT для карт нормалей (если есть)
+    const tangent = dracoDecoded
+      ? dracoDecoded.tangent
+      : (attrs.TANGENT != null ? getAccessorTypedView(gltf, bin, attrs.TANGENT) : null);
+
     const indices = dracoDecoded
       ? dracoDecoded.indices
       : (prim.indices != null ? getAccessorTypedView(gltf, bin, prim.indices) : null);
@@ -316,6 +321,7 @@ if (meshIndex == null) meshIndex = 0;
     const mat = prim.material != null ? gltf.materials?.[prim.material] : null;
     let baseColorFactor = [1, 1, 1, 1];
     let baseColorTex = null;
+    let normalTex = null; // ✅ Карта нормалей
 
     if (mat?.pbrMetallicRoughness?.baseColorFactor) {
       baseColorFactor = mat.pbrMetallicRoughness.baseColorFactor.slice(0, 4);
@@ -331,7 +337,18 @@ if (meshIndex == null) meshIndex = 0;
       }
     }
 
-    const vaoPrim = createVaoPrimitive(gl, { position, normal, uv }, indices);
+    // ✅ Загружаем карту нормалей из материала
+    const normalTexInfo = mat?.normalTexture;
+    if (normalTexInfo?.index != null && gltf.textures?.[normalTexInfo.index]) {
+      const tex = gltf.textures[normalTexInfo.index];
+      const src = tex.source;
+      if (src != null) {
+        const blob = await loadEmbeddedImageBlob(gltf, bin, src);
+        if (blob) normalTex = await createTextureFromImage(gl, blob);
+      }
+    }
+
+    const vaoPrim = createVaoPrimitive(gl, { position, normal, uv, tangent }, indices);
 
     primitivesOut.push({
       vao: vaoPrim.vao,
@@ -340,7 +357,7 @@ if (meshIndex == null) meshIndex = 0;
       vertexCount: vaoPrim.vertexCount,
       indexType: vaoPrim.indexType, // 5123 u16 / 5125 u32 etc
       mode: gl.TRIANGLES,
-      material: { baseColorFactor, baseColorTex },
+      material: { baseColorFactor, baseColorTex, normalTex }, // ✅ Добавляем normalTex
       hasNormal: !!normal,
       hasUV: !!uv,
     });

@@ -331,49 +331,52 @@ export class InteractionTargetWidget {
     }
 
     // ===== Поиск всех активных целей взаимодействия =====
-    // ✅ КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: теперь собираем ВСЕ цели, а не одну
+    // ✅ КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: единый набор кандидатов и определение ОДНОГО приоритетного статуса для каждого
     const activeTargets = new Map(); // targetId -> { target, interactionSource }
 
     const ships = state.ships || [];
     const playerShip = state.playerShip;
-    const player = playerShip?.runtime;
-
-    // Приоритет 1: Открытый диалог (EnemyDialogWidget.currentShip)
+    
     const dialogShip = this.ctx?.ui?.enemyDialog?.currentShip ?? null;
-    if (dialogShip && dialogShip.alive !== false && !dialogShip.runtime?.dead) {
-      activeTargets.set(dialogShip.id, { target: dialogShip, interactionSource: "dialog" });
-    }
-
-    // Приоритет 2: Цель автобоя (autoCombat.currentTarget)
     const autoTarget = this.ctx?.autoCombat?.currentTarget ?? null;
-    if (
-      autoTarget &&
-      autoTarget.alive !== false &&
-      !autoTarget.runtime?.dead &&
-      this.ctx?.autoCombat?.enabled &&
-      !activeTargets.has(autoTarget.id)
-    ) {
-      activeTargets.set(autoTarget.id, { target: autoTarget, interactionSource: "auto-combat" });
-    }
+    const isAutoCombatEnabled = this.ctx?.autoCombat?.enabled ?? false;
 
-    // Приоритет 3: Все корабли в состоянии боя или с активным предупреждением
-    if (player) {
-      for (const ship of ships) {
-        if (!ship?.runtime || ship === playerShip) continue;
-        if (ship.alive === false || ship.runtime.dead) continue;
-        if (activeTargets.has(ship.id)) continue; // Уже добавлена из диалога/автобоя
+    // Собираем все возможные цели в Set, чтобы избежать дублирования ссылок на один и тот же объект
+    const candidates = new Set(ships);
+    if (dialogShip) candidates.add(dialogShip);
+    if (autoTarget) candidates.add(autoTarget);
 
-        const isInteracting =
-          ship.aiState === "combat" ||
-          !!ship.warningState ||
-          ship.aiState === "dialog";
+    for (const ship of candidates) {
+      // Пропускаем невалидные цели и корабль игрока
+      if (!ship || !ship.id || ship === playerShip) continue;
+      if (ship.alive === false || ship.runtime?.dead) continue;
 
-        if (!isInteracting) continue;
+      // Определяем наивысший приоритет взаимодействия для этого корабля (строго один!)
+      let interactionSource = null;
 
-        let interactionSource = "manual-combat";
-        if (ship.warningState) interactionSource = "warning";
-        else if (ship.aiState === "dialog") interactionSource = "dialog";
+      // Приоритет 1: Открытый диалог
+      if (dialogShip && ship.id === dialogShip.id) {
+        interactionSource = "dialog";
+      }
+      // Приоритет 2: Цель автобоя (если включен)
+      else if (isAutoCombatEnabled && autoTarget && ship.id === autoTarget.id) {
+        interactionSource = "auto-combat";
+      }
+      // Приоритет 3: Активное предупреждение
+      else if (ship.warningState) {
+        interactionSource = "warning";
+      }
+      // Приоритет 4: Обычный ручной бой
+      else if (ship.aiState === "combat") {
+        interactionSource = "manual-combat";
+      }
+      // Приоритет 5: Состояние диалога (fallback, если корабль не совпал с dialogShip по ссылке, но в состоянии диалога)
+      else if (ship.aiState === "dialog") {
+        interactionSource = "dialog";
+      }
 
+      // Если у корабля есть активный статус взаимодействия, добавляем его в Map
+      if (interactionSource) {
         activeTargets.set(ship.id, { target: ship, interactionSource });
       }
     }
@@ -381,7 +384,7 @@ export class InteractionTargetWidget {
     // ===== Обновление карточек =====
     const playerFaction = playerShip?.factionId ?? state.player?.factionId ?? "player";
 
-    // Обновляем существующие карточки
+    // Обновляем существующие карточки или создаем новые
     for (const [targetId, { target, interactionSource }] of activeTargets) {
       let cardData = this.cards.get(targetId);
       if (!cardData) {
