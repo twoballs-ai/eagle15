@@ -35,7 +35,6 @@ import { shipRecipes } from "./data/crafting/shipRecipes.js";
 import { SettingsManager, getQualityPreset } from "./data/settings.js";
 import { OnlineClient } from "./gameplay/network/OnlineClient.js";
 
-// 🚨 НОВОЕ: Импорт централизованного логгера
 import { logger, LOG_LEVELS } from "./engine/debug/Logger.js";
 
 export class Game {
@@ -52,15 +51,12 @@ export class Game {
     this.r3d = r3d;
     this.statsEl = statsEl;
 
-    // ✅ ЕДИНЫЙ ИСТОЧНИК ИСТИНЫ о поверхности
     this.settings = new SettingsManager();
 
-    // 🚨 НОВОЕ: Настройка уровня логирования на основе настроек игрока
     const isDev = this.settings.get("devMode");
     logger.setLevel(isDev ? LOG_LEVELS.DEBUG : LOG_LEVELS.INFO);
     logger.info("Game", "Инициализация Game root...", { hasSavedData: !!savedMain });
 
-    // 🚨 НОВОЕ: Динамическое обновление уровня логов при изменении настроек
     this.settings.subscribe((cfg) => {
       logger.setLevel(cfg.devMode ? LOG_LEVELS.DEBUG : LOG_LEVELS.INFO);
     });
@@ -73,17 +69,14 @@ export class Game {
         return Math.max(1, Math.min(q.maxDpr, dpr));
       },
     });
-    // сразу применим размер (первый кадр)
     this.surface.applyCanvasSize();
     this.surface.update();
 
-    // === runtime flags ===
     this.started = false;
     this._assetsLoaded = false;
     this._autosaveTimer = null;
     this._currentSaveSlot = null;
 
-    // === core state ===
     this.state = createState(savedMain);
 
     this.galaxy = createGalaxy(777, {
@@ -165,11 +158,9 @@ export class Game {
       document.documentElement.style.setProperty("--mobile-ui-scale", String(quality.mobileScale));
     });
 
-    // scenes
     this.sceneGalaxy = new GalaxyMapScene(this.services);
     this.sceneStar = new StarSystemScene(this.services);
 
-    // UI flow
     this.createGameScreen.hide();
 
     this.createGameScreen.onBack = () => {
@@ -232,7 +223,6 @@ export class Game {
   }
 
   render(time) {
-    // this.surface.applyCanvasSize();
     const s = this.surface.update();
     this.gl.viewport(0, 0, s.buffer.w, s.buffer.h);
     this.gl.clearColor(0.05, 0.05, 0.1, 1.0);
@@ -245,7 +235,30 @@ export class Game {
     this.systemMenu?.renderGL?.(this, this.scenes.current);
   }
 
-  // ========= FLOW: NEW GAME =========
+  // Вспомогательная функция для генерации массива слотов из конфигурации
+  // В src/game.js
+  _buildSlotArray(slotConfig) {
+    if (!slotConfig) return [];
+    const arr = [];
+    
+    // 1. Поддержка старого формата: число (например, weapon: 1)
+    if (typeof slotConfig === 'number') {
+      for (let i = 0; i < slotConfig; i++) {
+        arr.push({ slotType: 'generic', item: null });
+      }
+      return arr;
+    }
+    
+    // 2. Поддержка нового формата: объект (например, { main: 1, auxiliary: 1 })
+    if (typeof slotConfig === 'object') {
+      for (const [type, count] of Object.entries(slotConfig)) {
+        for (let i = 0; i < count; i++) {
+          arr.push({ slotType: type, item: null });
+        }
+      }
+    }
+    return arr;
+  }
 
   async startNewGame(cfg) {
     logger.info("Game", "Начало новой игры", { name: cfg.name, race: cfg.raceId, class: cfg.classId, ship: cfg.shipClassId });
@@ -266,23 +279,20 @@ export class Game {
     this.state.player = pilot;
     this.state.playerShipClassId = cfg.shipClassId ?? this.state.playerShipClassId ?? "scout";
 
-    const shipBase = SHIP_CLASSES[this.state.playerShipClassId]?.baseStats || SHIP_CLASSES.scout.baseStats;
-    const shipSlots = SHIP_CLASSES[this.state.playerShipClassId]?.slots || SHIP_CLASSES.scout.slots;
+    const shipClassData = SHIP_CLASSES[this.state.playerShipClassId] ?? SHIP_CLASSES.scout;
+    const shipBase = shipClassData.baseStats;
+    const shipSlotsConfig = shipClassData.slots;
 
     if (!this.state.playerShip) {
       this.state.playerShip = {
         stats: { ...shipBase },
-        weaponSlots: Array.from({ length: shipSlots?.weapon ?? 1 }, () => null),
-        utilitySlots: Array.from({ length: shipSlots?.utility ?? 1 }, () => null),
+        weaponSlots: this._buildSlotArray(shipSlotsConfig?.weapon),
+        utilitySlots: this._buildSlotArray(shipSlotsConfig?.utility),
       };
-    }
-
-    // Инициализируем слоты если их нет (для старых сохранений)
-    if (!this.state.playerShip.weaponSlots) {
-      this.state.playerShip.weaponSlots = Array.from({ length: shipSlots?.weapon ?? 1 }, () => null);
-    }
-    if (!this.state.playerShip.utilitySlots) {
-      this.state.playerShip.utilitySlots = Array.from({ length: shipSlots?.utility ?? 1 }, () => null);
+    } else {
+      // Инициализируем или обновляем слоты для совместимости со старыми сохранениями
+      this.state.playerShip.weaponSlots = this._buildSlotArray(shipSlotsConfig?.weapon);
+      this.state.playerShip.utilitySlots = this._buildSlotArray(shipSlotsConfig?.utility);
     }
 
     this.state.playerShip.stats = applyPilotModifiersToShipStats(shipBase, pilot.modifiers);
@@ -324,8 +334,6 @@ export class Game {
     this.openStarSystem(startId);
   }
 
-  // ========= SCENE SWITCH =========
-
   openStarSystem(id) {
     const sid = String(id);
     if (!this.started) {
@@ -363,8 +371,6 @@ export class Game {
     this.openStarSystem(sid);
   }
 
-  // ========= ASSETS =========
-
   async _ensureAssetsLoaded() {
     if (this._assetsLoaded) return;
 
@@ -397,8 +403,6 @@ export class Game {
     this._assetsLoaded = true;
     logger.info("Game", "Базовые ассеты успешно загружены.");
   }
-
-  // ========= SAVE =========
 
   _enableAutosave() {
     if (this._autosaveTimer) return;

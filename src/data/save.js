@@ -15,6 +15,7 @@ function makeMetaFromData(data) {
     updatedAt: now(),
   };
 }
+
 export async function loadSave(slot = DEFAULT_SLOT) {
   try {
     const rec = await idbGet(slot);
@@ -53,7 +54,6 @@ export async function deleteSave(slot = DEFAULT_SLOT) {
 export async function listSaves() {
   try {
     const all = await idbList();
-    // сортировка по дате
     all.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
     return all.map(r => ({
       slot: r.slot,
@@ -67,6 +67,7 @@ export async function listSaves() {
     return [];
   }
 }
+
 export function makeSaveFromState(state) {
   return {
     meta: {
@@ -87,24 +88,24 @@ export function makeSaveFromState(state) {
     inventorySlots: Array.isArray(state?.inventorySlots)
       ? state.inventorySlots.map((s) => (s ? { id: s.id, n: s.n } : null))
       : [],
+      
     playerShip: state.playerShip ? {
       stats: state.playerShip.stats,
-      weaponSlots: state.playerShip.weaponSlots?.map((s) => (s ? { id: s.id } : null)) ?? [],
-      utilitySlots: state.playerShip.utilitySlots?.map((s) => (s ? { id: s.id } : null)) ?? [],
+      // Сохраняем структуру { slotType, item }
+      weaponSlots: state.playerShip.weaponSlots?.map((s) => ({
+        slotType: s.slotType,
+        item: s.item ? { id: s.item.id, n: s.item.n } : null
+      })) ?? [],
+      utilitySlots: state.playerShip.utilitySlots?.map((s) => ({
+        slotType: s.slotType,
+        item: s.item ? { id: s.item.id, n: s.item.n } : null
+      })) ?? [],
     } : null,
 
-    // 🚨 НОВОЕ: Сохраняем квесты и ID вместе с основным состоянием
     playerId: state.playerId,
     questState: state.questState,
-
-    // ===== 🚨 КРИТИЧЕСКОЕ ДОБАВЛЕНИЕ: Сохранение persistent NPC =====
-    // Без этого persistent NPC (квестодатели, торговцы) теряются при перезагрузке игры.
-    // PersistentNpcManager.serialize() возвращает { npcs: [[id, npc], ...] },
-    // что является JSON-safe структурой и легко восстанавливается.
-    // При следующей загрузке BootstrapSystem десериализует эти данные обратно в менеджер.
     persistentNpcData: state.persistentNpcManager?.serialize?.() ?? null,
 
-    // ===== СИСТЕМА УРОВНЕЙ =====
     playerLevel: state.playerLevel ?? 1,
     playerXP: state.playerXP ?? 0,
     totalXPEarned: state.totalXPEarned ?? 0,
@@ -140,15 +141,35 @@ export function applySaveToState(state, save) {
     state.playerShip.stats = { ...state.playerShip.stats, ...save.playerShip.stats };
   }
 
-  // Восстанавливаем слоты оружия и утилити корабля
+  // Восстанавливаем слоты оружия и утилити корабля с сохранением типа слота
+  // Восстанавливаем слоты оружия и утилити корабля с сохранением типа слота
+  // + миграция со старого формата { id: '...' } на новый { slotType: '...', item: { id: '...', n: 1 } }
   if (Array.isArray(save.playerShip?.weaponSlots)) {
-    state.playerShip.weaponSlots = save.playerShip.weaponSlots.map((s) => (s?.id ? { id: s.id } : null));
+    state.playerShip.weaponSlots = save.playerShip.weaponSlots.map(s => {
+      if (s && s.id && !s.item) {
+        // Старый формат сохранения
+        return { slotType: s.slotType || 'main', item: { id: s.id, n: s.n || 1 } };
+      }
+      // Новый формат сохранения
+      return {
+        slotType: s?.slotType || 'main',
+        item: s?.item ? { id: s.item.id, n: s.item.n } : null
+      };
+    });
   }
   if (Array.isArray(save.playerShip?.utilitySlots)) {
-    state.playerShip.utilitySlots = save.playerShip.utilitySlots.map((s) => (s?.id ? { id: s.id } : null));
+    state.playerShip.utilitySlots = save.playerShip.utilitySlots.map(s => {
+      if (s && s.id && !s.item) {
+        // Старый формат сохранения
+        return { slotType: s.slotType || 'utility', item: { id: s.id, n: s.n || 1 } };
+      }
+      // Новый формат сохранения
+      return {
+        slotType: s?.slotType || 'utility',
+        item: s?.item ? { id: s.item.id, n: s.item.n } : null
+      };
+    });
   }
-
-  // 🚨 НОВОЕ: Восстанавливаем квесты и ID
   if (save.playerId) state.playerId = save.playerId;
   if (save.questState) {
     state.questState = {
@@ -160,15 +181,10 @@ export function applySaveToState(state, save) {
     };
   }
 
-  // ===== 🚨 КРИТИЧЕСКОЕ ДОБАВЛЕНИЕ: Сохраняем persistentNpcData для BootstrapSystem =====
-  // BootstrapSystem.enter() создаст PersistentNpcManager и вызовет .deserialize() с этими данными.
-  // Это единственный правильный путь восстановить persistent NPC между сессиями.
-  // Не создаём менеджер здесь, потому что BootstrapSystem — единая точка инициализации системы.
   if (save.persistentNpcData) {
     state.persistentNpcData = save.persistentNpcData;
   }
 
-  // ===== СИСТЕМА УРОВНЕЙ =====
   if (Number.isFinite(save.playerLevel)) state.playerLevel = save.playerLevel;
   if (Number.isFinite(save.playerXP)) state.playerXP = save.playerXP;
   if (Number.isFinite(save.totalXPEarned)) state.totalXPEarned = save.totalXPEarned;

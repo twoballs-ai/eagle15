@@ -5,15 +5,20 @@ export function createState(save = null) {
   const playerShip = {
     id: "ship_player",
     isPlayer: true,
-    factionId: "union", // Или "player", в зависимости от того, как ты считаешь фракцию игрока
+    factionId: "union",
     stats: { hull: 120, shields: 80, energy: 60, speed: 1.0 },
 
     // ===== СЛОТЫ ОБОРУДОВАНИЯ КОРАБЛЯ =====
-    // weaponSlots: массив слотов для оружия (количество зависит от класса корабля)
-    // utilitySlots: массив слотов для утилити модулей
-    // Каждый слот: null (пустой) или { id: string, ...доп.данные }
-    weaponSlots: [],
-    utilitySlots: [],
+    // Теперь каждый слот — это объект { slotType: string, item: object|null }
+    // Это позволяет UI отображать тип слота (например, "Основное", "Двигатель") даже когда он пуст.
+    weaponSlots: [
+      { slotType: 'main', item: null },
+      { slotType: 'auxiliary', item: null }
+    ],
+    utilitySlots: [
+      { slotType: 'engine', item: null },
+      { slotType: 'shield', item: null }
+    ],
 
     runtime: {
       x: 0, z: 0,
@@ -51,7 +56,6 @@ export function createState(save = null) {
       return null;
     }),
 
-    // 🚨 НОВОЕ: Уникальный ID пилота и состояние квестов
     playerId: save?.playerId ?? `pilot_${Math.random().toString(36).slice(2, 10)}`,
     questState: save?.questState ?? {
       active: {},
@@ -61,27 +65,16 @@ export function createState(save = null) {
       log: []
     },
 
-    // 🚨 НОВОЕ: Репутация игрока с фракциями
-    // Диапазон: от -100 (Враждебный) до 100 (Союзный). 0 = Нейтральный.
-    // При загрузке сохранения (save) эти значения будут перезаписаны,
-    // а при новой игре будут использованы значения по умолчанию.
     reputation: save?.reputation ?? {
       union: 0,
       traders: 0,
-      pirates: -10, // Пример: пираты сразу немного не любят новичков
+      pirates: -10,
       neutral: 0,
     },
-     // ===== СИСТЕМА УРОВНЕЙ ИГРОКА =====
-    // Текущий уровень (от 1 до 50)
+    
     playerLevel: save?.playerLevel ?? 1,
-
-    // XP в рамках текущего уровня
     playerXP: save?.playerXP ?? 0,
-
-    // Всего XP заработано за всё время (статистика)
     totalXPEarned: save?.totalXPEarned ?? 0,
-
-    // Лог последних начислений XP (для UI)
     xpLog: save?.xpLog ?? [],
   };
 

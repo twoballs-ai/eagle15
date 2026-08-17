@@ -16,9 +16,8 @@ export class InventoryScreen {
     this._searchEl = null;
 
     this._q = "";
-    this._selected = -1;
-
-    // Выбор для экипировки: { type: 'ship'|'inventory', index: number, slotIndex?: number }
+    
+    // Выбор для экипировки: { type: 'ship'|'inventory', index: number, slotArrayName?: string, slotIndex?: number }
     this._selection = null;
   }
 
@@ -36,8 +35,8 @@ export class InventoryScreen {
     const root = el("div", "inv-root", host);
 
     const top = el("div", "inv-top", root);
-    el("div", "inv-title", top).textContent = "Инвентарь";
-    el("div", "inv-sub", top).textContent = "Кликните на предмет в инвентаре, затем на слот корабля чтобы экипировать.";
+    el("div", "inv-title", top).textContent = "Инвентарь и экипировка";
+    el("div", "inv-sub", top).textContent = "Кликните на предмет в трюме, затем на слот корабля, чтобы экипировать его.";
 
     // ===== СЛОТЫ ОРУЖИЯ И МОДУЛЕЙ =====
     const shipPanel = el("div", "ship-panel", root);
@@ -50,13 +49,13 @@ export class InventoryScreen {
     el("div", "ship-slots-label", weaponSection).textContent = "Оружие:";
     this._weaponSlotsEl = el("div", "ship-weapon-slots", weaponSection);
 
-    // Слоты утилити
+    // Слоты утилити (модули)
     const utilitySection = el("div", "ship-slots-section", shipSlotsContainer);
     el("div", "ship-slots-label", utilitySection).textContent = "Модули:";
     this._utilitySlotsEl = el("div", "ship-utility-slots", utilitySection);
 
     const bar = el("div", "inv-bar", root);
-    el("div", "inv-label", bar).textContent = "Поиск:";
+    el("div", "inv-label", bar).textContent = "Поиск в трюме:";
     this._searchEl = el("input", "inv-search", bar);
     this._searchEl.type = "text";
     this._searchEl.placeholder = "например: oxygen, iron, coil…";
@@ -67,6 +66,7 @@ export class InventoryScreen {
     });
 
     const panel = el("div", "inv-panel", root);
+    el("div", "inv-panel-title", panel).textContent = "Трюм (общие слоты)";
     this._gridEl = el("div", "inv-grid", panel);
 
     this.refresh();
@@ -75,6 +75,24 @@ export class InventoryScreen {
   onOpen() { this.refresh(); }
 
   destroy() { this.host = null; }
+
+  /**
+   * Вспомогательная функция для красивого отображения имени типа слота
+   */
+  _formatSlotName(type) {
+    const names = {
+      main: "Основное",
+      auxiliary: "Вспомогательное",
+      missile: "Ракеты",
+      turret: "Турель",
+      engine: "Двигатель",
+      shield: "Щит",
+      utility: "Модуль",
+      cargo_boost: "Расширение трюма",
+      scanner: "Сканер"
+    };
+    return names[type] || type.charAt(0).toUpperCase() + type.slice(1);
+  }
 
   refresh() {
     if (!this._gridEl) return;
@@ -88,9 +106,9 @@ export class InventoryScreen {
         "inventory service не найден. Проверь services.set('inventory', ...)";
       return;
     }
+    
     // ===== ОТРИСОВКА СЛОТОВ КОРАБЛЯ =====
     this._renderShipSlots(state);
-
 
     const cap = inv.capacity();
     const q = (this._q ?? "").trim().toLowerCase();
@@ -132,7 +150,7 @@ export class InventoryScreen {
       cell.addEventListener("click", () => {
         // Если уже выбран слот корабля, перемещаем предмет туда
         if (this._selection && this._selection.type === 'ship') {
-          this._equipItemToShipSlot(i, this._selection.slotType, this._selection.slotIndex);
+          this._equipItemToShipSlot(i, this._selection.slotArrayName, this._selection.slotIndex);
         } else {
           // Выбираем предмет из инвентаря
           this._selection = { type: 'inventory', index: i };
@@ -164,32 +182,34 @@ export class InventoryScreen {
     weaponSlots.forEach((slot, index) => {
       const slotBtn = el("button", "ship-slot", this._weaponSlotsEl);
       slotBtn.type = "button";
-      slotBtn.dataset.slotType = "weapon";
+      slotBtn.dataset.slotArrayName = "weaponSlots";
       slotBtn.dataset.slotIndex = String(index);
 
-      if (slot) {
+      if (slot.item) {
         slotBtn.classList.add("is-equipped");
         const chip = el("div", "ship-slot-chip", slotBtn);
-        el("div", "ship-slot-chipId", chip).textContent = slot.id;
+        el("div", "ship-slot-chipId", chip).textContent = slot.item.id;
       } else {
         slotBtn.classList.add("is-empty");
+        const label = el("div", "ship-slot-label", slotBtn);
+        label.textContent = this._formatSlotName(slot.slotType);
         const idx = el("div", "ship-slot-idx", slotBtn);
-        idx.textContent = `W${index + 1}`;
+        idx.textContent = `#${index + 1}`;
       }
 
       // Подсветка если этот слот выбран для экипировки
       if (this._selection && this._selection.type === 'ship' &&
-          this._selection.slotType === 'weapon' && this._selection.slotIndex === index) {
+          this._selection.slotArrayName === 'weaponSlots' && this._selection.slotIndex === index) {
         slotBtn.classList.add("is-selected");
       }
 
       slotBtn.addEventListener("click", () => {
         // Если выбран предмет из инвентаря, экипируем его
         if (this._selection && this._selection.type === 'inventory') {
-          this._equipItemToShipSlot(this._selection.index, 'weapon', index);
+          this._equipItemToShipSlot(this._selection.index, 'weaponSlots', index);
         } else {
           // Иначе выбираем этот слот
-          this._selection = { type: 'ship', slotType: 'weapon', slotIndex: index };
+          this._selection = { type: 'ship', slotArrayName: 'weaponSlots', slotIndex: index };
           this.refresh();
         }
       });
@@ -199,32 +219,34 @@ export class InventoryScreen {
     utilitySlots.forEach((slot, index) => {
       const slotBtn = el("button", "ship-slot", this._utilitySlotsEl);
       slotBtn.type = "button";
-      slotBtn.dataset.slotType = "utility";
+      slotBtn.dataset.slotArrayName = "utilitySlots";
       slotBtn.dataset.slotIndex = String(index);
 
-      if (slot) {
+      if (slot.item) {
         slotBtn.classList.add("is-equipped");
         const chip = el("div", "ship-slot-chip", slotBtn);
-        el("div", "ship-slot-chipId", chip).textContent = slot.id;
+        el("div", "ship-slot-chipId", chip).textContent = slot.item.id;
       } else {
         slotBtn.classList.add("is-empty");
+        const label = el("div", "ship-slot-label", slotBtn);
+        label.textContent = this._formatSlotName(slot.slotType);
         const idx = el("div", "ship-slot-idx", slotBtn);
-        idx.textContent = `U${index + 1}`;
+        idx.textContent = `#${index + 1}`;
       }
 
       // Подсветка если этот слот выбран для экипировки
       if (this._selection && this._selection.type === 'ship' &&
-          this._selection.slotType === 'utility' && this._selection.slotIndex === index) {
+          this._selection.slotArrayName === 'utilitySlots' && this._selection.slotIndex === index) {
         slotBtn.classList.add("is-selected");
       }
 
       slotBtn.addEventListener("click", () => {
         // Если выбран предмет из инвентаря, экипируем его
         if (this._selection && this._selection.type === 'inventory') {
-          this._equipItemToShipSlot(this._selection.index, 'utility', index);
+          this._equipItemToShipSlot(this._selection.index, 'utilitySlots', index);
         } else {
           // Иначе выбираем этот слот
-          this._selection = { type: 'ship', slotType: 'utility', slotIndex: index };
+          this._selection = { type: 'ship', slotArrayName: 'utilitySlots', slotIndex: index };
           this.refresh();
         }
       });
@@ -234,45 +256,55 @@ export class InventoryScreen {
   /**
    * Экипировать предмет из инвентаря в слот корабля
    * @param {number} inventoryIndex - индекс слота в инвентаре
-   * @param {string} slotType - тип слота ('weapon' или 'utility')
+   * @param {string} slotArrayName - имя массива слотов ('weaponSlots' или 'utilitySlots')
    * @param {number} slotIndex - индекс слота корабля
    */
-  _equipItemToShipSlot(inventoryIndex, slotType, slotIndex) {
+  _equipItemToShipSlot(inventoryIndex, slotArrayName, slotIndex) {
     const inv = this._get("inventory");
     const state = this._get("state");
 
     if (!inv || !state?.playerShip) return;
 
-    const item = inv.getSlot(inventoryIndex);
-    if (!item) {
+    const invItem = inv.getSlot(inventoryIndex);
+    if (!invItem) {
       this._selection = null;
       this.refresh();
       return;
     }
 
-    // Определяем массив слотов в зависимости от типа
-    const slotsArray = slotType === 'weapon' ? state.playerShip.weaponSlots : state.playerShip.utilitySlots;
+    const shipSlots = state.playerShip[slotArrayName];
+    const shipSlot = shipSlots[slotIndex];
 
-    if (!slotsArray || slotIndex < 0 || slotIndex >= slotsArray.length) {
+    if (!shipSlots || slotIndex < 0 || slotIndex >= shipSlots.length) {
       this._selection = null;
       this.refresh();
       return;
     }
 
-    // Если в слоте уже что-то есть, возвращаем это в инвентарь
-    const existingItem = slotsArray[slotIndex];
-    if (existingItem) {
-      // Удаляем предмет из слота корабля
-      slotsArray[slotIndex] = null;
-      // Возвращаем в инвентарь (просто добавляем обратно)
-      // В реальной игре тут нужна более сложная логика с проверкой места
+    // Если в слоте корабля уже что-то есть, возвращаем это в инвентарь
+    if (shipSlot.item) {
+      let placed = false;
+      const cap = inv.capacity();
+      for (let i = 0; i < cap; i++) {
+        if (!inv.getSlot(i)) {
+          inv.setSlot(i, shipSlot.item);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        // Инвентарь полон, отменяем действие экипировки
+        this._selection = null;
+        this.refresh();
+        return;
+      }
     }
 
+    // Экипируем предмет из инвентаря в слот корабля
+    shipSlot.item = { id: invItem.id, n: invItem.n };
+    
     // Удаляем предмет из инвентаря
     inv.setSlot(inventoryIndex, null);
-
-    // Экипируем предмет в слот корабля
-    slotsArray[slotIndex] = { id: item.id, n: item.n };
 
     // Сбрасываем выбор
     this._selection = null;
@@ -287,7 +319,7 @@ export class InventoryScreen {
     const st = document.createElement("style");
     st.id = "inventoryScreenStyles";
     st.textContent = `
-      .inv-root{ display:flex; flex-direction:column; gap:12px; }
+      .inv-root{ display:flex; flex-direction:column; gap:12px; height: 100%; }
       .inv-top{
         padding:10px 12px;
         border:1px solid rgba(160,200,255,.10);
@@ -298,7 +330,7 @@ export class InventoryScreen {
       .inv-sub{ opacity:.7; font-size:12px; margin-top:4px; }
 
       .inv-bar{ display:flex; align-items:center; gap:10px; padding:4px 2px; }
-      .inv-label{ opacity:.8; font-size:13px; min-width:54px; }
+      .inv-label{ opacity:.8; font-size:13px; min-width:110px; }
       .inv-search{
         flex: 1;
         padding: 10px 12px;
@@ -315,7 +347,17 @@ export class InventoryScreen {
         border:1px solid rgba(160,200,255,.10);
         background: rgba(0,0,0,.18);
         padding:12px;
-        min-height: 420px;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 300px;
+      }
+      .inv-panel-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: #e8f0ff;
+        margin-bottom: 8px;
+        opacity: 0.8;
       }
 
   /* компактная авто-сетка */
@@ -323,6 +365,8 @@ export class InventoryScreen {
   display:grid;
   grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
   gap: 8px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 /* маленькая ячейка */
@@ -412,6 +456,8 @@ export class InventoryScreen {
         font-size:14px;
         color:#e8f0ff;
         margin-bottom:10px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
       }
       .ship-slots-container{
         display:flex;
@@ -420,13 +466,13 @@ export class InventoryScreen {
       }
       .ship-slots-section{
         display:flex;
-        align-items:center;
-        gap:10px;
+        flex-direction: column;
+        gap:6px;
       }
       .ship-slots-label{
         font-size:12px;
         opacity:.8;
-        min-width:70px;
+        color: #e8f0ff;
       }
       .ship-weapon-slots,
       .ship-utility-slots{
@@ -436,19 +482,22 @@ export class InventoryScreen {
       }
       .ship-slot{
         position:relative;
-        width:80px;
-        height:80px;
+        width:90px;
+        height:70px;
         border-radius:10px;
-        border:1px solid rgba(160,200,255,.10);
-        background:rgba(255,255,255,.04);
+        border:1px dashed rgba(160,200,255,.25);
+        background:rgba(0,0,0,.25);
         cursor:pointer;
         padding:6px;
         color:#eaf3ff;
         overflow:hidden;
+        display: flex;
+        flex-direction: column;
+        transition: all 0.2s ease;
       }
       .ship-slot:hover{
-        background:rgba(255,255,255,.07);
-        border-color:rgba(160,200,255,.18);
+        background:rgba(255,255,255,.05);
+        border-color:rgba(160,200,255,.5);
       }
       .ship-slot.is-selected{
         border-color:rgba(0,255,220,.22);
@@ -456,11 +505,19 @@ export class InventoryScreen {
         box-shadow:0 0 0 2px rgba(0,255,220,.06) inset;
       }
       .ship-slot.is-equipped{
-        border-color:rgba(0,255,100,.15);
+        border-style: solid;
+        border-color:rgba(0,255,100,.3);
         background:rgba(0,255,100,.05);
       }
       .ship-slot.is-empty{
-        opacity:.6;
+        opacity:.8;
+      }
+      .ship-slot-label {
+        font-size: 9px;
+        text-transform: uppercase;
+        color: rgba(232,240,255,.5);
+        margin-bottom: 4px;
+        text-align: center;
       }
       .ship-slot-chip{
         width:100%;
@@ -486,10 +543,10 @@ export class InventoryScreen {
       }
       .ship-slot-idx{
         position:absolute;
-        right:8px;
-        bottom:6px;
+        right:6px;
+        bottom:4px;
         opacity:.30;
-        font-size:11px;
+        font-size:9px;
         font-weight:900;
       }
       .ship-slots-empty{
